@@ -176,11 +176,10 @@ The `data/posts_by_date.json` file uses MM-DD keys to organize anniversary posts
 ### Domain Entities
 
 **Post**: Core entity representing a blog post
-- `URI` - Full URL to the blog post
+- `URI` - Full URL to the blog post (parsed by Mistral AI for content extraction)
 - `Date` - Original publication date (YYYY-MM-DD format)
-- `Title` - Extracted from URI or fetched from source
-- `Summary` - Brief description for AI context
 - Validation for URL format and date constraints
+- Minimal data model - content extraction delegated to Mistral AI
 
 **DateGroup**: Value object for handling multiple posts on the same anniversary date
 - Groups posts by MM-DD key
@@ -239,7 +238,7 @@ The application uses Mistral AI to generate engaging, platform-specific content:
 **Template Structure**:
 ```
 CONTEXT: [Anniversary date and historical significance]
-POST_DATA: [URL, title, original date, brief description]
+POST_URI: [Full URL - Mistral extracts content from this]
 PLATFORM: [Target platform with specific constraints]
 TONE: [Community-focused, enthusiastic, educational]
 REQUIREMENTS: [Character limits, hashtag expectations, engagement goals]
@@ -248,7 +247,7 @@ OUTPUT_FORMAT: [Structured response with text, hashtags, metadata]
 
 **Dynamic Variables**:
 - `{ANNIVERSARY_YEARS}` - Years since original publication
-- `{POST_TITLE}` - Extracted or generated title
+- `{POST_URI}` - Blog post URL (Mistral handles content extraction)
 - `{PLATFORM_CONSTRAINTS}` - Character limits and formatting rules
 - `{COMMUNITY_CONTEXT}` - UAC community-specific language
 - `{ENGAGEMENT_HOOKS}` - Platform-appropriate call-to-actions
@@ -450,6 +449,7 @@ Uses Go's structured logging (`slog`) with AI-specific fields:
 
 ### Mistral AI Integration Requirements
 - **Always use Mistral AI**: Content generation is mandatory, not optional
+- **URI parsing**: Mistral AI parses blog post URIs directly for content extraction (no pre-extracted title/summary)
 - **Respect rate limits**: Implement exponential backoff for API rate limiting
 - **Token management**: Monitor and report token usage
 - **Fallback handling**: Handle API timeouts and service errors gracefully
@@ -478,13 +478,22 @@ Uses Go's structured logging (`slog`) with AI-specific fields:
 - `.forgejo/workflows/publish.yml` - CI/CD pipeline with `go test ./...`
 - `data/posts_by_date.json` - Source data (extremely large, MM-DD keyed)
 
-### To Be Implemented
-This is an initial project setup. The architecture is defined but no core logic exists. Build in this sequence:
+**Phase 1: Foundation** ✅ COMPLETE
+- ✅ Domain models (`internal/domain/{post,dategroup,result}.go`)
+  - Post: Minimal entity with URI + date (content extraction via Mistral AI)
+  - DateGroup: Anniversary date grouping by MM-DD
+  - PublishResult: Multi-platform publishing outcomes with cost tracking
+- ✅ Port interfaces (`internal/ports/{repository,publisher,generator}.go`)
+  - PostRepository: Data access contract
+  - SocialPublisher: Platform-agnostic publishing interface
+  - ContentGenerator: AI content generation contract
+- ✅ Logging infrastructure (`internal/infrastructure/logger.go`)
+  - Structured slog-based logging with secret sanitization
+  - Environment-driven configuration (UAC_LOG_LEVEL, UAC_LOG_FORMAT)
+- ✅ Comprehensive unit tests with 95%+ coverage
+- ✅ All compilation, linting, and test checks passing
 
-**Phase 1: Foundation**
-- [ ] Create domain models (`internal/domain/{post,dategroup,result}.go`)
-- [ ] Define port interfaces (`internal/ports/{repository,publisher,generator}.go`)
-- [ ] Set up logging infrastructure (`internal/infrastructure/logger.go`)
+### To Be Implemented
 
 **Phase 2: Data Access**
 - [ ] JSONFileRepository adapter (`internal/adapters/repository/json_file.go`)
