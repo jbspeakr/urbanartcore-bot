@@ -53,4 +53,4 @@ uac-socializer
 # Built Visual Studio Code Extensions
 *.vsix
 
-docs/
+notes/
