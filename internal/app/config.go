@@ -1,0 +1,279 @@
+package app
+
+import (
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/spf13/viper"
+)
+
+// Config holds all application configuration with environment variable binding.
+// All secrets and runtime configuration are provided via UAC_* environment variables
+// following 12-factor app principles.
+type Config struct {
+	// Core configuration
+	DataPath    string `mapstructure:"data_path"`
+	PromptsPath string `mapstructure:"prompts_path"`
+	LogLevel    string `mapstructure:"log_level"`
+	LogFormat   string `mapstructure:"log_format"`
+
+	// Mistral AI configuration
+	MistralAPIKey      string  `mapstructure:"mistral_api_key"`
+	MistralModel       string  `mapstructure:"mistral_model"`
+	MistralMaxTokens   int     `mapstructure:"mistral_max_tokens"`
+	MistralTemperature float64 `mapstructure:"mistral_temperature"`
+
+	// Bluesky configuration
+	BlueskyHandle   string `mapstructure:"bluesky_handle"`
+	BlueskyPassword string `mapstructure:"bluesky_password"`
+
+	// Mastodon configuration
+	MastodonServer      string `mapstructure:"mastodon_server"`
+	MastodonAccessToken string `mapstructure:"mastodon_access_token"`
+
+	// Operational configuration
+	AIRetryCount int           `mapstructure:"ai_retry_count"`
+	AITimeout    time.Duration `mapstructure:"ai_timeout"`
+}
+
+// ConfigError represents configuration-related errors.
+type ConfigError struct {
+	Op  string // Operation that caused the error
+	Err error  // Underlying error
+}
+
+func (e ConfigError) Error() string {
+	if e.Op == "" {
+		return e.Err.Error()
+	}
+	return fmt.Sprintf("config.%s: %v", e.Op, e.Err)
+}
+
+func (e ConfigError) Unwrap() error {
+	return e.Err
+}
+
+// Common configuration errors
+var (
+	ErrInvalidLogLevel      = errors.New("invalid log level")
+	ErrInvalidLogFormat     = errors.New("invalid log format")
+	ErrInvalidTemperature   = errors.New("invalid temperature")
+	ErrInvalidTimeout       = errors.New("invalid timeout")
+	ErrMissingRequiredField = errors.New("missing required field")
+)
+
+// LoadConfig loads configuration from environment variables using Viper.
+// It sets defaults for optional fields and validates all configuration values.
+// Returns error only for configuration loading failures, not missing optional values.
+func LoadConfig() (*Config, error) {
+	const op = "LoadConfig"
+
+	v := viper.New()
+
+	// Configure Viper for environment variables
+	v.SetEnvPrefix("UAC")
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.AutomaticEnv()
+
+	// Bind all environment variables
+	envVars := []string{
+		"data_path",
+		"prompts_path",
+		"log_level",
+		"log_format",
+		"mistral_api_key",
+		"mistral_model",
+		"mistral_max_tokens",
+		"mistral_temperature",
+		"bluesky_handle",
+		"bluesky_password",
+		"mastodon_server",
+		"mastodon_access_token",
+		"ai_retry_count",
+		"ai_timeout",
+	}
+
+	for _, envVar := range envVars {
+		if err := v.BindEnv(envVar); err != nil {
+			return nil, ConfigError{Op: op, Err: fmt.Errorf("failed to bind env var %s: %w", envVar, err)}
+		}
+	}
+
+	// Set defaults
+	v.SetDefault("data_path", "./data/posts_by_date.json")
+	v.SetDefault("prompts_path", "./internal/infrastructure/prompts")
+	v.SetDefault("log_level", "info")
+	v.SetDefault("log_format", "json")
+	v.SetDefault("mistral_model", "mistral-large")
+	v.SetDefault("mistral_max_tokens", 1000)
+	v.SetDefault("mistral_temperature", 0.7)
+	v.SetDefault("ai_retry_count", 3)
+	v.SetDefault("ai_timeout", "30s")
+
+	// Parse duration string first before unmarshal to provide better error messages
+	if timeoutStr := v.GetString("ai_timeout"); timeoutStr != "" {
+		duration, err := time.ParseDuration(timeoutStr)
+		if err != nil {
+			return nil, ConfigError{Op: op, Err: fmt.Errorf("invalid ai_timeout format: %w", err)}
+		}
+		v.Set("ai_timeout", duration)
+	}
+
+	var config Config
+	if err := v.Unmarshal(&config); err != nil {
+		return nil, ConfigError{Op: op, Err: fmt.Errorf("failed to unmarshal config: %w", err)}
+	}
+
+	// Validate configuration
+	if err := config.Validate(); err != nil {
+		return nil, ConfigError{Op: op, Err: err}
+	}
+
+	return &config, nil
+}
+
+// Validate performs validation on all configuration fields.
+// It checks for valid log levels, formats, temperature ranges, and positive timeouts.
+// Returns detailed error messages indicating which field failed validation.
+func (c *Config) Validate() error {
+	const op = "Validate"
+
+	// Validate log level
+	validLogLevels := map[string]bool{
+		"debug": true,
+		"info":  true,
+		"warn":  true,
+		"error": true,
+	}
+	if !validLogLevels[strings.ToLower(c.LogLevel)] {
+		return ConfigError{
+			Op:  op,
+			Err: fmt.Errorf("%w: log_level must be one of: debug, info, warn, error (got: %s)", ErrInvalidLogLevel, c.LogLevel),
+		}
+	}
+
+	// Validate log format
+	validLogFormats := map[string]bool{
+		"json": true,
+		"text": true,
+	}
+	if !validLogFormats[strings.ToLower(c.LogFormat)] {
+		return ConfigError{
+			Op:  op,
+			Err: fmt.Errorf("%w: log_format must be one of: json, text (got: %s)", ErrInvalidLogFormat, c.LogFormat),
+		}
+	}
+
+	// Validate Mistral temperature (0.0 to 1.0)
+	if c.MistralTemperature < 0.0 || c.MistralTemperature > 1.0 {
+		return ConfigError{
+			Op:  op,
+			Err: fmt.Errorf("%w: mistral_temperature must be between 0.0 and 1.0 (got: %f)", ErrInvalidTemperature, c.MistralTemperature),
+		}
+	}
+
+	// Validate AI timeout is positive
+	if c.AITimeout <= 0 {
+		return ConfigError{
+			Op:  op,
+			Err: fmt.Errorf("%w: ai_timeout must be positive (got: %v)", ErrInvalidTimeout, c.AITimeout),
+		}
+	}
+
+	// Validate AI retry count is non-negative
+	if c.AIRetryCount < 0 {
+		return ConfigError{
+			Op:  op,
+			Err: fmt.Errorf("ai_retry_count must be non-negative (got: %d)", c.AIRetryCount),
+		}
+	}
+
+	// Validate Mistral max tokens is positive
+	if c.MistralMaxTokens <= 0 {
+		return ConfigError{
+			Op:  op,
+			Err: fmt.Errorf("mistral_max_tokens must be positive (got: %d)", c.MistralMaxTokens),
+		}
+	}
+
+	return nil
+}
+
+// SanitizeForLogging returns a copy of the configuration with all secrets redacted.
+// This is used for safe logging without exposing sensitive credentials.
+func (c *Config) SanitizeForLogging() Config {
+	sanitized := *c
+
+	// Redact all secrets
+	if sanitized.MistralAPIKey != "" {
+		sanitized.MistralAPIKey = "***"
+	}
+	if sanitized.BlueskyPassword != "" {
+		sanitized.BlueskyPassword = "***"
+	}
+	if sanitized.MastodonAccessToken != "" {
+		sanitized.MastodonAccessToken = "***"
+	}
+
+	return sanitized
+}
+
+// IsProductionMode returns true if the configuration indicates production usage.
+// This is determined by the log level being set to warn or error.
+func (c *Config) IsProductionMode() bool {
+	level := strings.ToLower(c.LogLevel)
+	return level == "warn" || level == "error"
+}
+
+// GetMistralConfig returns Mistral-specific configuration as a separate struct.
+// This is useful for passing only relevant configuration to the Mistral adapter.
+func (c *Config) GetMistralConfig() MistralConfig {
+	return MistralConfig{
+		APIKey:      c.MistralAPIKey,
+		Model:       c.MistralModel,
+		MaxTokens:   c.MistralMaxTokens,
+		Temperature: c.MistralTemperature,
+		RetryCount:  c.AIRetryCount,
+		Timeout:     c.AITimeout,
+	}
+}
+
+// GetBlueskyConfig returns Bluesky-specific configuration as a separate struct.
+func (c *Config) GetBlueskyConfig() BlueskyConfig {
+	return BlueskyConfig{
+		Handle:   c.BlueskyHandle,
+		Password: c.BlueskyPassword,
+	}
+}
+
+// GetMastodonConfig returns Mastodon-specific configuration as a separate struct.
+func (c *Config) GetMastodonConfig() MastodonConfig {
+	return MastodonConfig{
+		Server:      c.MastodonServer,
+		AccessToken: c.MastodonAccessToken,
+	}
+}
+
+// MistralConfig contains Mistral AI-specific configuration.
+type MistralConfig struct {
+	APIKey      string
+	Model       string
+	MaxTokens   int
+	Temperature float64
+	RetryCount  int
+	Timeout     time.Duration
+}
+
+// BlueskyConfig contains Bluesky-specific configuration.
+type BlueskyConfig struct {
+	Handle   string
+	Password string
+}
+
+// MastodonConfig contains Mastodon-specific configuration.
+type MastodonConfig struct {
+	Server      string
+	AccessToken string
+}

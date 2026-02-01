@@ -1,0 +1,462 @@
+package app
+
+import (
+	"os"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestLoadConfig_AllEnvVars(t *testing.T) {
+	// Set all environment variables
+	envVars := map[string]string{
+		"UAC_DATA_PATH":             "/custom/data/posts.json",
+		"UAC_PROMPTS_PATH":          "/custom/prompts",
+		"UAC_LOG_LEVEL":             "debug",
+		"UAC_LOG_FORMAT":            "text",
+		"UAC_MISTRAL_API_KEY":       "sk-test-key-123",
+		"UAC_MISTRAL_MODEL":         "mistral-medium",
+		"UAC_MISTRAL_MAX_TOKENS":    "2000",
+		"UAC_MISTRAL_TEMPERATURE":   "0.5",
+		"UAC_BLUESKY_HANDLE":        "test.bsky.social",
+		"UAC_BLUESKY_PASSWORD":      "test-password",
+		"UAC_MASTODON_SERVER":       "https://test.mastodon",
+		"UAC_MASTODON_ACCESS_TOKEN": "test-token-123",
+		"UAC_AI_RETRY_COUNT":        "5",
+		"UAC_AI_TIMEOUT":            "45s",
+	}
+
+	// Set environment variables
+	for key, value := range envVars {
+		t.Setenv(key, value)
+	}
+
+	config, err := LoadConfig()
+	require.NoError(t, err)
+	require.NotNil(t, config)
+
+	// Verify all values are loaded correctly
+	assert.Equal(t, "/custom/data/posts.json", config.DataPath)
+	assert.Equal(t, "/custom/prompts", config.PromptsPath)
+	assert.Equal(t, "debug", config.LogLevel)
+	assert.Equal(t, "text", config.LogFormat)
+	assert.Equal(t, "sk-test-key-123", config.MistralAPIKey)
+	assert.Equal(t, "mistral-medium", config.MistralModel)
+	assert.Equal(t, 2000, config.MistralMaxTokens)
+	assert.Equal(t, 0.5, config.MistralTemperature)
+	assert.Equal(t, "test.bsky.social", config.BlueskyHandle)
+	assert.Equal(t, "test-password", config.BlueskyPassword)
+	assert.Equal(t, "https://test.mastodon", config.MastodonServer)
+	assert.Equal(t, "test-token-123", config.MastodonAccessToken)
+	assert.Equal(t, 5, config.AIRetryCount)
+	assert.Equal(t, 45*time.Second, config.AITimeout)
+}
+
+func TestLoadConfig_Defaults(t *testing.T) {
+	// Clear all UAC environment variables to test defaults
+	clearUACEnvVars(t)
+
+	config, err := LoadConfig()
+	require.NoError(t, err)
+	require.NotNil(t, config)
+
+	// Verify default values
+	assert.Equal(t, "./data/posts_by_date.json", config.DataPath)
+	assert.Equal(t, "./internal/infrastructure/prompts", config.PromptsPath)
+	assert.Equal(t, "info", config.LogLevel)
+	assert.Equal(t, "json", config.LogFormat)
+	assert.Equal(t, "mistral-large", config.MistralModel)
+	assert.Equal(t, 1000, config.MistralMaxTokens)
+	assert.Equal(t, 0.7, config.MistralTemperature)
+	assert.Equal(t, 3, config.AIRetryCount)
+	assert.Equal(t, 30*time.Second, config.AITimeout)
+
+	// Optional fields should be empty when not set
+	assert.Equal(t, "", config.MistralAPIKey)
+	assert.Equal(t, "", config.BlueskyHandle)
+	assert.Equal(t, "", config.BlueskyPassword)
+	assert.Equal(t, "", config.MastodonServer)
+	assert.Equal(t, "", config.MastodonAccessToken)
+}
+
+func TestLoadConfig_InvalidDuration(t *testing.T) {
+	clearUACEnvVars(t)
+	t.Setenv("UAC_AI_TIMEOUT", "invalid-duration")
+
+	_, err := LoadConfig()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid ai_timeout format")
+}
+
+func TestValidateConfig_Success(t *testing.T) {
+	config := &Config{
+		LogLevel:           "info",
+		LogFormat:          "json",
+		MistralTemperature: 0.7,
+		AITimeout:          30 * time.Second,
+		AIRetryCount:       3,
+		MistralMaxTokens:   1000,
+	}
+
+	err := config.Validate()
+	assert.NoError(t, err)
+}
+
+func TestValidateConfig_InvalidLogLevel(t *testing.T) {
+	testCases := []struct {
+		name     string
+		logLevel string
+	}{
+		{"empty", ""},
+		{"invalid", "invalid"},
+		{"trace", "trace"},
+		{"fatal", "fatal"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			config := &Config{
+				LogLevel:           tc.logLevel,
+				LogFormat:          "json",
+				MistralTemperature: 0.7,
+				AITimeout:          30 * time.Second,
+				AIRetryCount:       3,
+				MistralMaxTokens:   1000,
+			}
+
+			err := config.Validate()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "invalid log level")
+			assert.Contains(t, err.Error(), tc.logLevel)
+		})
+	}
+}
+
+func TestValidateConfig_CaseInsensitiveLogLevel(t *testing.T) {
+	validLevels := []string{"DEBUG", "Info", "WARN", "Error", "debug", "info", "warn", "error"}
+
+	for _, level := range validLevels {
+		t.Run(level, func(t *testing.T) {
+			config := &Config{
+				LogLevel:           level,
+				LogFormat:          "json",
+				MistralTemperature: 0.7,
+				AITimeout:          30 * time.Second,
+				AIRetryCount:       3,
+				MistralMaxTokens:   1000,
+			}
+
+			err := config.Validate()
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestValidateConfig_InvalidLogFormat(t *testing.T) {
+	testCases := []struct {
+		name      string
+		logFormat string
+	}{
+		{"empty", ""},
+		{"invalid", "invalid"},
+		{"xml", "xml"},
+		{"yaml", "yaml"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			config := &Config{
+				LogLevel:           "info",
+				LogFormat:          tc.logFormat,
+				MistralTemperature: 0.7,
+				AITimeout:          30 * time.Second,
+				AIRetryCount:       3,
+				MistralMaxTokens:   1000,
+			}
+
+			err := config.Validate()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "invalid log format")
+			assert.Contains(t, err.Error(), tc.logFormat)
+		})
+	}
+}
+
+func TestValidateConfig_CaseInsensitiveLogFormat(t *testing.T) {
+	validFormats := []string{"JSON", "Text", "json", "text"}
+
+	for _, format := range validFormats {
+		t.Run(format, func(t *testing.T) {
+			config := &Config{
+				LogLevel:           "info",
+				LogFormat:          format,
+				MistralTemperature: 0.7,
+				AITimeout:          30 * time.Second,
+				AIRetryCount:       3,
+				MistralMaxTokens:   1000,
+			}
+
+			err := config.Validate()
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestValidateConfig_InvalidTemperature(t *testing.T) {
+	testCases := []struct {
+		name        string
+		temperature float64
+	}{
+		{"negative", -0.1},
+		{"too_high", 1.1},
+		{"way_too_high", 2.0},
+		{"zero_valid", 0.0},
+		{"one_valid", 1.0},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			config := &Config{
+				LogLevel:           "info",
+				LogFormat:          "json",
+				MistralTemperature: tc.temperature,
+				AITimeout:          30 * time.Second,
+				AIRetryCount:       3,
+				MistralMaxTokens:   1000,
+			}
+
+			err := config.Validate()
+
+			if tc.temperature >= 0.0 && tc.temperature <= 1.0 {
+				assert.NoError(t, err, "Temperature %f should be valid", tc.temperature)
+			} else {
+				require.Error(t, err, "Temperature %f should be invalid", tc.temperature)
+				assert.Contains(t, err.Error(), "invalid temperature")
+			}
+		})
+	}
+}
+
+func TestValidateConfig_InvalidTimeout(t *testing.T) {
+	testCases := []struct {
+		name    string
+		timeout time.Duration
+	}{
+		{"zero", 0},
+		{"negative", -1 * time.Second},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			config := &Config{
+				LogLevel:           "info",
+				LogFormat:          "json",
+				MistralTemperature: 0.7,
+				AITimeout:          tc.timeout,
+				AIRetryCount:       3,
+				MistralMaxTokens:   1000,
+			}
+
+			err := config.Validate()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "invalid timeout")
+		})
+	}
+}
+
+func TestValidateConfig_InvalidRetryCount(t *testing.T) {
+	config := &Config{
+		LogLevel:           "info",
+		LogFormat:          "json",
+		MistralTemperature: 0.7,
+		AITimeout:          30 * time.Second,
+		AIRetryCount:       -1,
+		MistralMaxTokens:   1000,
+	}
+
+	err := config.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "ai_retry_count must be non-negative")
+}
+
+func TestValidateConfig_InvalidMaxTokens(t *testing.T) {
+	testCases := []struct {
+		name      string
+		maxTokens int
+	}{
+		{"zero", 0},
+		{"negative", -100},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			config := &Config{
+				LogLevel:           "info",
+				LogFormat:          "json",
+				MistralTemperature: 0.7,
+				AITimeout:          30 * time.Second,
+				AIRetryCount:       3,
+				MistralMaxTokens:   tc.maxTokens,
+			}
+
+			err := config.Validate()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "mistral_max_tokens must be positive")
+		})
+	}
+}
+
+func TestSanitizeForLogging_RedactsSecrets(t *testing.T) {
+	config := &Config{
+		DataPath:            "/path/to/data",
+		LogLevel:            "info",
+		MistralAPIKey:       "sk-secret-key-12345",
+		BlueskyPassword:     "secret-password",
+		MastodonAccessToken: "access-token-67890",
+		MistralModel:        "mistral-large",
+	}
+
+	sanitized := config.SanitizeForLogging()
+
+	// Non-secrets should be preserved
+	assert.Equal(t, config.DataPath, sanitized.DataPath)
+	assert.Equal(t, config.LogLevel, sanitized.LogLevel)
+	assert.Equal(t, config.MistralModel, sanitized.MistralModel)
+
+	// Secrets should be redacted
+	assert.Equal(t, "***", sanitized.MistralAPIKey)
+	assert.Equal(t, "***", sanitized.BlueskyPassword)
+	assert.Equal(t, "***", sanitized.MastodonAccessToken)
+
+	// Original config should be unchanged
+	assert.Equal(t, "sk-secret-key-12345", config.MistralAPIKey)
+	assert.Equal(t, "secret-password", config.BlueskyPassword)
+	assert.Equal(t, "access-token-67890", config.MastodonAccessToken)
+}
+
+func TestSanitizeForLogging_EmptySecrets(t *testing.T) {
+	config := &Config{
+		DataPath:            "/path/to/data",
+		MistralAPIKey:       "",
+		BlueskyPassword:     "",
+		MastodonAccessToken: "",
+	}
+
+	sanitized := config.SanitizeForLogging()
+
+	// Empty secrets should remain empty
+	assert.Equal(t, "", sanitized.MistralAPIKey)
+	assert.Equal(t, "", sanitized.BlueskyPassword)
+	assert.Equal(t, "", sanitized.MastodonAccessToken)
+	assert.Equal(t, config.DataPath, sanitized.DataPath)
+}
+
+func TestIsProductionMode(t *testing.T) {
+	testCases := []struct {
+		name       string
+		logLevel   string
+		production bool
+	}{
+		{"debug", "debug", false},
+		{"info", "info", false},
+		{"warn", "warn", true},
+		{"error", "error", true},
+		{"DEBUG", "DEBUG", false},
+		{"WARN", "WARN", true},
+		{"Error", "Error", true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			config := &Config{LogLevel: tc.logLevel}
+			assert.Equal(t, tc.production, config.IsProductionMode())
+		})
+	}
+}
+
+func TestGetMistralConfig(t *testing.T) {
+	config := &Config{
+		MistralAPIKey:      "test-key",
+		MistralModel:       "mistral-medium",
+		MistralMaxTokens:   2000,
+		MistralTemperature: 0.5,
+		AIRetryCount:       5,
+		AITimeout:          45 * time.Second,
+	}
+
+	mistralConfig := config.GetMistralConfig()
+
+	assert.Equal(t, "test-key", mistralConfig.APIKey)
+	assert.Equal(t, "mistral-medium", mistralConfig.Model)
+	assert.Equal(t, 2000, mistralConfig.MaxTokens)
+	assert.Equal(t, 0.5, mistralConfig.Temperature)
+	assert.Equal(t, 5, mistralConfig.RetryCount)
+	assert.Equal(t, 45*time.Second, mistralConfig.Timeout)
+}
+
+func TestGetBlueskyConfig(t *testing.T) {
+	config := &Config{
+		BlueskyHandle:   "test.bsky.social",
+		BlueskyPassword: "test-password",
+	}
+
+	blueskyConfig := config.GetBlueskyConfig()
+
+	assert.Equal(t, "test.bsky.social", blueskyConfig.Handle)
+	assert.Equal(t, "test-password", blueskyConfig.Password)
+}
+
+func TestGetMastodonConfig(t *testing.T) {
+	config := &Config{
+		MastodonServer:      "https://mastodon.social",
+		MastodonAccessToken: "test-token",
+	}
+
+	mastodonConfig := config.GetMastodonConfig()
+
+	assert.Equal(t, "https://mastodon.social", mastodonConfig.Server)
+	assert.Equal(t, "test-token", mastodonConfig.AccessToken)
+}
+
+func TestConfigError(t *testing.T) {
+	baseErr := assert.AnError
+	configErr := ConfigError{Op: "TestOperation", Err: baseErr}
+
+	assert.Equal(t, "config.TestOperation: assert.AnError general error for testing", configErr.Error())
+	assert.Equal(t, baseErr, configErr.Unwrap())
+}
+
+func TestConfigError_EmptyOp(t *testing.T) {
+	baseErr := assert.AnError
+	configErr := ConfigError{Err: baseErr}
+
+	assert.Equal(t, baseErr.Error(), configErr.Error())
+	assert.Equal(t, baseErr, configErr.Unwrap())
+}
+
+// Helper function to clear all UAC environment variables for testing defaults
+func clearUACEnvVars(t *testing.T) {
+	envVars := []string{
+		"UAC_DATA_PATH",
+		"UAC_PROMPTS_PATH",
+		"UAC_LOG_LEVEL",
+		"UAC_LOG_FORMAT",
+		"UAC_MISTRAL_API_KEY",
+		"UAC_MISTRAL_MODEL",
+		"UAC_MISTRAL_MAX_TOKENS",
+		"UAC_MISTRAL_TEMPERATURE",
+		"UAC_BLUESKY_HANDLE",
+		"UAC_BLUESKY_PASSWORD",
+		"UAC_MASTODON_SERVER",
+		"UAC_MASTODON_ACCESS_TOKEN",
+		"UAC_AI_RETRY_COUNT",
+		"UAC_AI_TIMEOUT",
+	}
+
+	for _, envVar := range envVars {
+		// Use os.Unsetenv since we want to actually clear them
+		_ = os.Unsetenv(envVar)
+	}
+}

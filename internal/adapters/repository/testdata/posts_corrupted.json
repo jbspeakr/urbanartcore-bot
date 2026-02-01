@@ -1,0 +1,7 @@
+{
+  "invalid-json": [
+    {
+      "uri": "https://example.com"
+      "date": "2020-01-01"
+    }
+  ]

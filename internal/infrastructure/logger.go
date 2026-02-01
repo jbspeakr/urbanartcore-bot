@@ -3,7 +3,6 @@ package infrastructure
 import (
 	"context"
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"strings"
@@ -41,10 +40,11 @@ func (l LogLevel) ToSlogLevel() slog.Level {
 }
 
 // LoggerConfig holds configuration for the structured logger.
+// 12-factor app: logs always go to stdout, never to files.
+// Container runtime (Docker/Kubernetes) handles log aggregation.
 type LoggerConfig struct {
 	Level  LogLevel `json:"level"`
 	Format string   `json:"format"` // "json" or "text"
-	Output string   `json:"output"` // "stdout", "stderr", or file path
 }
 
 // DefaultLoggerConfig returns sensible defaults for logging.
@@ -52,51 +52,36 @@ func DefaultLoggerConfig() *LoggerConfig {
 	return &LoggerConfig{
 		Level:  LevelInfo,
 		Format: "json",
-		Output: "stdout",
 	}
 }
 
 // StructuredLogger wraps slog.Logger with domain-specific functionality
 // and secret sanitization for the UAC Socializer application.
+// Logs are always written to stdout (12-factor app principle).
 type StructuredLogger struct {
 	logger *slog.Logger
 	config *LoggerConfig
 }
 
 // NewStructuredLogger creates a new logger with the given configuration.
+// Logs are always written to stdout for 12-factor compliance.
 func NewStructuredLogger(config *LoggerConfig) (*StructuredLogger, error) {
 	if config == nil {
 		config = DefaultLoggerConfig()
 	}
 
-	// Determine output destination
-	var writer io.Writer
-	switch config.Output {
-	case "stdout", "":
-		writer = os.Stdout
-	case "stderr":
-		writer = os.Stderr
-	default:
-		// Assume it's a file path
-		file, err := os.OpenFile(config.Output, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-		if err != nil {
-			return nil, fmt.Errorf("failed to open log file %s: %w", config.Output, err)
-		}
-		writer = file
-	}
-
-	// Create handler based on format
+	// Create handler based on format (logs always go to stdout)
 	var handler slog.Handler
 	opts := &slog.HandlerOptions{
-		Level: config.Level.ToSlogLevel(),
+		Level:       config.Level.ToSlogLevel(),
 		ReplaceAttr: sanitizeSecrets,
 	}
 
 	switch config.Format {
 	case "json":
-		handler = slog.NewJSONHandler(writer, opts)
+		handler = slog.NewJSONHandler(os.Stdout, opts)
 	case "text":
-		handler = slog.NewTextHandler(writer, opts)
+		handler = slog.NewTextHandler(os.Stdout, opts)
 	default:
 		return nil, fmt.Errorf("unsupported log format: %s", config.Format)
 	}
@@ -107,28 +92,6 @@ func NewStructuredLogger(config *LoggerConfig) (*StructuredLogger, error) {
 		logger: logger,
 		config: config,
 	}, nil
-}
-
-// NewLoggerFromEnv creates a logger configured from environment variables.
-func NewLoggerFromEnv() (*StructuredLogger, error) {
-	config := DefaultLoggerConfig()
-
-	// Read log level from environment
-	if envLevel := os.Getenv("UAC_LOG_LEVEL"); envLevel != "" {
-		config.Level = LogLevel(strings.ToLower(envLevel))
-	}
-
-	// Read log format from environment
-	if envFormat := os.Getenv("UAC_LOG_FORMAT"); envFormat != "" {
-		config.Format = strings.ToLower(envFormat)
-	}
-
-	// Read log output from environment
-	if envOutput := os.Getenv("UAC_LOG_OUTPUT"); envOutput != "" {
-		config.Output = envOutput
-	}
-
-	return NewStructuredLogger(config)
 }
 
 // sanitizeSecrets replaces sensitive information in log attributes.

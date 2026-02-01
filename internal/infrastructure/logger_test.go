@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -62,10 +61,6 @@ func TestDefaultLoggerConfig(t *testing.T) {
 	if config.Format != "json" {
 		t.Errorf("Expected default format to be 'json', got %v", config.Format)
 	}
-
-	if config.Output != "stdout" {
-		t.Errorf("Expected default output to be 'stdout', got %v", config.Output)
-	}
 }
 
 func TestNewStructuredLogger(t *testing.T) {
@@ -84,7 +79,6 @@ func TestNewStructuredLogger(t *testing.T) {
 			config: &LoggerConfig{
 				Level:  LevelDebug,
 				Format: "json",
-				Output: "stdout",
 			},
 			wantErr: false,
 		},
@@ -93,7 +87,6 @@ func TestNewStructuredLogger(t *testing.T) {
 			config: &LoggerConfig{
 				Level:  LevelInfo,
 				Format: "text",
-				Output: "stderr",
 			},
 			wantErr: false,
 		},
@@ -102,16 +95,6 @@ func TestNewStructuredLogger(t *testing.T) {
 			config: &LoggerConfig{
 				Level:  LevelInfo,
 				Format: "invalid",
-				Output: "stdout",
-			},
-			wantErr: true,
-		},
-		{
-			name: "invalid file path",
-			config: &LoggerConfig{
-				Level:  LevelInfo,
-				Format: "json",
-				Output: "/invalid/path/that/does/not/exist/file.log",
 			},
 			wantErr: true,
 		},
@@ -140,82 +123,6 @@ func TestNewStructuredLogger(t *testing.T) {
 	}
 }
 
-func TestNewLoggerFromEnv(t *testing.T) {
-	// Save original env vars
-	originalLevel := os.Getenv("UAC_LOG_LEVEL")
-	originalFormat := os.Getenv("UAC_LOG_FORMAT")
-	originalOutput := os.Getenv("UAC_LOG_OUTPUT")
-
-	// Cleanup function
-	cleanup := func() {
-		os.Setenv("UAC_LOG_LEVEL", originalLevel)
-		os.Setenv("UAC_LOG_FORMAT", originalFormat)
-		os.Setenv("UAC_LOG_OUTPUT", originalOutput)
-	}
-	defer cleanup()
-
-	tests := []struct {
-		name     string
-		envVars  map[string]string
-		expected *LoggerConfig
-	}{
-		{
-			name:    "no env vars uses defaults",
-			envVars: map[string]string{},
-			expected: &LoggerConfig{
-				Level:  LevelInfo,
-				Format: "json",
-				Output: "stdout",
-			},
-		},
-		{
-			name: "custom env vars",
-			envVars: map[string]string{
-				"UAC_LOG_LEVEL":  "debug",
-				"UAC_LOG_FORMAT": "text",
-				"UAC_LOG_OUTPUT": "stderr",
-			},
-			expected: &LoggerConfig{
-				Level:  LevelDebug,
-				Format: "text",
-				Output: "stderr",
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Clear env vars
-			os.Unsetenv("UAC_LOG_LEVEL")
-			os.Unsetenv("UAC_LOG_FORMAT")
-			os.Unsetenv("UAC_LOG_OUTPUT")
-
-			// Set test env vars
-			for key, value := range tt.envVars {
-				os.Setenv(key, value)
-			}
-
-			logger, err := NewLoggerFromEnv()
-			if err != nil {
-				t.Errorf("NewLoggerFromEnv() unexpected error: %v", err)
-				return
-			}
-
-			if logger.config.Level != tt.expected.Level {
-				t.Errorf("Expected level %v, got %v", tt.expected.Level, logger.config.Level)
-			}
-
-			if logger.config.Format != tt.expected.Format {
-				t.Errorf("Expected format %v, got %v", tt.expected.Format, logger.config.Format)
-			}
-
-			if logger.config.Output != tt.expected.Output {
-				t.Errorf("Expected output %v, got %v", tt.expected.Output, logger.config.Output)
-			}
-		})
-	}
-}
-
 func TestStructuredLogger_LoggingMethods(t *testing.T) {
 	// Create a buffer to capture log output
 	var buf bytes.Buffer
@@ -223,7 +130,6 @@ func TestStructuredLogger_LoggingMethods(t *testing.T) {
 	config := &LoggerConfig{
 		Level:  LevelDebug,
 		Format: "json",
-		Output: "stdout",
 	}
 
 	// Create logger with custom handler that writes to our buffer
@@ -401,7 +307,6 @@ func TestStructuredLogger_With(t *testing.T) {
 	config := &LoggerConfig{
 		Level:  LevelInfo,
 		Format: "json",
-		Output: "stdout",
 	}
 
 	opts := &slog.HandlerOptions{
@@ -437,7 +342,6 @@ func TestStructuredLogger_WithContext(t *testing.T) {
 	config := &LoggerConfig{
 		Level:  LevelInfo,
 		Format: "json",
-		Output: "stdout",
 	}
 
 	opts := &slog.HandlerOptions{
@@ -468,7 +372,6 @@ func BenchmarkStructuredLogger_Info(b *testing.B) {
 	logger, err := NewStructuredLogger(&LoggerConfig{
 		Level:  LevelInfo,
 		Format: "json",
-		Output: "stdout",
 	})
 	if err != nil {
 		b.Fatalf("Failed to create logger: %v", err)

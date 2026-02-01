@@ -11,12 +11,12 @@ import (
 
 // GeneratorError represents AI content generation errors.
 type GeneratorError struct {
-	Op       string              // Operation that caused the error
-	Model    string              // AI model used
-	Err      error               // Underlying error
-	Retryable bool               // Whether this error can be retried
+	Op         string            // Operation that caused the error
+	Model      string            // AI model used
+	Err        error             // Underlying error
+	Retryable  bool              // Whether this error can be retried
 	TokensUsed int               // Tokens consumed before error
-	Metadata map[string]string   // Additional error context
+	Metadata   map[string]string // Additional error context
 }
 
 func (e GeneratorError) Error() string {
@@ -53,13 +53,13 @@ var (
 
 // GenerationRequest contains all information needed to generate platform-specific content.
 type GenerationRequest struct {
-	Posts       []*domain.Post        `json:"posts"`        // Source posts for anniversary
-	Platform    string                `json:"platform"`     // Target platform (bluesky, mastodon)
-	DateKey     string                `json:"date_key"`     // MM-DD anniversary date
-	Context     map[string]string     `json:"context"`      // Additional context for AI
-	Model       string                `json:"model"`        // Specific AI model to use
-	Temperature float32               `json:"temperature"`   // Creativity level (0.0-1.0)
-	MaxTokens   int                   `json:"max_tokens"`   // Maximum tokens to generate
+	Posts       []*domain.Post    `json:"posts"`       // Source posts for anniversary
+	Platform    string            `json:"platform"`    // Target platform (bluesky, mastodon)
+	DateKey     string            `json:"date_key"`    // MM-DD anniversary date
+	Context     map[string]string `json:"context"`     // Additional context for AI
+	Model       string            `json:"model"`       // Specific AI model to use
+	Temperature float32           `json:"temperature"` // Creativity level (0.0-1.0)
+	MaxTokens   int               `json:"max_tokens"`  // Maximum tokens to generate
 }
 
 // NewGenerationRequest creates a new request with validation.
@@ -82,7 +82,7 @@ func NewGenerationRequest(posts []*domain.Post, platform string, dateKey string)
 		DateKey:     dateKey,
 		Context:     make(map[string]string),
 		Temperature: 0.7, // Balanced creativity
-		MaxTokens:   500,  // Conservative limit
+		MaxTokens:   500, // Conservative limit
 	}, nil
 }
 
@@ -142,13 +142,13 @@ type ContentGenerator interface {
 
 // GenerationOptions provides fine-grained control over content generation.
 type GenerationOptions struct {
-	DryRun          bool                `json:"dry_run"`           // Don't consume API quota
-	RetryCount      int                 `json:"retry_count"`       // Number of retry attempts
-	Timeout         time.Duration       `json:"timeout"`           // Generation timeout
-	FallbackModel   string              `json:"fallback_model"`    // Model to use if primary fails
-	CustomPrompt    string              `json:"custom_prompt"`     // Override default prompt
-	PreserveContext bool                `json:"preserve_context"`  // Keep conversation context
-	Metadata        map[string]string   `json:"metadata"`          // Additional generation context
+	DryRun          bool              `json:"dry_run"`          // Don't consume API quota
+	RetryCount      int               `json:"retry_count"`      // Number of retry attempts
+	Timeout         time.Duration     `json:"timeout"`          // Generation timeout
+	FallbackModel   string            `json:"fallback_model"`   // Model to use if primary fails
+	CustomPrompt    string            `json:"custom_prompt"`    // Override default prompt
+	PreserveContext bool              `json:"preserve_context"` // Keep conversation context
+	Metadata        map[string]string `json:"metadata"`         // Additional generation context
 }
 
 // DefaultGenerationOptions returns sensible defaults for content generation.
@@ -185,16 +185,16 @@ type AdvancedGenerator interface {
 
 // GeneratorStats provides metrics about content generation operations.
 type GeneratorStats struct {
-	Model              string        `json:"model"`
-	TotalGenerations   int           `json:"total_generations"`
-	SuccessRate        float64       `json:"success_rate"`        // 0.0 to 1.0
-	AverageLatency     time.Duration `json:"average_latency"`     // Generation response time
-	TotalTokensUsed    int           `json:"total_tokens_used"`   // Cumulative token consumption
-	AverageCostPerGen  float64       `json:"average_cost_per_gen"` // USD per generation
-	LastSuccess        *time.Time    `json:"last_success"`        // Last successful generation
-	LastError          string        `json:"last_error"`          // Most recent error message
-	QuotaRemaining     *int          `json:"quota_remaining"`     // Remaining API quota (if available)
-	ConnectionHealth   string        `json:"connection_health"`   // "healthy", "degraded", "unhealthy"
+	Model             string        `json:"model"`
+	TotalGenerations  int           `json:"total_generations"`
+	SuccessRate       float64       `json:"success_rate"`         // 0.0 to 1.0
+	AverageLatency    time.Duration `json:"average_latency"`      // Generation response time
+	TotalTokensUsed   int           `json:"total_tokens_used"`    // Cumulative token consumption
+	AverageCostPerGen float64       `json:"average_cost_per_gen"` // USD per generation
+	LastSuccess       *time.Time    `json:"last_success"`         // Last successful generation
+	LastError         string        `json:"last_error"`           // Most recent error message
+	QuotaRemaining    *int          `json:"quota_remaining"`      // Remaining API quota (if available)
+	ConnectionHealth  string        `json:"connection_health"`    // "healthy", "degraded", "unhealthy"
 }
 
 // GeneratorCostTracker is an optional interface that generators can implement

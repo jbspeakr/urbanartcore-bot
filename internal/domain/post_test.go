@@ -171,8 +171,8 @@ func TestPost_IsAnniversary(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name       string
-		checkDate  string
+		name          string
+		checkDate     string
 		isAnniversary bool
 	}{
 		{"exact anniversary", "2020-06-15", true},

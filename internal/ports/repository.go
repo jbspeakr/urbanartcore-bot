@@ -66,13 +66,13 @@ type PostRepository interface {
 
 // PostRepositoryStats provides metrics about the repository data.
 type PostRepositoryStats struct {
-	TotalPosts      int               `json:"total_posts"`
-	DatesWithPosts  int               `json:"dates_with_posts"`
-	YearRange       [2]int            `json:"year_range"`       // [min_year, max_year]
-	PostsPerMonth   map[int]int       `json:"posts_per_month"`  // month -> count
-	LargestDateGroup string           `json:"largest_date_group"` // MM-DD with most posts
-	DataSourceSize  int64             `json:"data_source_size"` // bytes
-	LastValidated   string            `json:"last_validated"`   // RFC3339 timestamp
+	TotalPosts       int         `json:"total_posts"`
+	DatesWithPosts   int         `json:"dates_with_posts"`
+	YearRange        [2]int      `json:"year_range"`         // [min_year, max_year]
+	PostsPerMonth    map[int]int `json:"posts_per_month"`    // month -> count
+	LargestDateGroup string      `json:"largest_date_group"` // MM-DD with most posts
+	DataSourceSize   int64       `json:"data_source_size"`   // bytes
+	LastValidated    string      `json:"last_validated"`     // RFC3339 timestamp
 }
 
 // StatsProvider is an optional interface that repository implementations

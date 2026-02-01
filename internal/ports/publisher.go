@@ -11,11 +11,11 @@ import (
 
 // PublisherError represents social media platform publishing errors.
 type PublisherError struct {
-	Op       string              // Operation that caused the error
-	Platform string              // Platform where error occurred
-	Err      error               // Underlying error
-	Retryable bool               // Whether this error can be retried
-	Metadata map[string]string   // Additional error context
+	Op        string            // Operation that caused the error
+	Platform  string            // Platform where error occurred
+	Err       error             // Underlying error
+	Retryable bool              // Whether this error can be retried
+	Metadata  map[string]string // Additional error context
 }
 
 func (e PublisherError) Error() string {
@@ -41,14 +41,14 @@ func (e PublisherError) IsRetryable() bool {
 
 // Common publisher errors
 var (
-	ErrAuthenticationFailed   = errors.New("authentication failed")
-	ErrRateLimitExceeded     = errors.New("rate limit exceeded")
-	ErrContentTooLong        = errors.New("content exceeds platform character limit")
-	ErrContentRejected       = errors.New("content rejected by platform")
-	ErrNetworkTimeout        = errors.New("network timeout")
-	ErrPlatformUnavailable   = errors.New("platform service unavailable")
-	ErrInvalidCredentials    = errors.New("invalid or expired credentials")
-	ErrDuplicatePost         = errors.New("duplicate post detected")
+	ErrAuthenticationFailed = errors.New("authentication failed")
+	ErrRateLimitExceeded    = errors.New("rate limit exceeded")
+	ErrContentTooLong       = errors.New("content exceeds platform character limit")
+	ErrContentRejected      = errors.New("content rejected by platform")
+	ErrNetworkTimeout       = errors.New("network timeout")
+	ErrPlatformUnavailable  = errors.New("platform service unavailable")
+	ErrInvalidCredentials   = errors.New("invalid or expired credentials")
+	ErrDuplicatePost        = errors.New("duplicate post detected")
 )
 
 // SocialPublisher defines the contract for publishing content to social media platforms.
@@ -85,10 +85,10 @@ type SocialPublisher interface {
 
 // PublishOptions provides additional configuration for publishing operations.
 type PublishOptions struct {
-	DryRun     bool                `json:"dry_run"`      // Don't actually publish
-	RetryCount int                 `json:"retry_count"`  // Number of retry attempts
-	Timeout    time.Duration       `json:"timeout"`      // Publishing timeout
-	Metadata   map[string]string   `json:"metadata"`     // Additional context
+	DryRun     bool              `json:"dry_run"`     // Don't actually publish
+	RetryCount int               `json:"retry_count"` // Number of retry attempts
+	Timeout    time.Duration     `json:"timeout"`     // Publishing timeout
+	Metadata   map[string]string `json:"metadata"`    // Additional context
 }
 
 // DefaultPublishOptions returns sensible defaults for publish operations.
@@ -141,14 +141,14 @@ type MultiplatformPublisher interface {
 
 // PublisherStats provides metrics about publishing operations.
 type PublisherStats struct {
-	Platform        string            `json:"platform"`
-	TotalPublished  int               `json:"total_published"`
-	SuccessRate     float64           `json:"success_rate"`      // 0.0 to 1.0
-	AverageLatency  time.Duration     `json:"average_latency"`   // Publishing response time
-	LastSuccess     *time.Time        `json:"last_success"`      // Last successful publish
-	LastError       string            `json:"last_error"`        // Most recent error message
-	RateLimitStatus string            `json:"rate_limit_status"` // Current rate limit status
-	ConnectionHealth string           `json:"connection_health"` // "healthy", "degraded", "unhealthy"
+	Platform         string        `json:"platform"`
+	TotalPublished   int           `json:"total_published"`
+	SuccessRate      float64       `json:"success_rate"`      // 0.0 to 1.0
+	AverageLatency   time.Duration `json:"average_latency"`   // Publishing response time
+	LastSuccess      *time.Time    `json:"last_success"`      // Last successful publish
+	LastError        string        `json:"last_error"`        // Most recent error message
+	RateLimitStatus  string        `json:"rate_limit_status"` // Current rate limit status
+	ConnectionHealth string        `json:"connection_health"` // "healthy", "degraded", "unhealthy"
 }
 
 // PublisherStatsProvider is an optional interface that publisher implementations

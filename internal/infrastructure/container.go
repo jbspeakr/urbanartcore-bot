@@ -1,0 +1,300 @@
+package infrastructure
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"strings"
+
+	"codeberg.org/brennenstuhl/uac-socializer/internal/app"
+	"codeberg.org/brennenstuhl/uac-socializer/internal/domain"
+	"codeberg.org/brennenstuhl/uac-socializer/internal/ports"
+)
+
+// Placeholder repository implementation
+type placeholderRepository struct{}
+
+func (r *placeholderRepository) GetPostsByDate(ctx context.Context, dateKey string) ([]*domain.Post, error) {
+	return nil, fmt.Errorf("not implemented: GetPostsByDate will be available in Phase 2")
+}
+
+func (r *placeholderRepository) GetDateGroup(ctx context.Context, dateKey string) (*domain.DateGroup, error) {
+	return nil, fmt.Errorf("not implemented: GetDateGroup will be available in Phase 2")
+}
+
+func (r *placeholderRepository) ListAvailableDates(ctx context.Context) ([]string, error) {
+	return nil, fmt.Errorf("not implemented: ListAvailableDates will be available in Phase 2")
+}
+
+func (r *placeholderRepository) GetPostCount(ctx context.Context) (int, error) {
+	return 0, fmt.Errorf("not implemented: GetPostCount will be available in Phase 2")
+}
+
+func (r *placeholderRepository) ValidateDataSource(ctx context.Context) error {
+	return fmt.Errorf("not implemented: ValidateDataSource will be available in Phase 2")
+}
+
+// Placeholder publisher implementation
+type placeholderPublisher struct {
+	platform string
+}
+
+func newPlaceholderPublisher(platform string) *placeholderPublisher {
+	return &placeholderPublisher{platform: platform}
+}
+
+func (p *placeholderPublisher) Platform() string {
+	return p.platform
+}
+
+func (p *placeholderPublisher) Publish(ctx context.Context, content *domain.GeneratedContent) (*domain.PlatformResult, error) {
+	return nil, fmt.Errorf("not implemented: %s publisher will be available in Phase 4", p.platform)
+}
+
+func (p *placeholderPublisher) ValidateContent(ctx context.Context, content *domain.GeneratedContent) error {
+	return fmt.Errorf("not implemented: %s content validation will be available in Phase 4", p.platform)
+}
+
+func (p *placeholderPublisher) GetCharacterLimit() int {
+	switch p.platform {
+	case domain.PlatformBluesky:
+		return domain.BlueskyCharacterLimit
+	case domain.PlatformMastodon:
+		return domain.MastodonCharacterLimit
+	default:
+		return 280
+	}
+}
+
+func (p *placeholderPublisher) SupportsHashtags() bool {
+	return true // Most platforms support hashtags
+}
+
+func (p *placeholderPublisher) SupportsMedia() bool {
+	return true // Most platforms support media
+}
+
+func (p *placeholderPublisher) TestConnection(ctx context.Context) error {
+	return fmt.Errorf("not implemented: %s connection test will be available in Phase 4", p.platform)
+}
+
+// Placeholder content generator implementation
+type placeholderGenerator struct{}
+
+func (g *placeholderGenerator) GenerateContent(ctx context.Context, req *ports.GenerationRequest) (*domain.GeneratedContent, error) {
+	return nil, fmt.Errorf("not implemented: GenerateContent will be available in Phase 5")
+}
+
+func (g *placeholderGenerator) GenerateForAllPlatforms(ctx context.Context, posts []*domain.Post, dateKey string) (map[string]*domain.GeneratedContent, error) {
+	return nil, fmt.Errorf("not implemented: GenerateForAllPlatforms will be available in Phase 5")
+}
+
+func (g *placeholderGenerator) ValidatePrompt(ctx context.Context, platform string, prompt string) error {
+	return fmt.Errorf("not implemented: ValidatePrompt will be available in Phase 5")
+}
+
+func (g *placeholderGenerator) GetSupportedModels(ctx context.Context) ([]string, error) {
+	return nil, fmt.Errorf("not implemented: GetSupportedModels will be available in Phase 5")
+}
+
+func (g *placeholderGenerator) TestConnection(ctx context.Context) error {
+	return fmt.Errorf("not implemented: TestConnection will be available in Phase 5")
+}
+
+// Container holds all application dependencies with proper initialization.
+type Container struct {
+	Config            *app.Config
+	Logger            *StructuredLogger
+	PostRepository    ports.PostRepository
+	BlueskyPublisher  ports.SocialPublisher
+	MastodonPublisher ports.SocialPublisher
+	ContentGenerator  ports.ContentGenerator
+}
+
+// NewContainer creates and initializes a new dependency injection container.
+// It accepts a pre-loaded configuration, initializes logging,
+// and sets up all required services with validation.
+func NewContainer(ctx context.Context, config *app.Config) (*Container, error) {
+	const op = "NewContainer"
+
+	if config == nil {
+		return nil, fmt.Errorf("%s: config cannot be nil", op)
+	}
+
+	// Validate configuration first
+	if err := config.Validate(); err != nil {
+		return nil, fmt.Errorf("%s: invalid configuration: %w", op, err)
+	}
+
+	// Convert app.Config LogLevel string to infrastructure.LogLevel for logger
+	var logLevel LogLevel
+	switch strings.ToLower(config.LogLevel) {
+	case "debug":
+		logLevel = LevelDebug
+	case "info":
+		logLevel = LevelInfo
+	case "warn":
+		logLevel = LevelWarn
+	case "error":
+		logLevel = LevelError
+	default:
+		logLevel = LevelInfo
+	}
+
+	// Initialize logger with converted log level
+	// Logs always go to stdout (12-factor app principle, container runtime handles aggregation)
+	loggerConfig := &LoggerConfig{
+		Level:  logLevel,
+		Format: config.LogFormat,
+	}
+
+	logger, err := NewStructuredLogger(loggerConfig)
+	if err != nil {
+		return nil, fmt.Errorf("%s: failed to initialize logger: %w", op, err)
+	}
+
+	// Log container initialization
+	logger.Debug("Initializing dependency container",
+		slog.String("operation", op),
+		slog.Any("config", config.SanitizeForLogging()),
+	)
+
+	// Initialize repository (placeholder for now)
+	repository := &placeholderRepository{}
+	logger.Debug("Initialized post repository", slog.String("type", "placeholder"))
+
+	// Initialize social publishers (placeholders for Phase 4)
+	blueskyPublisher := newPlaceholderPublisher(domain.PlatformBluesky)
+	mastodonPublisher := newPlaceholderPublisher(domain.PlatformMastodon)
+	logger.Debug("Initialized social publishers",
+		slog.String("bluesky", "placeholder"),
+		slog.String("mastodon", "placeholder"),
+	)
+
+	// Initialize content generator (placeholder for Phase 5)
+	contentGenerator := &placeholderGenerator{}
+	logger.Debug("Initialized content generator", slog.String("type", "placeholder"))
+
+	container := &Container{
+		Config:            config,
+		Logger:            logger,
+		PostRepository:    repository,
+		BlueskyPublisher:  blueskyPublisher,
+		MastodonPublisher: mastodonPublisher,
+		ContentGenerator:  contentGenerator,
+	}
+
+	logger.Info("Dependency container initialized successfully",
+		slog.String("operation", op),
+		slog.String("log_level", config.LogLevel),
+		slog.String("data_path", config.DataPath),
+	)
+
+	return container, nil
+}
+
+// Validate performs health checks on all container components.
+// It verifies configuration validity, logger initialization,
+// and repository accessibility.
+func (c *Container) Validate(ctx context.Context) error {
+	const op = "Container.Validate"
+
+	c.Logger.Debug("Starting container validation", slog.String("operation", op))
+
+	// Verify config is valid
+	if err := c.Config.Validate(); err != nil {
+		return fmt.Errorf("%s: configuration invalid: %w", op, err)
+	}
+
+	// Verify logger is initialized
+	if c.Logger == nil {
+		return fmt.Errorf("%s: logger not initialized", op)
+	}
+
+	// Verify repository is accessible (this will fail with placeholder)
+	if err := c.PostRepository.ValidateDataSource(ctx); err != nil {
+		// For placeholders, we expect this to fail, so we'll log a warning instead
+		c.Logger.Warn("Repository validation failed (expected for placeholder)",
+			slog.String("operation", op),
+			slog.String("error", err.Error()),
+		)
+	}
+
+	// Test publisher connections (these will fail with placeholders)
+	if err := c.BlueskyPublisher.TestConnection(ctx); err != nil {
+		c.Logger.Warn("Bluesky publisher connection test failed (expected for placeholder)",
+			slog.String("operation", op),
+			slog.String("error", err.Error()),
+		)
+	}
+
+	if err := c.MastodonPublisher.TestConnection(ctx); err != nil {
+		c.Logger.Warn("Mastodon publisher connection test failed (expected for placeholder)",
+			slog.String("operation", op),
+			slog.String("error", err.Error()),
+		)
+	}
+
+	// Test content generator connection (this will fail with placeholder)
+	if err := c.ContentGenerator.TestConnection(ctx); err != nil {
+		c.Logger.Warn("Content generator connection test failed (expected for placeholder)",
+			slog.String("operation", op),
+			slog.String("error", err.Error()),
+		)
+	}
+
+	c.Logger.Debug("Container validation completed", slog.String("operation", op))
+	return nil
+}
+
+// Close releases any resources held by the container.
+// Currently a placeholder for future resource cleanup.
+func (c *Container) Close() error {
+	const op = "Container.Close"
+
+	if c.Logger != nil {
+		c.Logger.Debug("Closing dependency container", slog.String("operation", op))
+	}
+
+	// Future cleanup will happen here:
+	// - Close database connections
+	// - Stop background workers
+	// - Release file handles
+	// - Clean up temporary resources
+
+	return nil
+}
+
+// GetRepository returns the configured post repository.
+func (c *Container) GetRepository() ports.PostRepository {
+	return c.PostRepository
+}
+
+// GetPublisher returns the publisher for the specified platform.
+func (c *Container) GetPublisher(platform string) (ports.SocialPublisher, error) {
+	platform = strings.ToLower(strings.TrimSpace(platform))
+
+	switch platform {
+	case domain.PlatformBluesky:
+		return c.BlueskyPublisher, nil
+	case domain.PlatformMastodon:
+		return c.MastodonPublisher, nil
+	default:
+		return nil, fmt.Errorf("unsupported platform: %s", platform)
+	}
+}
+
+// GetContentGenerator returns the configured content generator.
+func (c *Container) GetContentGenerator() ports.ContentGenerator {
+	return c.ContentGenerator
+}
+
+// GetLogger returns the structured logger.
+func (c *Container) GetLogger() *StructuredLogger {
+	return c.Logger
+}
+
+// GetConfig returns the application configuration.
+func (c *Container) GetConfig() *app.Config {
+	return c.Config
+}
