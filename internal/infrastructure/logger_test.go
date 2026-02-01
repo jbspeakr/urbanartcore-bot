@@ -232,9 +232,9 @@ func TestStructuredLogger_LoggingMethods(t *testing.T) {
 
 func TestSanitizeSecrets(t *testing.T) {
 	tests := []struct {
-		name     string
-		attr     slog.Attr
-		expected string
+		name       string
+		attr       slog.Attr
+		expected   string
 		isRedacted bool
 	}{
 		{
@@ -277,7 +277,7 @@ func TestSanitizeSecrets(t *testing.T) {
 			name:       "empty secret is handled",
 			attr:       slog.String("password", ""),
 			expected:   "",
-			isRedacted: false,  // Empty strings are preserved as empty
+			isRedacted: false, // Empty strings are preserved as empty
 		},
 	}
 

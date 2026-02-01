@@ -29,6 +29,7 @@ go.work.sum
 bin/
 dist/
 uac-socializer
+main
 
 # Coverage reports
 *.cover

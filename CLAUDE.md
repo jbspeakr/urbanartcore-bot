@@ -529,7 +529,7 @@ Uses Go's structured logging (`slog`) with AI-specific fields:
 
 ```bash
 # Build current state
-go build ./cmd/uac-socializer
+go build ./main.go
 
 # Run tests
 go test ./...

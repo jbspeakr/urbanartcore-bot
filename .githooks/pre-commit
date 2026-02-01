@@ -1,0 +1,70 @@
+#!/bin/bash
+# Pre-commit hook for linting and format validation
+# This script prevents commits that don't pass quality checks
+
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+echo -e "${YELLOW}Running pre-commit checks...${NC}"
+
+# Check if gofmt is needed
+echo "Checking code formatting..."
+UNFORMATTED=$(gofmt -l . 2>/dev/null | wc -l)
+if [ "$UNFORMATTED" -gt 0 ]; then
+    echo -e "${RED}✗ Code formatting issues detected${NC}"
+    echo "Run 'gofmt -w .' to fix formatting issues:"
+    gofmt -l .
+    exit 1
+fi
+
+# Check if go vet passes
+echo "Running go vet..."
+if ! go vet ./...; then
+    echo -e "${RED}✗ Go vet check failed${NC}"
+    exit 1
+fi
+
+# Check if go mod tidy is needed
+echo "Checking go.mod..."
+if ! go mod tidy -diff > /dev/null 2>&1; then
+    echo -e "${RED}✗ go.mod needs tidying${NC}"
+    echo "Run 'go mod tidy' to fix"
+    exit 1
+fi
+
+# Run tests
+echo "Running tests..."
+if ! go test ./... > /dev/null 2>&1; then
+    echo -e "${RED}✗ Tests failed${NC}"
+    echo "Fix failing tests before committing"
+    exit 1
+fi
+
+# Check if golangci-lint passes (if installed)
+if command -v golangci-lint > /dev/null; then
+    echo "Running golangci-lint..."
+    if ! golangci-lint run ./...; then
+        echo -e "${RED}✗ Linting failed${NC}"
+        exit 1
+    fi
+else
+    echo -e "${YELLOW}⚠ golangci-lint not installed, skipping advanced linting${NC}"
+    echo "  Install it with: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest"
+fi
+
+# Check for common issues
+echo "Checking for common issues..."
+
+# Check for merge conflict markers
+if grep -r "<<<<<<< HEAD\|======\|>>>>>>> " --include="*.go" . 2>/dev/null; then
+    echo -e "${RED}✗ Merge conflict markers found in Go files${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}✓ All pre-commit checks passed${NC}"
+exit 0

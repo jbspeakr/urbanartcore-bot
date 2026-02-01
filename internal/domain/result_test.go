@@ -291,14 +291,16 @@ func TestPublishResult_IsSuccess(t *testing.T) {
 	// Add successful platform
 	successResult, err := NewPlatformResult(PlatformBluesky, StatusSuccess, nil)
 	require.NoError(t, err)
-	result.AddPlatformResult(successResult)
+	err = result.AddPlatformResult(successResult)
+	require.NoError(t, err)
 
 	assert.True(t, result.IsSuccess())
 
 	// Add failed platform
 	failedResult, err := NewPlatformResult(PlatformMastodon, StatusFailed, nil)
 	require.NoError(t, err)
-	result.AddPlatformResult(failedResult)
+	err = result.AddPlatformResult(failedResult)
+	require.NoError(t, err)
 
 	// Now not all successful
 	assert.False(t, result.IsSuccess())
@@ -319,14 +321,16 @@ func TestPublishResult_HasFailures(t *testing.T) {
 	// Add successful platform
 	successResult, err := NewPlatformResult(PlatformBluesky, StatusSuccess, nil)
 	require.NoError(t, err)
-	result.AddPlatformResult(successResult)
+	err = result.AddPlatformResult(successResult)
+	require.NoError(t, err)
 
 	assert.False(t, result.HasFailures())
 
 	// Add failed platform
 	failedResult, err := NewPlatformResult(PlatformMastodon, StatusFailed, nil)
 	require.NoError(t, err)
-	result.AddPlatformResult(failedResult)
+	err = result.AddPlatformResult(failedResult)
+	require.NoError(t, err)
 
 	assert.True(t, result.HasFailures())
 }
@@ -344,11 +348,13 @@ func TestPublishResult_Counts(t *testing.T) {
 	// Add successful platform
 	successResult1, err := NewPlatformResult(PlatformBluesky, StatusSuccess, nil)
 	require.NoError(t, err)
-	result.AddPlatformResult(successResult1)
+	err = result.AddPlatformResult(successResult1)
+	require.NoError(t, err)
 
 	successResult2, err := NewPlatformResult(PlatformMastodon, StatusSuccess, nil)
 	require.NoError(t, err)
-	result.AddPlatformResult(successResult2)
+	err = result.AddPlatformResult(successResult2)
+	require.NoError(t, err)
 
 	// Since we can only have 2 unique valid platforms and we need a failure,
 	// let's override one to be failed
