@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"codeberg.org/brennenstuhl/uac-socializer/internal/adapters/repository"
 	"codeberg.org/brennenstuhl/uac-socializer/internal/app"
 	"codeberg.org/brennenstuhl/uac-socializer/internal/domain"
 	"codeberg.org/brennenstuhl/uac-socializer/internal/ports"
@@ -159,9 +160,15 @@ func NewContainer(ctx context.Context, config *app.Config) (*Container, error) {
 		slog.Any("config", config.SanitizeForLogging()),
 	)
 
-	// Initialize repository (placeholder for now)
-	repository := &placeholderRepository{}
-	logger.Debug("Initialized post repository", slog.String("type", "placeholder"))
+	// Initialize repository with real JSONFileRepository implementation
+	repo, err := repository.NewJSONFileRepository(config.DataPath, logger.GetLogger())
+	if err != nil {
+		return nil, fmt.Errorf("%s: failed to initialize repository: %w", op, err)
+	}
+
+	logger.Debug("Initialized post repository",
+		slog.String("type", "JSONFileRepository"),
+		slog.String("dataPath", config.DataPath))
 
 	// Initialize social publishers (placeholders for Phase 4)
 	blueskyPublisher := newPlaceholderPublisher(domain.PlatformBluesky)
@@ -178,7 +185,7 @@ func NewContainer(ctx context.Context, config *app.Config) (*Container, error) {
 	container := &Container{
 		Config:            config,
 		Logger:            logger,
-		PostRepository:    repository,
+		PostRepository:    repo,
 		BlueskyPublisher:  blueskyPublisher,
 		MastodonPublisher: mastodonPublisher,
 		ContentGenerator:  contentGenerator,
@@ -297,4 +304,19 @@ func (c *Container) GetLogger() *StructuredLogger {
 // GetConfig returns the application configuration.
 func (c *Container) GetConfig() *app.Config {
 	return c.Config
+}
+
+// GetPublishService creates and returns a new PublishService with all dependencies wired.
+func (c *Container) GetPublishService() *app.PublishService {
+	publishers := map[string]ports.SocialPublisher{
+		domain.PlatformBluesky:  c.BlueskyPublisher,
+		domain.PlatformMastodon: c.MastodonPublisher,
+	}
+
+	return app.NewPublishService(
+		c.PostRepository,
+		c.ContentGenerator,
+		publishers,
+		c.Logger.GetLogger(),
+	)
 }

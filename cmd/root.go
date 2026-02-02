@@ -1,5 +1,5 @@
 /*
-Copyright © 2026 NAME HERE <EMAIL ADDRESS>
+Copyright © 2026 UAC Socializer
 */
 package cmd
 
@@ -16,16 +16,41 @@ var cfgFile string
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "uac-socializer",
-	Short: "A brief description of your application",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
+	Short: "Publish historic Urban Art Core anniversary posts to social media with AI-generated content",
+	Long: `UAC Socializer is a 12-factor Go CLI application that publishes historic anniversary
+blog posts from Urban Art Core to Bluesky and Mastodon platforms.
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
-	// Run: func(cmd *cobra.Command, args []string) { },
+The application reads posts from a curated archive, selects posts for anniversary dates,
+generates platform-optimized content via Mistral AI, and publishes to social platforms
+with rich formatting including hashtags, embeds, and community-focused messaging.
+
+Key Features:
+• AI-powered content generation using Mistral AI for engaging social media posts
+• Platform-specific optimization (ATProto facets for Bluesky, hashtags for Mastodon)
+• Anniversary-based posting from 15+ years of Urban Art Core blog history
+• Dry-run mode for content preview and testing
+• Comprehensive error handling and structured logging
+• Containerized for serverless deployment
+
+Configuration via Environment Variables:
+  UAC_MISTRAL_API_KEY       - Mistral AI API key (required)
+  UAC_BLUESKY_HANDLE        - Bluesky account handle (required for Bluesky)
+  UAC_BLUESKY_PASSWORD      - Bluesky app password (required for Bluesky)
+  UAC_MASTODON_ACCESS_TOKEN - Mastodon access token (required for Mastodon)
+  UAC_MASTODON_SERVER       - Mastodon instance URL (required for Mastodon)
+  UAC_LOG_LEVEL            - Logging level: debug, info, warn, error
+
+Example Usage:
+  # Preview today's anniversary posts
+  uac-socializer publish --dry-run
+
+  # Publish to all platforms
+  uac-socializer publish
+
+  # Publish specific date to Bluesky only
+  uac-socializer publish --date 09-14 --platform bluesky
+
+For more information visit: https://www.urbanartcore.com`,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -46,9 +71,8 @@ func init() {
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.uac-socializer.yaml)")
 
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	// Global verbose flag for debugging
+	rootCmd.PersistentFlags().Bool("verbose", false, "Enable verbose debug output")
 }
 
 // initConfig reads in config file and ENV variables if set.

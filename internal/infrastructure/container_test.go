@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	adapterrepository "codeberg.org/brennenstuhl/uac-socializer/internal/adapters/repository"
 	"codeberg.org/brennenstuhl/uac-socializer/internal/app"
 	"codeberg.org/brennenstuhl/uac-socializer/internal/domain"
 )
@@ -258,12 +259,12 @@ func TestContainer_GetRepository_ReturnsCorrectType(t *testing.T) {
 	container, err := NewContainer(ctx, testConfig)
 	require.NoError(t, err)
 
-	repository := container.GetRepository()
-	assert.NotNil(t, repository)
+	repo := container.GetRepository()
+	assert.NotNil(t, repo)
 
-	// Verify it implements the interface
-	_, ok := repository.(*placeholderRepository)
-	assert.True(t, ok)
+	// Verify it's the real JSONFileRepository implementation (not placeholder)
+	_, ok := repo.(*adapterrepository.JSONFileRepository)
+	assert.True(t, ok, "repository should be JSONFileRepository, not placeholder")
 }
 
 func TestContainer_GetPublisher(t *testing.T) {
@@ -354,15 +355,12 @@ func TestContainer_Validate_MissingDataSource(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// NewContainer should succeed even with missing data file (config validation only checks format)
-	// File existence is checked later during repository operations
+	// NewContainer should now fail with missing data file (real repository validates during init)
+	// This ensures we catch data access issues early rather than during operations
 	container, err := NewContainer(ctx, testConfig)
-	assert.NoError(t, err)
-	assert.NotNil(t, container)
-
-	// Validation should still succeed (placeholders warn about missing implementation)
-	err = container.Validate(ctx)
-	assert.NoError(t, err)
+	assert.Error(t, err)
+	assert.Nil(t, container)
+	assert.Contains(t, err.Error(), "failed to initialize repository")
 }
 
 func TestContainer_Close_NoError(t *testing.T) {

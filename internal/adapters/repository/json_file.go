@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"codeberg.org/brennenstuhl/uac-socializer/internal/domain"
-	"codeberg.org/brennenstuhl/uac-socializer/internal/infrastructure"
 	"codeberg.org/brennenstuhl/uac-socializer/internal/ports"
 )
 
@@ -31,10 +30,10 @@ type postsData map[string][]*rawPost
 // post data from a JSON file. It loads the data once during initialization
 // and provides O(1) lookups by date key.
 type JSONFileRepository struct {
-	filePath string                           // Path to the JSON file
-	logger   *infrastructure.StructuredLogger // Logger for operation tracking
-	data     postsData                        // In-memory cache of all post data
-	stats    *ports.PostRepositoryStats       // Cached statistics about the data
+	filePath string                     // Path to the JSON file
+	logger   *slog.Logger               // Logger for operation tracking
+	data     postsData                  // In-memory cache of all post data
+	stats    *ports.PostRepositoryStats // Cached statistics about the data
 }
 
 // dateKeyRegex validates MM-DD format with proper month/day ranges
@@ -42,7 +41,7 @@ var dateKeyRegex = regexp.MustCompile(`^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])
 
 // NewJSONFileRepository creates a new JSONFileRepository instance.
 // It loads and validates the JSON file during initialization.
-func NewJSONFileRepository(filePath string, logger *infrastructure.StructuredLogger) (*JSONFileRepository, error) {
+func NewJSONFileRepository(filePath string, logger *slog.Logger) (*JSONFileRepository, error) {
 	const op = "NewJSONFileRepository"
 
 	if filePath == "" {

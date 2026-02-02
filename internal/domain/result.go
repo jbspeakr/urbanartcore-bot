@@ -263,6 +263,14 @@ func (pr *PlatformResult) SetFailure(err error, responseTime time.Duration) {
 	pr.publishedAt = time.Now()
 }
 
+// SetSkipped updates the result with skipped information (e.g., for dry runs).
+func (pr *PlatformResult) SetSkipped(reason string, responseTime time.Duration) {
+	pr.status = StatusSkipped
+	pr.publishedURL = reason
+	pr.responseTime = responseTime
+	pr.publishedAt = time.Now()
+}
+
 // IncrementRetry increments the retry count.
 func (pr *PlatformResult) IncrementRetry() {
 	pr.retryCount++
@@ -416,6 +424,15 @@ func (pr *PublishResult) Duration() time.Duration {
 // Complete marks the publish operation as complete.
 func (pr *PublishResult) Complete() {
 	pr.endTime = time.Now()
+}
+
+// GetPlatformResults returns all platform results as a slice.
+func (pr *PublishResult) GetPlatformResults() []*PlatformResult {
+	results := make([]*PlatformResult, 0, len(pr.platformResults))
+	for _, result := range pr.platformResults {
+		results = append(results, result)
+	}
+	return results
 }
 
 // String returns a human-readable representation of the publish result.

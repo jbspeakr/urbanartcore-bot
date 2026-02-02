@@ -2,13 +2,14 @@ package repository
 
 import (
 	"context"
+	"log/slog"
+	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"codeberg.org/brennenstuhl/uac-socializer/internal/infrastructure"
 	"codeberg.org/brennenstuhl/uac-socializer/internal/ports"
 )
 
@@ -462,21 +463,18 @@ func createTestRepository(t *testing.T) *JSONFileRepository {
 	return repo
 }
 
-func createTestLogger(t *testing.T) *infrastructure.StructuredLogger {
+func createTestLogger(t *testing.T) *slog.Logger {
 	t.Helper()
-	config := infrastructure.DefaultLoggerConfig()
-	config.Level = infrastructure.LevelDebug
-
-	logger, err := infrastructure.NewStructuredLogger(config)
-	require.NoError(t, err)
-	return logger
+	// Create a simple logger for testing (no need for infrastructure wrapper)
+	handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})
+	return slog.New(handler)
 }
 
 // Benchmark tests
 
 func BenchmarkGetPostsByDate(b *testing.B) {
-	logger, err := infrastructure.NewStructuredLogger(infrastructure.DefaultLoggerConfig())
-	require.NoError(b, err)
+	handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn})
+	logger := slog.New(handler)
 
 	sampleFile := filepath.Join("testdata", "posts_sample.json")
 	repo, err := NewJSONFileRepository(sampleFile, logger)
@@ -494,8 +492,8 @@ func BenchmarkGetPostsByDate(b *testing.B) {
 }
 
 func BenchmarkListAvailableDates(b *testing.B) {
-	logger, err := infrastructure.NewStructuredLogger(infrastructure.DefaultLoggerConfig())
-	require.NoError(b, err)
+	handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn})
+	logger := slog.New(handler)
 
 	sampleFile := filepath.Join("testdata", "posts_sample.json")
 	repo, err := NewJSONFileRepository(sampleFile, logger)
