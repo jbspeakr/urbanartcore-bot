@@ -21,8 +21,6 @@ func createTestConfig(dataPath string) *app.Config {
 	return &app.Config{
 		DataPath:            dataPath,
 		PromptsPath:         "./internal/infrastructure/prompts",
-		LogLevel:            "info",
-		LogFormat:           "json",
 		MistralAPIKey:       "test-key",
 		MistralModel:        "mistral-large",
 		MistralMaxTokens:    1000,
@@ -187,7 +185,6 @@ func TestNewContainer_ValidConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	testConfig := createTestConfig(dataPath)
-	testConfig.LogLevel = "debug"
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -203,7 +200,6 @@ func TestNewContainer_ValidConfig(t *testing.T) {
 	assert.NotNil(t, container.ContentGenerator)
 
 	// Verify config values
-	assert.Equal(t, "debug", container.Config.LogLevel)
 	assert.Equal(t, dataPath, container.Config.DataPath)
 
 	// Verify publishers have correct platforms
@@ -225,7 +221,7 @@ func TestNewContainer_InvalidConfig(t *testing.T) {
 
 	t.Run("invalid config data", func(t *testing.T) {
 		invalidConfig := createTestConfig("./data/posts_by_date.json")
-		invalidConfig.LogLevel = "invalid"
+		invalidConfig.MistralTemperature = 1.5 // Invalid: must be between 0.0 and 1.0
 
 		container, err := NewContainer(ctx, invalidConfig)
 

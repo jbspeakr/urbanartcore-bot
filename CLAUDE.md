@@ -52,10 +52,10 @@ This project follows **Hexagonal Architecture** (Ports and Adapters) principles 
   - `generator.go` - ContentGenerator interface (AI content generation)
 
 - **`internal/adapters/`** - External service implementations
-  - `repository/json_file.go` - JSONFileRepository adapter
-  - `publisher/bluesky.go` - BlueskyAdapter (ATProto with facets/embeds)
-  - `publisher/mastodon.go` - MastodonAdapter (Mastodon API)
-  - `generator/mistral.go` - MistralAdapter (Mistral AI integration)
+  - `repository/json_file.go` - JSONFileRepository adapter ✅
+  - `publisher/bluesky.go` - BlueskyAdapter (ATProto with facets/embeds) - Phase 4
+  - `publisher/mastodon.go` - MastodonAdapter (Mastodon API) - Phase 4
+  - `generator/mistral.go` - MistralAdapter (Mistral AI integration) - Phase 5
 
 - **`internal/app/`** - Application layer
   - `publish.go` - PublishService use case orchestration
@@ -285,7 +285,6 @@ All secrets and configuration via environment variables:
 - `UAC_MASTODON_SERVER` - Mastodon instance URL
 
 **Operational Configuration**:
-- `UAC_LOG_LEVEL` - Logging level (debug, info, warn, error)
 - `UAC_DATA_PATH` - Custom path to posts JSON file
 - `UAC_PROMPTS_PATH` - Custom path to prompt templates
 - `UAC_AI_RETRY_COUNT` - AI generation retry attempts
@@ -520,27 +519,38 @@ No special action needed - sensitive fields are redacted automatically for every
 
 ## Key Files Reference
 
-### AI Integration Files
-- `internal/adapters/mistral/client.go` - Mistral API integration
-- `internal/adapters/mistral/prompts.go` - Prompt template management
-- `internal/ports/ai_content_generator.go` - AI service contract
-- `internal/infrastructure/prompts/` - Platform-specific prompt templates
-
-### Critical Architecture Files
-- `internal/app/container.go` - Dependency injection with AI services
-- `internal/app/generate_content.go` - AI content generation use case
-- `internal/domain/generated_content.go` - AI content domain model
-
-### Command Implementation
-- `cmd/root.go` - Cobra root command and configuration
-- `cmd/publish.go` - Main publish command with AI integration
-- `cmd/generate.go` - Content generation preview command
+### Currently Implemented - Core Files
 - `main.go` - Application entry point
+- `cmd/root.go` - Cobra root command with Viper configuration
+- `cmd/publish.go` - Complete publish command implementation
+- `internal/app/publish.go` - PublishService with full orchestration (6-step workflow)
+- `internal/app/config.go` - Configuration management and validation
+- `internal/infrastructure/container.go` - Dependency injection setup
+- `internal/infrastructure/logger.go` - Structured logging with slog and secret sanitization
 
-### Configuration and Templates
-- `internal/infrastructure/prompts/bluesky.txt` - Bluesky prompt template
-- `internal/infrastructure/prompts/mastodon.txt` - Mastodon prompt template
-- `.env.example` - Environment variable examples including AI config
+### Domain and Ports
+- `internal/domain/post.go` - Post entity with validation
+- `internal/domain/result.go` - GeneratedContent, PlatformResult, PublishResult domain models
+- `internal/ports/repository.go` - PostRepository interface contract
+- `internal/ports/publisher.go` - SocialPublisher interface contract
+- `internal/ports/generator.go` - ContentGenerator interface contract
+
+### Data Access Layer
+- `internal/adapters/repository/json_file.go` - JSONFileRepository implementation
+- `internal/adapters/repository/json_file_test.go` - Repository tests with 86.7% coverage
+- `internal/adapters/repository/testdata/` - Test fixtures
+
+### AI Integration Files (To Be Implemented)
+- `internal/adapters/generator/mistral.go` - Mistral API integration (Phase 5)
+- `internal/infrastructure/prompts/` - Platform-specific prompt templates (Phase 5)
+
+### Social Platform Adapters (To Be Implemented)
+- `internal/adapters/publisher/bluesky.go` - Bluesky/ATProto implementation (Phase 4)
+- `internal/adapters/publisher/mastodon.go` - Mastodon API implementation (Phase 4)
+
+### Configuration
+- `.env.example` - Environment variable examples
+- `internal/app/config.go` - Configuration loading from env vars
 
 ## Testing Strategy
 
@@ -623,7 +633,8 @@ No special action needed - sensitive fields are redacted automatically for every
 
 **Infrastructure & Configuration:**
 - `main.go` - Entry point delegating to cmd.Execute()
-- `cmd/root.go` - Cobra root command with Viper configuration (template, to be replaced)
+- `cmd/root.go` - Cobra root command with Viper configuration
+- `cmd/publish.go` - Main publish command with full implementation
 - `go.mod` - Dependencies defined (Cobra, Viper, Mistral, Bluesky, Mastodon, etc.)
 - `.forgejo/workflows/publish.yml` - CI/CD pipeline with `go test ./...` and linting
 - `data/posts_by_date.json` - Source data (extremely large, MM-DD keyed)
@@ -633,6 +644,8 @@ No special action needed - sensitive fields are redacted automatically for every
 **Phase 1: Foundation** ✅ COMPLETE
 - ✅ Domain models (`internal/domain/{post,result}.go`)
   - Post: Minimal entity with URI + date (content extraction via Mistral AI)
+  - GeneratedContent: AI-generated content with platform-specific optimization
+  - PlatformResult: Platform-specific publishing outcome
   - PublishResult: Multi-platform publishing outcomes with cost tracking
 - ✅ Port interfaces (`internal/ports/{repository,publisher,generator}.go`)
   - PostRepository: Data access contract
@@ -640,53 +653,72 @@ No special action needed - sensitive fields are redacted automatically for every
   - ContentGenerator: AI content generation contract
 - ✅ Logging infrastructure (`internal/infrastructure/logger.go`)
   - Structured slog-based logging with secret sanitization
-  - Environment-driven configuration (UAC_LOG_LEVEL, UAC_LOG_FORMAT)
-- ✅ Comprehensive unit tests with 95%+ coverage
+  - Hardcoded JSON format and Info level (12-factor compliant)
+- ✅ Comprehensive unit tests with 89%+ coverage
 - ✅ All compilation, linting, and test checks passing
 
 **Phase 2: Data Access** ✅ COMPLETE
 - ✅ JSONFileRepository adapter (`internal/adapters/repository/json_file.go`)
   - Full MM-DD date key parsing and validation
   - O(1) lookups with in-memory caching
-  - Comprehensive error handling and test coverage (88.2%)
+  - Comprehensive error handling and test coverage (86.7%)
 - ✅ Configuration management (`internal/app/config.go`)
   - Environment variable loading with Viper
   - Configuration validation with clear error messages
-  - Sanitization for logging (95.2% test coverage)
+  - Sanitization for logging
 - ✅ Dependency injection container (`internal/infrastructure/container.go`)
   - All dependencies properly wired
   - Placeholder implementations for phases 4-5
-  - Container validation and health checks (94.4% test coverage)
+  - Container validation and health checks (95.1% test coverage)
+
+**Phase 3: Core Use Case** ✅ COMPLETE
+- ✅ PublishService (`internal/app/publish.go`)
+  - Complete orchestration: repository → content generation → publishing
+  - Multi-platform publishing workflow with proper error handling
+  - Result aggregation with success/failure/skip tracking
+  - Dry-run mode with mock content generation for testing
+  - 6-step orchestration: validation → retrieval → platform resolution → generation → publishing → aggregation
+  - Test coverage: 88.2%
+- ✅ Publish command (`cmd/publish.go`)
+  - Full Cobra command implementation with all flags
+  - Flags: --dry-run, --date MM-DD, --platform (bluesky|mastodon|all)
+  - Configuration loading and container initialization
+  - Comprehensive output formatting for dry-run and live modes
+  - Exit codes for CI/CD integration
+- ✅ End-to-end workflow with dry-run mode
+  - Full workflow operational and testable
+  - Content generation preview with mock responses
+  - Dry-run testing recommended before live publishing
 
 ### To Be Implemented
 
-**Phase 3: Core Use Case** - ⏳ NEXT PHASE
-- [ ] PublishService (`internal/app/publish.go`)
-  - Orchestrates repository, publishers, and content generator
-  - Handles multi-platform publishing workflow
-  - Error handling and result aggregation
-- [ ] Publish command (`cmd/publish.go`)
-  - Replaces placeholder root.go Cobra template
-  - Flags: --dry-run, --date MM-DD, --platform (bluesky|mastodon|all)
-  - Configuration loading and container initialization
-- [ ] Basic end-to-end flow with dry-run mode
-  - Full workflow without actual publishing
-  - Content generation preview
-
-**Phase 4: Social Platform Adapters**
+**Phase 4: Social Platform Adapters** - ⏳ NEXT PHASE
 - [ ] MastodonAdapter (`internal/adapters/publisher/mastodon.go`)
-- [ ] BlueskyAdapter with ATProto (`internal/adapters/publisher/bluesky.go`)
-- [ ] Platform-specific error handling and testing
+  - Implement SocialPublisher interface for Mastodon
+  - Content validation for 500-character limit
+  - Integration with github.com/mattn/go-mastodon
+- [ ] BlueskyAdapter (`internal/adapters/publisher/bluesky.go`)
+  - Implement SocialPublisher interface for Bluesky/ATProto
+  - Content validation for 300-character limit
+  - ATProto facets/embeds support via github.com/bluesky-social/indigo
+  - Rich text formatting and link handling
 
 **Phase 5: AI Integration**
 - [ ] MistralAdapter (`internal/adapters/generator/mistral.go`)
-- [ ] Prompt templates and content validation
-- [ ] AI error handling and fallbacks
+  - Implement ContentGenerator interface
+  - Integration with github.com/ZaguanLabs/mistral-go
+  - Prompt template rendering with dynamic variables
+  - Token counting and cost calculation
+  - Rate limit handling with exponential backoff
+- [ ] Prompt templates and validation
+  - Platform-specific prompt files (`internal/infrastructure/prompts/`)
+  - Content validation against platform constraints
+  - AI error handling and fallbacks
 
 **Phase 6: Testing & Quality**
-- [ ] Unit tests for all layers (80%+ coverage target)
+- [ ] Integration tests with mock external services
 - [ ] golangci-lint configuration
-- [ ] Integration tests with real data
+- [ ] Full test coverage (80%+ target for all layers)
 
 **Phase 7: Containerization**
 - [ ] Dockerfile for serverless deployment
@@ -696,24 +728,37 @@ No special action needed - sensitive fields are redacted automatically for every
 ## Development Quick Start
 
 ```bash
-# Build current state
-go build ./main.go
+# Build the binary
+go build -o bin/uac-socializer ./cmd/uac-socializer
 
-# Run tests
+# Run all tests
 go test ./...
+
+# Run tests with coverage report
+go test -cover ./...
 
 # Format and lint
 go fmt ./... && go vet ./...
 
-# Local testing with required env vars
-export UAC_MISTRAL_API_KEY="your-key"
-export UAC_BLUESKY_HANDLE="your-handle"
-export UAC_BLUESKY_PASSWORD="your-password"
-export UAC_MASTODON_ACCESS_TOKEN="your-token"
+# Static analysis (if golangci-lint installed)
+golangci-lint run
+
+# Test dry-run mode (no credentials needed)
+export UAC_DATA_PATH="data/posts_by_date.json"
+./bin/uac-socializer publish --dry-run --date 09-14 --platform all
+
+# Local testing with required env vars (for Phase 4-5 adapters)
+export UAC_MISTRAL_API_KEY="your-mistral-key"
+export UAC_BLUESKY_HANDLE="your-handle.bsky.social"
+export UAC_BLUESKY_PASSWORD="your-app-password"
+export UAC_MASTODON_ACCESS_TOKEN="your-access-token"
 export UAC_MASTODON_SERVER="https://mastodon.social"
 
-# When ready, run with dry-run
-./uac-socializer publish --dry-run --platform all
+# When adapters are ready, publish to all platforms
+./bin/uac-socializer publish --date 09-14 --platform all
+
+# Publish today's posts to Bluesky only
+./bin/uac-socializer publish --platform bluesky
 ```
 
 ---

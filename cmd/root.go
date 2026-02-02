@@ -37,7 +37,6 @@ Configuration via Environment Variables:
   UAC_BLUESKY_PASSWORD      - Bluesky app password (required for Bluesky)
   UAC_MASTODON_ACCESS_TOKEN - Mastodon access token (required for Mastodon)
   UAC_MASTODON_SERVER       - Mastodon instance URL (required for Mastodon)
-  UAC_LOG_LEVEL            - Logging level: debug, info, warn, error
 
 Example Usage:
   # Preview today's anniversary posts

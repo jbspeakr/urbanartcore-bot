@@ -16,8 +16,6 @@ type Config struct {
 	// Core configuration
 	DataPath    string `mapstructure:"data_path"`
 	PromptsPath string `mapstructure:"prompts_path"`
-	LogLevel    string `mapstructure:"log_level"`
-	LogFormat   string `mapstructure:"log_format"`
 
 	// Mistral AI configuration
 	MistralAPIKey      string  `mapstructure:"mistral_api_key"`
@@ -57,8 +55,6 @@ func (e ConfigError) Unwrap() error {
 
 // Common configuration errors
 var (
-	ErrInvalidLogLevel      = errors.New("invalid log level")
-	ErrInvalidLogFormat     = errors.New("invalid log format")
 	ErrInvalidTemperature   = errors.New("invalid temperature")
 	ErrInvalidTimeout       = errors.New("invalid timeout")
 	ErrMissingRequiredField = errors.New("missing required field")
@@ -81,8 +77,6 @@ func LoadConfig() (*Config, error) {
 	envVars := []string{
 		"data_path",
 		"prompts_path",
-		"log_level",
-		"log_format",
 		"mistral_api_key",
 		"mistral_model",
 		"mistral_max_tokens",
@@ -104,8 +98,6 @@ func LoadConfig() (*Config, error) {
 	// Set defaults
 	v.SetDefault("data_path", "./data/posts_by_date.json")
 	v.SetDefault("prompts_path", "./internal/infrastructure/prompts")
-	v.SetDefault("log_level", "info")
-	v.SetDefault("log_format", "json")
 	v.SetDefault("mistral_model", "mistral-large")
 	v.SetDefault("mistral_max_tokens", 1000)
 	v.SetDefault("mistral_temperature", 0.7)
@@ -135,36 +127,10 @@ func LoadConfig() (*Config, error) {
 }
 
 // Validate performs validation on all configuration fields.
-// It checks for valid log levels, formats, temperature ranges, and positive timeouts.
+// It checks for valid temperature ranges, and positive timeouts.
 // Returns detailed error messages indicating which field failed validation.
 func (c *Config) Validate() error {
 	const op = "Validate"
-
-	// Validate log level
-	validLogLevels := map[string]bool{
-		"debug": true,
-		"info":  true,
-		"warn":  true,
-		"error": true,
-	}
-	if !validLogLevels[strings.ToLower(c.LogLevel)] {
-		return ConfigError{
-			Op:  op,
-			Err: fmt.Errorf("%w: log_level must be one of: debug, info, warn, error (got: %s)", ErrInvalidLogLevel, c.LogLevel),
-		}
-	}
-
-	// Validate log format
-	validLogFormats := map[string]bool{
-		"json": true,
-		"text": true,
-	}
-	if !validLogFormats[strings.ToLower(c.LogFormat)] {
-		return ConfigError{
-			Op:  op,
-			Err: fmt.Errorf("%w: log_format must be one of: json, text (got: %s)", ErrInvalidLogFormat, c.LogFormat),
-		}
-	}
 
 	// Validate Mistral temperature (0.0 to 1.0)
 	if c.MistralTemperature < 0.0 || c.MistralTemperature > 1.0 {
@@ -218,13 +184,6 @@ func (c *Config) SanitizeForLogging() Config {
 	}
 
 	return sanitized
-}
-
-// IsProductionMode returns true if the configuration indicates production usage.
-// This is determined by the log level being set to warn or error.
-func (c *Config) IsProductionMode() bool {
-	level := strings.ToLower(c.LogLevel)
-	return level == "warn" || level == "error"
 }
 
 // GetMistralConfig returns Mistral-specific configuration as a separate struct.

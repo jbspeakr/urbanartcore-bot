@@ -161,7 +161,6 @@ func NewContainer(ctx context.Context, config *app.Config) (*Container, error) {
 
 	logger.Info("Dependency container initialized successfully",
 		slog.String("operation", op),
-		slog.String("log_level", config.LogLevel),
 		slog.String("data_path", config.DataPath),
 	)
 

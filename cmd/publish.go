@@ -52,8 +52,7 @@ Environment Variables:
   UAC_BLUESKY_HANDLE        - Required for Bluesky: your-handle.bsky.social
   UAC_BLUESKY_PASSWORD      - Required for Bluesky: app password
   UAC_MASTODON_ACCESS_TOKEN - Required for Mastodon: access token
-  UAC_MASTODON_SERVER       - Required for Mastodon: instance URL (e.g., https://mastodon.social)
-  UAC_LOG_LEVEL            - Optional: debug, info, warn, error (default: info)`,
+  UAC_MASTODON_SERVER       - Required for Mastodon: instance URL (e.g., https://mastodon.social)`,
 	RunE: runPublishCommand,
 }
 
