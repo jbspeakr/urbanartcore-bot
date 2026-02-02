@@ -203,33 +203,18 @@ func TestNewPublishResult_ValidInput(t *testing.T) {
 	post, err := NewPost("https://example.com", "2020-01-15")
 	require.NoError(t, err)
 
-	dateGroup, err := NewDateGroup("01-15", []*Post{post})
-	require.NoError(t, err)
-
-	result, err := NewPublishResult(post, dateGroup, true)
+	result, err := NewPublishResult(post, true)
 
 	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, post, result.Post())
-	assert.Equal(t, dateGroup, result.DateGroup())
 	assert.True(t, result.IsDryRun())
 	assert.Equal(t, 0, len(result.Platforms()))
 }
 
 func TestNewPublishResult_NilInputs(t *testing.T) {
-	post, err := NewPost("https://example.com", "2020-01-15")
-	require.NoError(t, err)
-
-	dateGroup, err := NewDateGroup("01-15", []*Post{post})
-	require.NoError(t, err)
-
 	// Nil post
-	result, err := NewPublishResult(nil, dateGroup, false)
-	assert.Nil(t, result)
-	assert.Error(t, err)
-
-	// Nil dateGroup
-	result, err = NewPublishResult(post, nil, false)
+	result, err := NewPublishResult(nil, false)
 	assert.Nil(t, result)
 	assert.Error(t, err)
 }
@@ -238,10 +223,7 @@ func TestPublishResult_AddPlatformResult(t *testing.T) {
 	post, err := NewPost("https://example.com", "2020-01-15")
 	require.NoError(t, err)
 
-	dateGroup, err := NewDateGroup("01-15", []*Post{post})
-	require.NoError(t, err)
-
-	result, err := NewPublishResult(post, dateGroup, false)
+	result, err := NewPublishResult(post, false)
 	require.NoError(t, err)
 
 	// Add platform result with content
@@ -265,10 +247,7 @@ func TestPublishResult_AddPlatformResult_Nil(t *testing.T) {
 	post, err := NewPost("https://example.com", "2020-01-15")
 	require.NoError(t, err)
 
-	dateGroup, err := NewDateGroup("01-15", []*Post{post})
-	require.NoError(t, err)
-
-	result, err := NewPublishResult(post, dateGroup, false)
+	result, err := NewPublishResult(post, false)
 	require.NoError(t, err)
 
 	err = result.AddPlatformResult(nil)
@@ -279,10 +258,7 @@ func TestPublishResult_IsSuccess(t *testing.T) {
 	post, err := NewPost("https://example.com", "2020-01-15")
 	require.NoError(t, err)
 
-	dateGroup, err := NewDateGroup("01-15", []*Post{post})
-	require.NoError(t, err)
-
-	result, err := NewPublishResult(post, dateGroup, false)
+	result, err := NewPublishResult(post, false)
 	require.NoError(t, err)
 
 	// No platforms = not success
@@ -310,10 +286,7 @@ func TestPublishResult_HasFailures(t *testing.T) {
 	post, err := NewPost("https://example.com", "2020-01-15")
 	require.NoError(t, err)
 
-	dateGroup, err := NewDateGroup("01-15", []*Post{post})
-	require.NoError(t, err)
-
-	result, err := NewPublishResult(post, dateGroup, false)
+	result, err := NewPublishResult(post, false)
 	require.NoError(t, err)
 
 	assert.False(t, result.HasFailures())
@@ -339,10 +312,7 @@ func TestPublishResult_Counts(t *testing.T) {
 	post, err := NewPost("https://example.com", "2020-01-15")
 	require.NoError(t, err)
 
-	dateGroup, err := NewDateGroup("01-15", []*Post{post})
-	require.NoError(t, err)
-
-	result, err := NewPublishResult(post, dateGroup, false)
+	result, err := NewPublishResult(post, false)
 	require.NoError(t, err)
 
 	// Add successful platform
@@ -368,10 +338,7 @@ func TestPublishResult_Duration(t *testing.T) {
 	post, err := NewPost("https://example.com", "2020-01-15")
 	require.NoError(t, err)
 
-	dateGroup, err := NewDateGroup("01-15", []*Post{post})
-	require.NoError(t, err)
-
-	result, err := NewPublishResult(post, dateGroup, false)
+	result, err := NewPublishResult(post, false)
 	require.NoError(t, err)
 
 	// Should return duration since start
@@ -390,10 +357,7 @@ func TestPublishResult_String(t *testing.T) {
 	post, err := NewPost("https://example.com/test", "2020-01-15")
 	require.NoError(t, err)
 
-	dateGroup, err := NewDateGroup("01-15", []*Post{post})
-	require.NoError(t, err)
-
-	result, err := NewPublishResult(post, dateGroup, false)
+	result, err := NewPublishResult(post, false)
 	require.NoError(t, err)
 
 	str := result.String()

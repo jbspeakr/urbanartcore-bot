@@ -114,9 +114,6 @@ type AdvancedPublisher interface {
 
 	// DeletePost removes a previously published post (if platform supports it).
 	DeletePost(ctx context.Context, postID string) error
-
-	// GetPostStats retrieves engagement metrics for a published post.
-	GetPostStats(ctx context.Context, postID string) (map[string]any, error)
 }
 
 // MultiplatformPublisher orchestrates publishing across multiple platforms.
@@ -137,23 +134,4 @@ type MultiplatformPublisher interface {
 	// TestAllConnections verifies connectivity to all configured platforms.
 	// Returns a map of platform -> error (nil if connection successful).
 	TestAllConnections(ctx context.Context) (map[string]error, error)
-}
-
-// PublisherStats provides metrics about publishing operations.
-type PublisherStats struct {
-	Platform         string        `json:"platform"`
-	TotalPublished   int           `json:"total_published"`
-	SuccessRate      float64       `json:"success_rate"`      // 0.0 to 1.0
-	AverageLatency   time.Duration `json:"average_latency"`   // Publishing response time
-	LastSuccess      *time.Time    `json:"last_success"`      // Last successful publish
-	LastError        string        `json:"last_error"`        // Most recent error message
-	RateLimitStatus  string        `json:"rate_limit_status"` // Current rate limit status
-	ConnectionHealth string        `json:"connection_health"` // "healthy", "degraded", "unhealthy"
-}
-
-// PublisherStatsProvider is an optional interface that publisher implementations
-// can implement to provide operational metrics.
-type PublisherStatsProvider interface {
-	// GetPublisherStats returns operational metrics for this publisher.
-	GetPublisherStats(ctx context.Context) (*PublisherStats, error)
 }

@@ -28,7 +28,7 @@ This project follows **Hexagonal Architecture** (Ports and Adapters) principles 
 ├─────────────────────┤
 │   Ports (Interfaces)│ ← PostRepository, SocialPublisher, ContentGenerator
 ├─────────────────────┤
-│   Domain            │ ← Post, DateGroup, PublishResult (pure business logic)
+│   Domain            │ ← Post, PublishResult (pure business logic)
 ├─────────────────────┤
 │   Adapters          │ ← JSON file repo, Bluesky, Mastodon, Mistral implementations
 ├─────────────────────┤
@@ -44,7 +44,6 @@ This project follows **Hexagonal Architecture** (Ports and Adapters) principles 
 
 - **`internal/domain/`** - Core business entities (zero external dependencies)
   - `post.go` - Post entity with validation
-  - `dategroup.go` - DateGroup value object for grouping posts by MM-DD
   - `result.go` - PublishResult value object for tracking publish outcomes
 
 - **`internal/ports/`** - Interface contracts (hexagon boundary)
@@ -180,11 +179,6 @@ The `data/posts_by_date.json` file uses MM-DD keys to organize anniversary posts
 - `Date` - Original publication date (YYYY-MM-DD format)
 - Validation for URL format and date constraints
 - Minimal data model - content extraction delegated to Mistral AI
-
-**DateGroup**: Value object for handling multiple posts on the same anniversary date
-- Groups posts by MM-DD key
-- Provides context for AI prompt generation
-- Manages post selection when multiple posts exist
 
 **GeneratedContent**: AI-generated content with platform-specific optimization
 - `Text` - Generated post text
@@ -637,9 +631,8 @@ No special action needed - sensitive fields are redacted automatically for every
 - `internal/app/config.go` - Configuration management with validation
 
 **Phase 1: Foundation** ✅ COMPLETE
-- ✅ Domain models (`internal/domain/{post,dategroup,result}.go`)
+- ✅ Domain models (`internal/domain/{post,result}.go`)
   - Post: Minimal entity with URI + date (content extraction via Mistral AI)
-  - DateGroup: Anniversary date grouping by MM-DD
   - PublishResult: Multi-platform publishing outcomes with cost tracking
 - ✅ Port interfaces (`internal/ports/{repository,publisher,generator}.go`)
   - PostRepository: Data access contract
@@ -656,7 +649,6 @@ No special action needed - sensitive fields are redacted automatically for every
   - Full MM-DD date key parsing and validation
   - O(1) lookups with in-memory caching
   - Comprehensive error handling and test coverage (88.2%)
-  - StatsProvider interface for data source validation
 - ✅ Configuration management (`internal/app/config.go`)
   - Environment variable loading with Viper
   - Configuration validation with clear error messages

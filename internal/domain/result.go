@@ -280,7 +280,6 @@ func (pr *PlatformResult) IncrementRetry() {
 // It provides a complete view of the social media publishing operation.
 type PublishResult struct {
 	post            *Post                      // Original post being published
-	dateGroup       *DateGroup                 // Date group context
 	platformResults map[string]*PlatformResult // Results per platform
 	startTime       time.Time                  // When publishing started
 	endTime         time.Time                  // When publishing completed
@@ -290,20 +289,15 @@ type PublishResult struct {
 }
 
 // NewPublishResult creates a new PublishResult.
-func NewPublishResult(post *Post, dateGroup *DateGroup, dryRun bool) (*PublishResult, error) {
+func NewPublishResult(post *Post, dryRun bool) (*PublishResult, error) {
 	const op = "NewPublishResult"
 
 	if post == nil {
 		return nil, DomainError{Op: op, Err: errors.New("post cannot be nil")}
 	}
 
-	if dateGroup == nil {
-		return nil, DomainError{Op: op, Err: errors.New("dateGroup cannot be nil")}
-	}
-
 	return &PublishResult{
 		post:            post,
-		dateGroup:       dateGroup,
 		platformResults: make(map[string]*PlatformResult),
 		startTime:       time.Now(),
 		dryRun:          dryRun,
@@ -313,11 +307,6 @@ func NewPublishResult(post *Post, dateGroup *DateGroup, dryRun bool) (*PublishRe
 // Post returns the original post.
 func (pr *PublishResult) Post() *Post {
 	return pr.post
-}
-
-// DateGroup returns the date group context.
-func (pr *PublishResult) DateGroup() *DateGroup {
-	return pr.dateGroup
 }
 
 // IsDryRun returns true if this was a dry run.

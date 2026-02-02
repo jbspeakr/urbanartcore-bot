@@ -95,21 +95,17 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 	}
 
 	// Step 2: Data Retrieval
-	dateGroup, err := ps.repository.GetDateGroup(ctx, req.DateKey)
+	post, err := ps.repository.GetPostForDate(ctx, req.DateKey)
 	if err != nil {
 		if errors.Is(err, ports.ErrDateNotFound) {
 			return nil, ApplicationError{Op: op, Err: ErrNoPostsFound}
 		}
-		return nil, ApplicationError{Op: op, Err: fmt.Errorf("failed to retrieve posts: %w", err)}
+		return nil, ApplicationError{Op: op, Err: fmt.Errorf("failed to retrieve post: %w", err)}
 	}
 
-	if dateGroup.IsEmpty() {
-		return nil, ApplicationError{Op: op, Err: ErrNoPostsFound}
-	}
-
-	ps.logger.Info("Retrieved posts for anniversary date",
+	ps.logger.Info("Retrieved post for anniversary date",
 		slog.String("dateKey", req.DateKey),
-		slog.Int("postCount", dateGroup.Count()))
+		slog.String("uri", post.URI()))
 
 	// Step 3: Platform Resolution
 	platforms, err := ps.resolvePlatforms(req.Platforms)
@@ -124,8 +120,7 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 	ps.logger.Info("Resolved target platforms", slog.Any("platforms", platforms))
 
 	// Initialize result tracking
-	posts := dateGroup.Posts()
-	publishResult, err := domain.NewPublishResult(posts[0], dateGroup, req.DryRun)
+	publishResult, err := domain.NewPublishResult(post, req.DryRun)
 	if err != nil {
 		return nil, ApplicationError{Op: op, Err: fmt.Errorf("failed to create publish result: %w", err)}
 	}
@@ -143,7 +138,7 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 
 		ps.logger.Info("Generating content for platform", slog.String("platform", platform))
 
-		content, err := ps.generateContentForPlatform(ctx, posts, platform, req.DateKey, req.DryRun)
+		content, err := ps.generateContentForPlatform(ctx, post, platform, req.DateKey, req.DryRun)
 		if err != nil {
 			// Platform error - continue with other platforms
 			ps.logger.Error("Content generation failed for platform",
@@ -295,15 +290,15 @@ func (ps *PublishService) resolvePlatforms(platforms []string) ([]string, error)
 }
 
 // generateContentForPlatform generates content for a specific platform.
-func (ps *PublishService) generateContentForPlatform(ctx context.Context, posts []*domain.Post, platform, dateKey string, dryRun bool) (*domain.GeneratedContent, error) {
-	req, err := ports.NewGenerationRequest(posts, platform, dateKey)
+func (ps *PublishService) generateContentForPlatform(ctx context.Context, post *domain.Post, platform, dateKey string, dryRun bool) (*domain.GeneratedContent, error) {
+	req, err := ports.NewGenerationRequest([]*domain.Post{post}, platform, dateKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create generation request: %w", err)
 	}
 
 	// Add anniversary context
 	req.WithContext("anniversary_date", dateKey)
-	req.WithContext("post_count", fmt.Sprintf("%d", len(posts)))
+	req.WithContext("post_count", "1")
 
 	if dryRun {
 		// In dry-run mode, placeholder generator will return "not implemented" error
@@ -312,7 +307,7 @@ func (ps *PublishService) generateContentForPlatform(ctx context.Context, posts 
 		if err != nil {
 			if strings.Contains(err.Error(), "not implemented") {
 				ps.logger.Info("DRY RUN - content generation simulated", slog.String("platform", platform))
-				return ps.createMockContent(platform, posts, dateKey), nil
+				return ps.createMockContent(platform, post, dateKey), nil
 			}
 			return nil, err
 		}
@@ -369,9 +364,9 @@ func (ps *PublishService) publishToPlatform(ctx context.Context, platform string
 }
 
 // createMockContent creates mock content for dry-run mode.
-func (ps *PublishService) createMockContent(platform string, posts []*domain.Post, dateKey string) *domain.GeneratedContent {
+func (ps *PublishService) createMockContent(platform string, post *domain.Post, dateKey string) *domain.GeneratedContent {
 	mockText := fmt.Sprintf("🎉 Anniversary post for %s! Celebrating %d year(s) of Urban Art Core content. #UrbanArt #Anniversary",
-		dateKey, time.Now().Year()-posts[0].Date().Year())
+		dateKey, time.Now().Year()-post.Date().Year())
 
 	// Truncate if too long for platform
 	limit := domain.BlueskyCharacterLimit

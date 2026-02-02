@@ -70,50 +70,44 @@ func TestNewJSONFileRepository_InvalidData(t *testing.T) {
 	assert.ErrorIs(t, repoErr.Unwrap(), ports.ErrDataCorrupted)
 }
 
-func TestGetPostsByDate_ValidDate(t *testing.T) {
+func TestGetPostForDate_ValidDate(t *testing.T) {
 	repo := createTestRepository(t)
 	ctx := context.Background()
 
 	tests := []struct {
-		name     string
-		dateKey  string
-		expected int
+		name    string
+		dateKey string
 	}{
 		{
-			name:     "multiple posts",
-			dateKey:  "09-14",
-			expected: 2,
+			name:    "date with multiple posts",
+			dateKey: "09-14",
 		},
 		{
-			name:     "single post",
-			dateKey:  "02-14",
-			expected: 1,
+			name:    "date with single post",
+			dateKey: "02-14",
 		},
 		{
-			name:     "three posts",
-			dateKey:  "12-31",
-			expected: 3,
+			name:    "date with three posts",
+			dateKey: "12-31",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			posts, err := repo.GetPostsByDate(ctx, tt.dateKey)
+			post, err := repo.GetPostForDate(ctx, tt.dateKey)
 
 			require.NoError(t, err)
-			assert.Len(t, posts, tt.expected)
+			assert.NotNil(t, post)
 
-			// Verify all posts have correct anniversary date key
-			for _, post := range posts {
-				assert.Equal(t, tt.dateKey, post.AnniversaryDateKey())
-				assert.NotEmpty(t, post.URI())
-				assert.False(t, post.Date().IsZero())
-			}
+			// Verify post has correct anniversary date key
+			assert.Equal(t, tt.dateKey, post.AnniversaryDateKey())
+			assert.NotEmpty(t, post.URI())
+			assert.False(t, post.Date().IsZero())
 		})
 	}
 }
 
-func TestGetPostsByDate_InvalidDate(t *testing.T) {
+func TestGetPostForDate_InvalidDate(t *testing.T) {
 	repo := createTestRepository(t)
 	ctx := context.Background()
 
@@ -133,9 +127,9 @@ func TestGetPostsByDate_InvalidDate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			posts, err := repo.GetPostsByDate(ctx, tt.dateKey)
+			post, err := repo.GetPostForDate(ctx, tt.dateKey)
 
-			assert.Nil(t, posts)
+			assert.Nil(t, post)
 			require.Error(t, err)
 
 			var repoErr ports.RepositoryError
@@ -145,52 +139,13 @@ func TestGetPostsByDate_InvalidDate(t *testing.T) {
 	}
 }
 
-func TestGetPostsByDate_EmptyResults(t *testing.T) {
+func TestGetPostForDate_DateNotFound(t *testing.T) {
 	repo := createTestRepository(t)
 	ctx := context.Background()
 
-	posts, err := repo.GetPostsByDate(ctx, "01-01")
+	post, err := repo.GetPostForDate(ctx, "01-01")
 
-	require.NoError(t, err)
-	assert.NotNil(t, posts)
-	assert.Empty(t, posts)
-}
-
-func TestGetPostsByDate_ContextCanceled(t *testing.T) {
-	repo := createTestRepository(t)
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // Cancel immediately
-
-	posts, err := repo.GetPostsByDate(ctx, "09-14")
-
-	assert.Nil(t, posts)
-	require.Error(t, err)
-
-	var repoErr ports.RepositoryError
-	assert.ErrorAs(t, err, &repoErr)
-	assert.ErrorIs(t, repoErr.Unwrap(), context.Canceled)
-}
-
-func TestGetDateGroup_ValidDate(t *testing.T) {
-	repo := createTestRepository(t)
-	ctx := context.Background()
-
-	dateGroup, err := repo.GetDateGroup(ctx, "09-14")
-
-	require.NoError(t, err)
-	assert.NotNil(t, dateGroup)
-	assert.Equal(t, "09-14", dateGroup.DateKey())
-	assert.Equal(t, 2, dateGroup.Count())
-	assert.False(t, dateGroup.IsEmpty())
-}
-
-func TestGetDateGroup_DateNotFound(t *testing.T) {
-	repo := createTestRepository(t)
-	ctx := context.Background()
-
-	dateGroup, err := repo.GetDateGroup(ctx, "01-01")
-
-	assert.Nil(t, dateGroup)
+	assert.Nil(t, post)
 	require.Error(t, err)
 
 	var repoErr ports.RepositoryError
@@ -198,18 +153,19 @@ func TestGetDateGroup_DateNotFound(t *testing.T) {
 	assert.ErrorIs(t, repoErr.Unwrap(), ports.ErrDateNotFound)
 }
 
-func TestGetDateGroup_InvalidDate(t *testing.T) {
+func TestGetPostForDate_ContextCanceled(t *testing.T) {
 	repo := createTestRepository(t)
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
 
-	dateGroup, err := repo.GetDateGroup(ctx, "invalid")
+	post, err := repo.GetPostForDate(ctx, "09-14")
 
-	assert.Nil(t, dateGroup)
+	assert.Nil(t, post)
 	require.Error(t, err)
 
 	var repoErr ports.RepositoryError
 	assert.ErrorAs(t, err, &repoErr)
-	assert.ErrorIs(t, repoErr.Unwrap(), ports.ErrInvalidDateFormat)
+	assert.ErrorIs(t, repoErr.Unwrap(), context.Canceled)
 }
 
 func TestListAvailableDates(t *testing.T) {
@@ -273,9 +229,6 @@ func TestValidateDataSource_Success(t *testing.T) {
 	err := repo.ValidateDataSource(ctx)
 
 	require.NoError(t, err)
-	assert.NotNil(t, repo.stats)
-	assert.Equal(t, 6, repo.stats.TotalPosts)
-	assert.Equal(t, 3, repo.stats.DatesWithPosts)
 }
 
 func TestValidateDataSource_FileNotFound(t *testing.T) {
@@ -318,57 +271,6 @@ func TestValidateDataSource_ContextCanceled(t *testing.T) {
 
 	err := repo.ValidateDataSource(ctx)
 
-	require.Error(t, err)
-
-	var repoErr ports.RepositoryError
-	assert.ErrorAs(t, err, &repoErr)
-	assert.ErrorIs(t, repoErr.Unwrap(), context.Canceled)
-}
-
-func TestGetStats(t *testing.T) {
-	repo := createTestRepository(t)
-	ctx := context.Background()
-
-	stats, err := repo.GetStats(ctx)
-
-	require.NoError(t, err)
-	assert.NotNil(t, stats)
-	assert.Equal(t, 6, stats.TotalPosts)
-	assert.Equal(t, 3, stats.DatesWithPosts)
-	assert.Equal(t, [2]int{2009, 2022}, stats.YearRange)
-	assert.Equal(t, "12-31", stats.LargestDateGroup) // Has 3 posts
-	assert.Greater(t, stats.DataSourceSize, int64(0))
-	assert.NotEmpty(t, stats.LastValidated)
-
-	// Check posts per month
-	assert.Equal(t, 1, stats.PostsPerMonth[2])  // February
-	assert.Equal(t, 2, stats.PostsPerMonth[9])  // September
-	assert.Equal(t, 3, stats.PostsPerMonth[12]) // December
-}
-
-func TestGetStats_Cached(t *testing.T) {
-	repo := createTestRepository(t)
-	ctx := context.Background()
-
-	// First call should calculate stats
-	stats1, err := repo.GetStats(ctx)
-	require.NoError(t, err)
-
-	// Second call should return cached stats
-	stats2, err := repo.GetStats(ctx)
-	require.NoError(t, err)
-
-	assert.Equal(t, stats1.LastValidated, stats2.LastValidated)
-}
-
-func TestGetStats_ContextCanceled(t *testing.T) {
-	repo := createTestRepository(t)
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	stats, err := repo.GetStats(ctx)
-
-	assert.Nil(t, stats)
 	require.Error(t, err)
 
 	var repoErr ports.RepositoryError
@@ -442,7 +344,7 @@ func createTestRepository(t *testing.T) *JSONFileRepository {
 
 // Benchmark tests
 
-func BenchmarkGetPostsByDate(b *testing.B) {
+func BenchmarkGetPostForDate(b *testing.B) {
 	sampleFile := filepath.Join("testdata", "posts_sample.json")
 	repo, err := NewJSONFileRepository(sampleFile)
 	require.NoError(b, err)
@@ -451,7 +353,7 @@ func BenchmarkGetPostsByDate(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := repo.GetPostsByDate(ctx, "09-14")
+		_, err := repo.GetPostForDate(ctx, "09-14")
 		if err != nil {
 			b.Fatal(err)
 		}

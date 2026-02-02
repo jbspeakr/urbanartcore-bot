@@ -130,12 +130,12 @@ func runPublishCommand(cmd *cobra.Command, args []string) error {
 		result := response.Result
 		if dryRun {
 			// Dry-run mode: log preview of generated content
-			dateGroup := result.DateGroup()
+			post := result.Post()
 			logger.Info("Dry-run content preview",
 				slog.String("operation", "PublishCommand"),
 				slog.String("mode", "dry-run"),
-				slog.String("date", dateGroup.DateKey()),
-				slog.Int("posts_found", len(dateGroup.Posts())))
+				slog.String("date", post.AnniversaryDateKey()),
+				slog.String("uri", post.URI()))
 
 			if len(response.Generated) > 0 {
 				logger.Info("Generated content available",
@@ -168,10 +168,11 @@ func runPublishCommand(cmd *cobra.Command, args []string) error {
 			}
 		} else {
 			// Live mode: log actual publishing results
-			dateGroup := result.DateGroup()
+			post := result.Post()
 			logger.Info("Publishing anniversary posts",
 				slog.String("operation", "PublishCommand"),
-				slog.String("date", dateGroup.DateKey()))
+				slog.String("date", post.AnniversaryDateKey()),
+				slog.String("uri", post.URI()))
 
 			successCount := 0
 			failureCount := 0

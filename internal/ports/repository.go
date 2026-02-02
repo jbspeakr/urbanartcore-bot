@@ -38,16 +38,11 @@ var (
 // It abstracts the data layer to support different storage mechanisms
 // (JSON files, databases, APIs) while maintaining consistent behavior.
 type PostRepository interface {
-	// GetPostsByDate retrieves all posts for a specific anniversary date.
+	// GetPostForDate retrieves a single post for a specific anniversary date.
 	// The dateKey should be in MM-DD format (e.g., "09-14").
-	// Returns an empty slice if no posts are found for the date.
-	// Returns error only for infrastructure failures, not for missing data.
-	GetPostsByDate(ctx context.Context, dateKey string) ([]*domain.Post, error)
-
-	// GetDateGroup retrieves posts for a date organized as a domain.DateGroup.
-	// This provides additional context and methods useful for AI content generation.
+	// If multiple posts exist for the date, one is randomly selected.
 	// Returns ErrDateNotFound if no posts exist for the specified date.
-	GetDateGroup(ctx context.Context, dateKey string) (*domain.DateGroup, error)
+	GetPostForDate(ctx context.Context, dateKey string) (*domain.Post, error)
 
 	// ListAvailableDates returns all MM-DD date keys that have associated posts.
 	// Results are returned in chronological order (01-01, 01-02, ..., 12-31).
@@ -62,23 +57,4 @@ type PostRepository interface {
 	// This includes checking file existence, data format validation,
 	// and basic integrity checks. Used during application startup.
 	ValidateDataSource(ctx context.Context) error
-}
-
-// PostRepositoryStats provides metrics about the repository data.
-type PostRepositoryStats struct {
-	TotalPosts       int         `json:"total_posts"`
-	DatesWithPosts   int         `json:"dates_with_posts"`
-	YearRange        [2]int      `json:"year_range"`         // [min_year, max_year]
-	PostsPerMonth    map[int]int `json:"posts_per_month"`    // month -> count
-	LargestDateGroup string      `json:"largest_date_group"` // MM-DD with most posts
-	DataSourceSize   int64       `json:"data_source_size"`   // bytes
-	LastValidated    string      `json:"last_validated"`     // RFC3339 timestamp
-}
-
-// StatsProvider is an optional interface that repository implementations
-// can implement to provide detailed metrics about the data.
-type StatsProvider interface {
-	// GetStats returns comprehensive statistics about the repository data.
-	// This is useful for monitoring, debugging, and data analysis.
-	GetStats(ctx context.Context) (*PostRepositoryStats, error)
 }

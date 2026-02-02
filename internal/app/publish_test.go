@@ -22,17 +22,12 @@ type MockPostRepository struct {
 	mock.Mock
 }
 
-func (m *MockPostRepository) GetPostsByDate(ctx context.Context, dateKey string) ([]*domain.Post, error) {
-	args := m.Called(ctx, dateKey)
-	return args.Get(0).([]*domain.Post), args.Error(1)
-}
-
-func (m *MockPostRepository) GetDateGroup(ctx context.Context, dateKey string) (*domain.DateGroup, error) {
+func (m *MockPostRepository) GetPostForDate(ctx context.Context, dateKey string) (*domain.Post, error) {
 	args := m.Called(ctx, dateKey)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*domain.DateGroup), args.Error(1)
+	return args.Get(0).(*domain.Post), args.Error(1)
 }
 
 func (m *MockPostRepository) ListAvailableDates(ctx context.Context) ([]string, error) {
@@ -140,14 +135,6 @@ func createTestPost(uri, dateStr string) *domain.Post {
 	return post
 }
 
-func createTestDateGroup(dateKey string, posts []*domain.Post) *domain.DateGroup {
-	group, err := domain.NewDateGroup(dateKey, posts)
-	if err != nil {
-		panic(err)
-	}
-	return group
-}
-
 func createTestGeneratedContent(text, platform string) *domain.GeneratedContent {
 	content, err := domain.NewGeneratedContent(text, platform, []string{"#test"}, "test-prompt", 100, 0.01)
 	if err != nil {
@@ -187,11 +174,10 @@ func TestPublishAnniversaryPosts_HappyPath(t *testing.T) {
 	posts := []*domain.Post{
 		createTestPost("https://example.com/post1", "2020-09-14"),
 	}
-	dateGroup := createTestDateGroup("09-14", posts)
 
 	// Setup mocks
 	repo := &MockPostRepository{}
-	repo.On("GetDateGroup", ctx, "09-14").Return(dateGroup, nil)
+	repo.On("GetPostForDate", ctx, "09-14").Return(posts[0], nil)
 
 	gen := &MockContentGenerator{}
 	blueskycontent := createTestGeneratedContent("Test bluesky content", "bluesky")
@@ -243,11 +229,10 @@ func TestPublishAnniversaryPosts_DryRun(t *testing.T) {
 	posts := []*domain.Post{
 		createTestPost("https://example.com/post1", "2020-09-14"),
 	}
-	dateGroup := createTestDateGroup("09-14", posts)
 
 	// Setup mocks
 	repo := &MockPostRepository{}
-	repo.On("GetDateGroup", ctx, "09-14").Return(dateGroup, nil)
+	repo.On("GetPostForDate", ctx, "09-14").Return(posts[0], nil)
 
 	gen := &MockContentGenerator{}
 	// Placeholder generator returns "not implemented" error in dry-run
@@ -303,11 +288,10 @@ func TestPublishAnniversaryPosts_PartialFailure(t *testing.T) {
 	posts := []*domain.Post{
 		createTestPost("https://example.com/post1", "2020-09-14"),
 	}
-	dateGroup := createTestDateGroup("09-14", posts)
 
 	// Setup mocks
 	repo := &MockPostRepository{}
-	repo.On("GetDateGroup", ctx, "09-14").Return(dateGroup, nil)
+	repo.On("GetPostForDate", ctx, "09-14").Return(posts[0], nil)
 
 	gen := &MockContentGenerator{}
 	blueskyContent := createTestGeneratedContent("Test bluesky content", "bluesky")
@@ -377,7 +361,7 @@ func TestPublishAnniversaryPosts_NoPostsFound(t *testing.T) {
 
 	// Setup mocks
 	repo := &MockPostRepository{}
-	repo.On("GetDateGroup", ctx, "09-14").Return(nil, ports.ErrDateNotFound)
+	repo.On("GetPostForDate", ctx, "09-14").Return(nil, ports.ErrDateNotFound)
 
 	gen := &MockContentGenerator{}
 	publishers := map[string]ports.SocialPublisher{
@@ -468,7 +452,6 @@ func TestPublishAnniversaryPosts_GeneratorErrors(t *testing.T) {
 	posts := []*domain.Post{
 		createTestPost("https://example.com/post1", "2020-09-14"),
 	}
-	dateGroup := createTestDateGroup("09-14", posts)
 
 	tests := []struct {
 		name    string
@@ -496,7 +479,7 @@ func TestPublishAnniversaryPosts_GeneratorErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup mocks
 			repo := &MockPostRepository{}
-			repo.On("GetDateGroup", ctx, "09-14").Return(dateGroup, nil)
+			repo.On("GetPostForDate", ctx, "09-14").Return(posts[0], nil)
 
 			gen := &MockContentGenerator{}
 			gen.On("GenerateContent", ctx, mock.AnythingOfType("*ports.GenerationRequest")).Return(nil, tt.genErr)
@@ -534,7 +517,6 @@ func TestPublishAnniversaryPosts_PublisherErrors(t *testing.T) {
 	posts := []*domain.Post{
 		createTestPost("https://example.com/post1", "2020-09-14"),
 	}
-	dateGroup := createTestDateGroup("09-14", posts)
 
 	tests := []struct {
 		name      string
@@ -560,7 +542,7 @@ func TestPublishAnniversaryPosts_PublisherErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup mocks
 			repo := &MockPostRepository{}
-			repo.On("GetDateGroup", ctx, "09-14").Return(dateGroup, nil)
+			repo.On("GetPostForDate", ctx, "09-14").Return(posts[0], nil)
 
 			gen := &MockContentGenerator{}
 			blueskycontent := createTestGeneratedContent("Test content", "bluesky")
@@ -606,11 +588,10 @@ func TestPublishAnniversaryPosts_ContextCancellation(t *testing.T) {
 	posts := []*domain.Post{
 		createTestPost("https://example.com/post1", "2020-09-14"),
 	}
-	dateGroup := createTestDateGroup("09-14", posts)
 
 	// Setup mocks
 	repo := &MockPostRepository{}
-	repo.On("GetDateGroup", mock.AnythingOfType("*context.cancelCtx"), "09-14").Return(dateGroup, nil)
+	repo.On("GetPostForDate", mock.AnythingOfType("*context.cancelCtx"), "09-14").Return(posts[0], nil)
 
 	gen := &MockContentGenerator{}
 	publishers := map[string]ports.SocialPublisher{
@@ -757,7 +738,7 @@ func TestCreateMockContent(t *testing.T) {
 	service := createTestPublishService(nil, nil, nil)
 
 	// Test Bluesky mock content
-	content := service.createMockContent("bluesky", posts, "09-14")
+	content := service.createMockContent("bluesky", posts[0], "09-14")
 
 	assert.NotNil(t, content)
 	assert.Equal(t, "bluesky", content.Platform())
@@ -767,7 +748,7 @@ func TestCreateMockContent(t *testing.T) {
 	assert.NotEmpty(t, content.Hashtags())
 
 	// Test Mastodon mock content
-	content = service.createMockContent("mastodon", posts, "09-14")
+	content = service.createMockContent("mastodon", posts[0], "09-14")
 
 	assert.Equal(t, "mastodon", content.Platform())
 	assert.True(t, len(content.Text()) <= domain.MastodonCharacterLimit)

@@ -15,12 +15,8 @@ import (
 // Placeholder repository implementation
 type placeholderRepository struct{}
 
-func (r *placeholderRepository) GetPostsByDate(ctx context.Context, dateKey string) ([]*domain.Post, error) {
-	return nil, fmt.Errorf("not implemented: GetPostsByDate will be available in Phase 2")
-}
-
-func (r *placeholderRepository) GetDateGroup(ctx context.Context, dateKey string) (*domain.DateGroup, error) {
-	return nil, fmt.Errorf("not implemented: GetDateGroup will be available in Phase 2")
+func (r *placeholderRepository) GetPostForDate(ctx context.Context, dateKey string) (*domain.Post, error) {
+	return nil, fmt.Errorf("not implemented: GetPostForDate will be available in Phase 3")
 }
 
 func (r *placeholderRepository) ListAvailableDates(ctx context.Context) ([]string, error) {

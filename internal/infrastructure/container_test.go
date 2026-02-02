@@ -46,20 +46,12 @@ func TestPlaceholderRepository(t *testing.T) {
 	ctx := context.Background()
 	repo := &placeholderRepository{}
 
-	t.Run("GetPostsByDate returns not implemented", func(t *testing.T) {
-		posts, err := repo.GetPostsByDate(ctx, "01-01")
-		assert.Nil(t, posts)
+	t.Run("GetPostForDate returns not implemented", func(t *testing.T) {
+		post, err := repo.GetPostForDate(ctx, "01-01")
+		assert.Nil(t, post)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "not implemented")
-		assert.Contains(t, err.Error(), "GetPostsByDate")
-	})
-
-	t.Run("GetDateGroup returns not implemented", func(t *testing.T) {
-		dateGroup, err := repo.GetDateGroup(ctx, "01-01")
-		assert.Nil(t, dateGroup)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "not implemented")
-		assert.Contains(t, err.Error(), "GetDateGroup")
+		assert.Contains(t, err.Error(), "GetPostForDate")
 	})
 
 	t.Run("ListAvailableDates returns not implemented", func(t *testing.T) {

@@ -60,16 +60,6 @@ func TestJSONFileRepository_RealData(t *testing.T) {
 	require.NoError(t, err, "Should be able to get post count")
 	assert.Greater(t, totalPosts, 0, "Should have some posts")
 	t.Logf("Total posts: %d", totalPosts)
-
-	// Test getting statistics
-	stats, err := repo.GetStats(ctx)
-	require.NoError(t, err, "Should be able to get stats")
-	assert.Equal(t, totalPosts, stats.TotalPosts, "Stats total should match post count")
-	assert.Equal(t, len(dates), stats.DatesWithPosts, "Stats dates should match available dates")
-	assert.Greater(t, stats.DataSourceSize, int64(0), "File size should be positive")
-	assert.NotEmpty(t, stats.LargestDateGroup, "Should have largest date group")
-
-	t.Logf("Statistics: %+v", stats)
 }
 
 // BenchmarkRealData_GetPostsByDate benchmarks retrieval with real data.

@@ -177,37 +177,6 @@ type AdvancedGenerator interface {
 	// GenerateVariations creates multiple versions of content for the same request.
 	// Useful for A/B testing and finding the most engaging version.
 	GenerateVariations(ctx context.Context, req *GenerationRequest, count int) ([]*domain.GeneratedContent, error)
-
-	// EstimateTokens predicts token usage for a generation request without making the API call.
-	// Useful for cost estimation and quota management.
-	EstimateTokens(ctx context.Context, req *GenerationRequest) (int, error)
-}
-
-// GeneratorStats provides metrics about content generation operations.
-type GeneratorStats struct {
-	Model             string        `json:"model"`
-	TotalGenerations  int           `json:"total_generations"`
-	SuccessRate       float64       `json:"success_rate"`         // 0.0 to 1.0
-	AverageLatency    time.Duration `json:"average_latency"`      // Generation response time
-	TotalTokensUsed   int           `json:"total_tokens_used"`    // Cumulative token consumption
-	AverageCostPerGen float64       `json:"average_cost_per_gen"` // USD per generation
-	LastSuccess       *time.Time    `json:"last_success"`         // Last successful generation
-	LastError         string        `json:"last_error"`           // Most recent error message
-	QuotaRemaining    *int          `json:"quota_remaining"`      // Remaining API quota (if available)
-	ConnectionHealth  string        `json:"connection_health"`    // "healthy", "degraded", "unhealthy"
-}
-
-// GeneratorCostTracker is an optional interface that generators can implement
-// to provide detailed cost and usage tracking.
-type GeneratorCostTracker interface {
-	// GetGeneratorStats returns operational metrics including cost information.
-	GetGeneratorStats(ctx context.Context) (*GeneratorStats, error)
-
-	// GetCostBreakdown provides detailed cost analysis by model, platform, and time period.
-	GetCostBreakdown(ctx context.Context, from, to time.Time) (map[string]any, error)
-
-	// EstimateMonthlyCost predicts monthly costs based on current usage patterns.
-	EstimateMonthlyCost(ctx context.Context) (float64, error)
 }
 
 // PromptManager handles prompt templates and variable substitution for content generation.

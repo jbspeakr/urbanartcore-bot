@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math/rand"
 	"os"
 	"regexp"
 	"sort"
@@ -30,9 +31,8 @@ type postsData map[string][]*rawPost
 // post data from a JSON file. It loads the data once during initialization
 // and provides O(1) lookups by date key.
 type JSONFileRepository struct {
-	filePath string                     // Path to the JSON file
-	data     postsData                  // In-memory cache of all post data
-	stats    *ports.PostRepositoryStats // Cached statistics about the data
+	filePath string    // Path to the JSON file
+	data     postsData // In-memory cache of all post data
 }
 
 // dateKeyRegex validates MM-DD format with proper month/day ranges
@@ -153,9 +153,10 @@ func (r *JSONFileRepository) validateData(data postsData) error {
 	return nil
 }
 
-// GetPostsByDate retrieves all posts for a specific anniversary date.
-func (r *JSONFileRepository) GetPostsByDate(ctx context.Context, dateKey string) ([]*domain.Post, error) {
-	const op = "GetPostsByDate"
+// GetPostForDate retrieves a single post for a specific anniversary date.
+// If multiple posts exist for the date, one is randomly selected.
+func (r *JSONFileRepository) GetPostForDate(ctx context.Context, dateKey string) (*domain.Post, error) {
+	const op = "GetPostForDate"
 
 	// Validate date key format
 	dateKey = strings.TrimSpace(dateKey)
@@ -166,7 +167,7 @@ func (r *JSONFileRepository) GetPostsByDate(ctx context.Context, dateKey string)
 		}
 	}
 
-	slog.Default().Debug("Retrieving posts by date",
+	slog.Default().Debug("Retrieving post for date",
 		slog.String("date_key", dateKey),
 	)
 
@@ -180,59 +181,39 @@ func (r *JSONFileRepository) GetPostsByDate(ctx context.Context, dateKey string)
 	// Look up posts in the data map
 	rawPosts, exists := r.data[dateKey]
 	if !exists || len(rawPosts) == 0 {
-		// Return empty slice for missing dates (not an error)
-		slog.Default().Debug("No posts found for date",
-			slog.String("date_key", dateKey),
-		)
-		return []*domain.Post{}, nil
-	}
-
-	// Convert raw posts to domain posts
-	posts := make([]*domain.Post, 0, len(rawPosts))
-	for i, rawPost := range rawPosts {
-		post, err := domain.NewPost(rawPost.URI, rawPost.Date)
-		if err != nil {
-			return nil, ports.RepositoryError{
-				Op:  op,
-				Err: fmt.Errorf("failed to create post at index %d for date %s: %w", i, dateKey, err),
-			}
-		}
-		posts = append(posts, post)
-	}
-
-	slog.Default().Debug("Retrieved posts successfully",
-		slog.String("date_key", dateKey),
-		slog.Int("post_count", len(posts)),
-	)
-
-	return posts, nil
-}
-
-// GetDateGroup retrieves posts for a date organized as a domain.DateGroup.
-func (r *JSONFileRepository) GetDateGroup(ctx context.Context, dateKey string) (*domain.DateGroup, error) {
-	const op = "GetDateGroup"
-
-	posts, err := r.GetPostsByDate(ctx, dateKey)
-	if err != nil {
-		return nil, ports.RepositoryError{Op: op, Err: err}
-	}
-
-	if len(posts) == 0 {
 		return nil, ports.RepositoryError{
 			Op:  op,
 			Err: fmt.Errorf("%w: %s", ports.ErrDateNotFound, dateKey),
 		}
 	}
 
-	dateGroup, err := domain.NewDateGroup(dateKey, posts)
+	// If multiple posts, select one randomly
+	selectedIndex := 0
+	if len(rawPosts) > 1 {
+		selectedIndex = rand.Intn(len(rawPosts))
+		slog.Default().Debug("Multiple posts found, randomly selected",
+			slog.String("date_key", dateKey),
+			slog.Int("total_posts", len(rawPosts)),
+			slog.Int("selected_index", selectedIndex),
+		)
+	}
+
+	// Convert selected raw post to domain post
+	selectedRawPost := rawPosts[selectedIndex]
+	post, err := domain.NewPost(selectedRawPost.URI, selectedRawPost.Date)
 	if err != nil {
 		return nil, ports.RepositoryError{
 			Op:  op,
-			Err: fmt.Errorf("failed to create date group for %s: %w", dateKey, err),
+			Err: fmt.Errorf("failed to create post at index %d for date %s: %w", selectedIndex, dateKey, err),
 		}
 	}
 
-	return dateGroup, nil
+	slog.Default().Debug("Retrieved post successfully",
+		slog.String("date_key", dateKey),
+		slog.String("uri", post.URI()),
+	)
+
+	return post, nil
 }
 
 // ListAvailableDates returns all MM-DD date keys that have associated posts.
@@ -355,118 +336,10 @@ func (r *JSONFileRepository) ValidateDataSource(ctx context.Context) error {
 		}
 	}
 
-	// Update cached stats
-	stats, err := r.calculateStats(ctx)
-	if err != nil {
-		return ports.RepositoryError{
-			Op:  op,
-			Err: fmt.Errorf("failed to calculate stats: %w", err),
-		}
-	}
-	r.stats = stats
-
 	slog.Default().Info("Data source validation successful",
 		slog.String("file_path", r.filePath),
 		slog.Int64("file_size", fileInfo.Size()),
-		slog.Int("total_posts", stats.TotalPosts),
-		slog.Int("dates_with_posts", stats.DatesWithPosts),
 	)
 
 	return nil
-}
-
-// calculateStats generates comprehensive statistics about the repository data.
-func (r *JSONFileRepository) calculateStats(ctx context.Context) (*ports.PostRepositoryStats, error) {
-	stats := &ports.PostRepositoryStats{
-		PostsPerMonth: make(map[int]int),
-		LastValidated: time.Now().Format(time.RFC3339),
-	}
-
-	var minYear, maxYear int
-	var largestGroupSize int
-	largestGroupDate := ""
-
-	for dateKey, rawPosts := range r.data {
-		// Check context cancellation during processing
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		default:
-		}
-
-		stats.DatesWithPosts++
-		postCount := len(rawPosts)
-		stats.TotalPosts += postCount
-
-		// Track largest date group
-		if postCount > largestGroupSize {
-			largestGroupSize = postCount
-			largestGroupDate = dateKey
-		}
-
-		// Process posts for year range and monthly stats
-		for _, rawPost := range rawPosts {
-			parsedDate, err := time.Parse(domain.DateLayout, rawPost.Date)
-			if err != nil {
-				continue // Skip invalid dates
-			}
-
-			year := parsedDate.Year()
-			month := int(parsedDate.Month())
-
-			// Update year range
-			if minYear == 0 || year < minYear {
-				minYear = year
-			}
-			if year > maxYear {
-				maxYear = year
-			}
-
-			// Update monthly stats
-			stats.PostsPerMonth[month]++
-		}
-	}
-
-	stats.YearRange = [2]int{minYear, maxYear}
-	stats.LargestDateGroup = largestGroupDate
-
-	// Get file size
-	if fileInfo, err := os.Stat(r.filePath); err == nil {
-		stats.DataSourceSize = fileInfo.Size()
-	}
-
-	return stats, nil
-}
-
-// GetStats returns comprehensive statistics about the repository data.
-// This implements the optional StatsProvider interface.
-func (r *JSONFileRepository) GetStats(ctx context.Context) (*ports.PostRepositoryStats, error) {
-	const op = "GetStats"
-
-	// Check for context cancellation
-	select {
-	case <-ctx.Done():
-		return nil, ports.RepositoryError{Op: op, Err: ctx.Err()}
-	default:
-	}
-
-	// Return cached stats if available and recent
-	if r.stats != nil {
-		lastValidated, err := time.Parse(time.RFC3339, r.stats.LastValidated)
-		if err == nil && time.Since(lastValidated) < 5*time.Minute {
-			return r.stats, nil
-		}
-	}
-
-	// Recalculate stats
-	stats, err := r.calculateStats(ctx)
-	if err != nil {
-		return nil, ports.RepositoryError{
-			Op:  op,
-			Err: fmt.Errorf("failed to calculate stats: %w", err),
-		}
-	}
-
-	r.stats = stats
-	return stats, nil
 }
