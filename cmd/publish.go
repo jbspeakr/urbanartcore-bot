@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"regexp"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/spf13/cobra"
 
@@ -76,13 +76,21 @@ func runPublishCommand(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
-	// 2. Container Initialization
+	// 2. Initialize Logger (hard coded to JSON format, info level)
+	opts := &slog.HandlerOptions{
+		Level:       slog.LevelInfo,
+		ReplaceAttr: infrastructure.SanitizeSecrets,
+	}
+	handler := slog.NewJSONHandler(os.Stdout, opts)
+	slog.SetDefault(slog.New(handler))
+
+	// 3. Container Initialization
 	container, err := infrastructure.NewContainer(ctx, config)
 	if err != nil {
 		return fmt.Errorf("failed to initialize container: %w", err)
 	}
 
-	logger := container.GetLogger()
+	logger := slog.Default()
 
 	defer func() {
 		if err := container.Close(); err != nil {
@@ -90,7 +98,7 @@ func runPublishCommand(cmd *cobra.Command, args []string) error {
 		}
 	}()
 
-	// 3. Request Building
+	// 4. Request Building
 	publishRequest, err := buildPublishRequest(dateFlag, platform)
 	if err != nil {
 		return fmt.Errorf("invalid request parameters: %w", err)
@@ -102,7 +110,7 @@ func runPublishCommand(cmd *cobra.Command, args []string) error {
 		slog.Bool("dry_run", dryRun),
 	)
 
-	// 4. Service Execution
+	// 5. Service Execution
 	publishService := container.GetPublishService()
 
 	publishServiceReq := &app.PublishRequest{
@@ -117,12 +125,109 @@ func runPublishCommand(cmd *cobra.Command, args []string) error {
 		logger.Error("Publishing error", slog.String("error", err.Error()))
 	}
 
-	// 5. Output Formatting
-	if err := formatRealOutput(response, dryRun); err != nil {
-		return fmt.Errorf("failed to format output: %w", err)
+	// 6. Output Formatting & Display Results
+	if response != nil && response.Result != nil {
+		result := response.Result
+		if dryRun {
+			// Dry-run mode: log preview of generated content
+			dateGroup := result.DateGroup()
+			logger.Info("Dry-run content preview",
+				slog.String("operation", "PublishCommand"),
+				slog.String("mode", "dry-run"),
+				slog.String("date", dateGroup.DateKey()),
+				slog.Int("posts_found", len(dateGroup.Posts())))
+
+			if len(response.Generated) > 0 {
+				logger.Info("Generated content available",
+					slog.String("operation", "PublishCommand"),
+					slog.Int("platforms", len(response.Generated)))
+
+				for platform, content := range response.Generated {
+					logger.Info("Generated content for platform",
+						slog.String("operation", "PublishCommand"),
+						slog.String("platform", platform),
+						slog.Int("character_count", content.CharacterCount()),
+						slog.Int("character_limit", getCharacterLimit(platform)),
+						slog.Int("token_count", content.TokenCount()),
+						slog.Float64("estimated_cost_usd", content.Cost()),
+						slog.String("content_text", content.Text()))
+				}
+			}
+
+			// Summary for dry-run
+			if result.TotalCost() > 0 {
+				logger.Info("Dry-run summary",
+					slog.String("operation", "PublishCommand"),
+					slog.Float64("total_cost_usd", result.TotalCost()),
+					slog.Int("total_tokens", result.TotalTokens()),
+					slog.Duration("duration", result.Duration()))
+			} else {
+				logger.Info("Dry-run summary",
+					slog.String("operation", "PublishCommand"),
+					slog.Duration("duration", result.Duration()))
+			}
+		} else {
+			// Live mode: log actual publishing results
+			dateGroup := result.DateGroup()
+			logger.Info("Publishing anniversary posts",
+				slog.String("operation", "PublishCommand"),
+				slog.String("date", dateGroup.DateKey()))
+
+			successCount := 0
+			failureCount := 0
+			skippedCount := 0
+
+			for _, platformResult := range result.GetPlatformResults() {
+				platform := platformResult.Platform()
+				switch platformResult.Status() {
+				case domain.StatusSuccess:
+					logger.Info("Publishing result",
+						slog.String("operation", "PublishCommand"),
+						slog.String("platform", platform),
+						slog.String("status", "success"),
+						slog.String("uri", platformResult.PublishedURL()),
+						slog.Duration("response_time", platformResult.ResponseTime()))
+					successCount++
+				case domain.StatusFailed:
+					errMsg := "unknown error"
+					if err := platformResult.Error(); err != nil {
+						errMsg = err.Error()
+					}
+					logger.Info("Publishing result",
+						slog.String("operation", "PublishCommand"),
+						slog.String("platform", platform),
+						slog.String("status", "failure"),
+						slog.String("error", errMsg))
+					failureCount++
+				case domain.StatusSkipped:
+					logger.Info("Publishing result",
+						slog.String("operation", "PublishCommand"),
+						slog.String("platform", platform),
+						slog.String("status", "skipped"))
+					skippedCount++
+				}
+			}
+
+			// Publishing summary
+			totalCount := result.SuccessCount() + result.FailureCount()
+			exitCode := 0
+			if successCount < totalCount {
+				exitCode = 1
+			}
+
+			logger.Info("Publishing summary",
+				slog.String("operation", "PublishCommand"),
+				slog.Int("successful", successCount),
+				slog.Int("failed", failureCount),
+				slog.Int("skipped", skippedCount),
+				slog.Int("total", totalCount),
+				slog.Int("exit_code", exitCode),
+				slog.Float64("total_cost_usd", result.TotalCost()),
+				slog.Duration("total_duration", result.Duration()))
+		}
 	}
 
-	// 6. Exit Codes
+	// 7. Exit Codes
 	if response != nil && response.Error != nil {
 		return response.Error
 	}
@@ -172,131 +277,6 @@ func parsePlatforms(platformStr string) []string {
 		return []string{domain.PlatformBluesky, domain.PlatformMastodon}
 	}
 	return []string{platformStr}
-}
-
-// formatRealOutput displays results from the real PublishService.
-func formatRealOutput(response *app.PublishResponse, isDryRun bool) error {
-	if response == nil {
-		return fmt.Errorf("no response from publish service")
-	}
-
-	result := response.Result
-	if result == nil {
-		return fmt.Errorf("no result in response")
-	}
-
-	if isDryRun {
-		return formatRealDryRunOutput(response)
-	}
-	return formatRealPublishOutput(response)
-}
-
-// formatRealDryRunOutput displays dry-run content from the real service.
-func formatRealDryRunOutput(response *app.PublishResponse) error {
-	result := response.Result
-	fmt.Println("DRY RUN - Content Preview (no publishing)")
-	fmt.Println("=" + strings.Repeat("=", 47))
-
-	dateGroup := result.DateGroup()
-	dateKey := dateGroup.DateKey()
-	posts := dateGroup.Posts()
-
-	fmt.Printf("Date: %s\n", dateKey)
-	fmt.Printf("Posts found: %d\n", len(posts))
-
-	if len(response.Generated) > 0 {
-		fmt.Println("\nGenerated Content:")
-		fmt.Println(strings.Repeat("-", 49))
-
-		for platform, content := range response.Generated {
-			fmt.Printf("\n%s (%d/%d chars | %d tokens | $%.4f):\n",
-				strings.ToTitle(strings.ToLower(platform)),
-				content.CharacterCount(),
-				getCharacterLimit(platform),
-				content.TokenCount(),
-				content.Cost(),
-			)
-			fmt.Printf("  %s\n", content.Text())
-		}
-	} else {
-		fmt.Println("No content generated (check error messages above)")
-	}
-
-	fmt.Printf("\n%s\n", strings.Repeat("-", 49))
-	if result.TotalCost() > 0 {
-		fmt.Printf("Total: $%.4f | %d tokens | Duration: %.1fs\n",
-			result.TotalCost(),
-			result.TotalTokens(),
-			result.Duration().Seconds(),
-		)
-	} else {
-		fmt.Printf("Duration: %.1fs\n", result.Duration().Seconds())
-	}
-
-	return nil
-}
-
-// formatRealPublishOutput displays actual publishing results.
-func formatRealPublishOutput(response *app.PublishResponse) error {
-	result := response.Result
-	dateGroup := result.DateGroup()
-	dateKey := dateGroup.DateKey()
-
-	fmt.Printf("Publishing Anniversary Posts - %s\n", dateKey)
-	fmt.Println("=" + strings.Repeat("=", 35))
-
-	successCount := 0
-	totalCount := result.SuccessCount() + result.FailureCount()
-
-	for _, platformResult := range result.GetPlatformResults() {
-		platform := platformResult.Platform()
-		titlePlatform := capitalizeFirst(strings.ToLower(platform))
-
-		switch platformResult.Status() {
-		case domain.StatusSuccess:
-			fmt.Printf("✅ %s: Published successfully\n", titlePlatform)
-			if url := platformResult.PublishedURL(); url != "" {
-				fmt.Printf("   URL: %s\n", url)
-			}
-			fmt.Printf("   Response: %.1fs\n", platformResult.ResponseTime().Seconds())
-			successCount++
-		case domain.StatusFailed:
-			errMsg := "unknown error"
-			if err := platformResult.Error(); err != nil {
-				errMsg = err.Error()
-			}
-			fmt.Printf("❌ %s: %s\n", titlePlatform, errMsg)
-		case domain.StatusSkipped:
-			fmt.Printf("⏭️  %s: Skipped\n", titlePlatform)
-		}
-	}
-
-	// Summary
-	fmt.Println()
-	fmt.Println(strings.Repeat("-", 40))
-	if successCount == totalCount && totalCount > 0 {
-		fmt.Printf("Success: %d/%d platforms | Cost: $%.4f | Duration: %.1fs\n",
-			successCount, totalCount, result.TotalCost(), result.Duration().Seconds())
-	} else if successCount > 0 {
-		fmt.Printf("Partial: %d/%d succeeded | Duration: %.1fs | Exit: 1\n",
-			successCount, totalCount, result.Duration().Seconds())
-	} else {
-		fmt.Printf("Failed: 0/%d succeeded | Duration: %.1fs | Exit: 1\n",
-			totalCount, result.Duration().Seconds())
-	}
-
-	return nil
-}
-
-// capitalizeFirst capitalizes the first letter of a string.
-func capitalizeFirst(s string) string {
-	if len(s) == 0 {
-		return s
-	}
-	// Convert first rune to uppercase, keep the rest as-is
-	runes := []rune(s)
-	runes[0] = unicode.ToUpper(runes[0])
-	return string(runes)
 }
 
 // getCharacterLimit returns the character limit for the specified platform.

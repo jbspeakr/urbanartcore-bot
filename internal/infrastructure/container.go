@@ -102,10 +102,10 @@ func (g *placeholderGenerator) TestConnection(ctx context.Context) error {
 	return fmt.Errorf("not implemented: TestConnection will be available in Phase 5")
 }
 
-// Container holds all application dependencies with proper initialization.
+// Container holds all application dependencies.
+// Logger is not included as a field - use slog.Default() globally after initialization.
 type Container struct {
 	Config            *app.Config
-	Logger            *StructuredLogger
 	PostRepository    ports.PostRepository
 	BlueskyPublisher  ports.SocialPublisher
 	MastodonPublisher ports.SocialPublisher
@@ -113,8 +113,7 @@ type Container struct {
 }
 
 // NewContainer creates and initializes a new dependency injection container.
-// It accepts a pre-loaded configuration, initializes logging,
-// and sets up all required services with validation.
+// Logger must be initialized separately via InitializeLogger before creating the container.
 func NewContainer(ctx context.Context, config *app.Config) (*Container, error) {
 	const op = "NewContainer"
 
@@ -127,41 +126,15 @@ func NewContainer(ctx context.Context, config *app.Config) (*Container, error) {
 		return nil, fmt.Errorf("%s: invalid configuration: %w", op, err)
 	}
 
-	// Convert app.Config LogLevel string to infrastructure.LogLevel for logger
-	var logLevel LogLevel
-	switch strings.ToLower(config.LogLevel) {
-	case "debug":
-		logLevel = LevelDebug
-	case "info":
-		logLevel = LevelInfo
-	case "warn":
-		logLevel = LevelWarn
-	case "error":
-		logLevel = LevelError
-	default:
-		logLevel = LevelInfo
-	}
+	logger := slog.Default()
 
-	// Initialize logger with converted log level
-	// Logs always go to stdout (12-factor app principle, container runtime handles aggregation)
-	loggerConfig := &LoggerConfig{
-		Level:  logLevel,
-		Format: config.LogFormat,
-	}
-
-	logger, err := NewStructuredLogger(loggerConfig)
-	if err != nil {
-		return nil, fmt.Errorf("%s: failed to initialize logger: %w", op, err)
-	}
-
-	// Log container initialization
 	logger.Debug("Initializing dependency container",
 		slog.String("operation", op),
 		slog.Any("config", config.SanitizeForLogging()),
 	)
 
 	// Initialize repository with real JSONFileRepository implementation
-	repo, err := repository.NewJSONFileRepository(config.DataPath, logger.GetLogger())
+	repo, err := repository.NewJSONFileRepository(config.DataPath)
 	if err != nil {
 		return nil, fmt.Errorf("%s: failed to initialize repository: %w", op, err)
 	}
@@ -184,7 +157,6 @@ func NewContainer(ctx context.Context, config *app.Config) (*Container, error) {
 
 	container := &Container{
 		Config:            config,
-		Logger:            logger,
 		PostRepository:    repo,
 		BlueskyPublisher:  blueskyPublisher,
 		MastodonPublisher: mastodonPublisher,
@@ -201,27 +173,21 @@ func NewContainer(ctx context.Context, config *app.Config) (*Container, error) {
 }
 
 // Validate performs health checks on all container components.
-// It verifies configuration validity, logger initialization,
-// and repository accessibility.
 func (c *Container) Validate(ctx context.Context) error {
 	const op = "Container.Validate"
+	logger := slog.Default()
 
-	c.Logger.Debug("Starting container validation", slog.String("operation", op))
+	logger.Debug("Starting container validation", slog.String("operation", op))
 
 	// Verify config is valid
 	if err := c.Config.Validate(); err != nil {
 		return fmt.Errorf("%s: configuration invalid: %w", op, err)
 	}
 
-	// Verify logger is initialized
-	if c.Logger == nil {
-		return fmt.Errorf("%s: logger not initialized", op)
-	}
-
 	// Verify repository is accessible (this will fail with placeholder)
 	if err := c.PostRepository.ValidateDataSource(ctx); err != nil {
 		// For placeholders, we expect this to fail, so we'll log a warning instead
-		c.Logger.Warn("Repository validation failed (expected for placeholder)",
+		logger.Warn("Repository validation failed (expected for placeholder)",
 			slog.String("operation", op),
 			slog.String("error", err.Error()),
 		)
@@ -229,14 +195,14 @@ func (c *Container) Validate(ctx context.Context) error {
 
 	// Test publisher connections (these will fail with placeholders)
 	if err := c.BlueskyPublisher.TestConnection(ctx); err != nil {
-		c.Logger.Warn("Bluesky publisher connection test failed (expected for placeholder)",
+		logger.Warn("Bluesky publisher connection test failed (expected for placeholder)",
 			slog.String("operation", op),
 			slog.String("error", err.Error()),
 		)
 	}
 
 	if err := c.MastodonPublisher.TestConnection(ctx); err != nil {
-		c.Logger.Warn("Mastodon publisher connection test failed (expected for placeholder)",
+		logger.Warn("Mastodon publisher connection test failed (expected for placeholder)",
 			slog.String("operation", op),
 			slog.String("error", err.Error()),
 		)
@@ -244,24 +210,20 @@ func (c *Container) Validate(ctx context.Context) error {
 
 	// Test content generator connection (this will fail with placeholder)
 	if err := c.ContentGenerator.TestConnection(ctx); err != nil {
-		c.Logger.Warn("Content generator connection test failed (expected for placeholder)",
+		logger.Warn("Content generator connection test failed (expected for placeholder)",
 			slog.String("operation", op),
 			slog.String("error", err.Error()),
 		)
 	}
 
-	c.Logger.Debug("Container validation completed", slog.String("operation", op))
+	logger.Debug("Container validation completed", slog.String("operation", op))
 	return nil
 }
 
 // Close releases any resources held by the container.
-// Currently a placeholder for future resource cleanup.
 func (c *Container) Close() error {
 	const op = "Container.Close"
-
-	if c.Logger != nil {
-		c.Logger.Debug("Closing dependency container", slog.String("operation", op))
-	}
+	slog.Default().Debug("Closing dependency container", slog.String("operation", op))
 
 	// Future cleanup will happen here:
 	// - Close database connections
@@ -296,11 +258,6 @@ func (c *Container) GetContentGenerator() ports.ContentGenerator {
 	return c.ContentGenerator
 }
 
-// GetLogger returns the structured logger.
-func (c *Container) GetLogger() *StructuredLogger {
-	return c.Logger
-}
-
 // GetConfig returns the application configuration.
 func (c *Container) GetConfig() *app.Config {
 	return c.Config
@@ -317,6 +274,6 @@ func (c *Container) GetPublishService() *app.PublishService {
 		c.PostRepository,
 		c.ContentGenerator,
 		publishers,
-		c.Logger.GetLogger(),
+		slog.Default(),
 	)
 }

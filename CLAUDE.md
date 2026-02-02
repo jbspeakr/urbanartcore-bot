@@ -370,6 +370,160 @@ Uses Go's structured logging (`slog`) with AI-specific fields:
 - **Warn**: AI fallbacks, content modifications, rate limit warnings
 - **Error**: AI failures, platform errors, critical system issues
 
+## Structured Logging (slog) Requirements
+
+### Logging Architecture
+
+The application uses Go's standard `log/slog` package with a global logger. Logger initialization is hardcoded to JSON format and info log level, with automatic secret sanitization.
+
+**Initialization** (in `cmd/publish.go`):
+```go
+opts := &slog.HandlerOptions{
+    Level:       slog.LevelInfo,
+    ReplaceAttr: infrastructure.SanitizeSecrets,
+}
+handler := slog.NewJSONHandler(os.Stdout, opts)
+slog.SetDefault(slog.New(handler))
+```
+
+**Usage**:
+- Get the global logger anywhere: `logger := slog.Default()`
+- Works in production and tests - no special setup needed for tests
+- Secrets automatically redacted via SanitizeSecrets function
+
+### Mandatory Implementation Rule
+**No `fmt.Print*()`, `fmt.Println()`, `log.*()`, or `println()` statements in production code.**
+
+All logging must use `slog.Default()` throughout the application. This enables:
+- Consistent JSON log format (hardcoded)
+- Machine-parseable output for log aggregation
+- Structured field extraction for monitoring
+- Automatic secret sanitization (API keys, tokens, passwords)
+- Single global logger instance (no DI complexity)
+
+### Logging by Architectural Layer
+
+**Domain Layer** (`internal/domain/`)
+- Zero logging - pure business logic with no external dependencies
+- All state communicated through return values and errors
+
+**Ports Layer** (`internal/ports/`)
+- Zero logging - interface contracts remain clean
+- Logging handled in adapter implementations
+
+**Application Layer** (`internal/app/`)
+- Info: Successful use case completion, important state transitions, major operation steps
+- Warn: Recoverable issues, fallbacks, retries
+- Error: Use case failures, validation errors, dependency failures
+
+**Adapter Layer** (`internal/adapters/`)
+- Info: Successful external operations (file I/O, API calls, publishes)
+- Warn: Rate limiting, retries, fallback behavior
+- Error: External service failures, connection errors, validation failures
+
+**Command Layer** (`cmd/`)
+- Info: User-facing feedback (command results, summaries, status, operation outcomes)
+- Warn: Partial failures or degraded results
+- Error: Critical failures with actionable messages
+
+**Infrastructure Layer** (`internal/infrastructure/`)
+- Info: Startup completion, configuration applied, container initialization
+- Warn: Degraded modes, fallback strategies
+- Error: Initialization failures, connection errors
+
+### Using slog.Default()
+
+```go
+import "log/slog"
+
+func someFunction() {
+    logger := slog.Default()
+
+    logger.Info("Operation completed",
+        slog.String("operation", "MyFunction"),
+        slog.Int("items_processed", 42))
+
+    if err != nil {
+        logger.Error("Operation failed",
+            slog.String("operation", "MyFunction"),
+            slog.String("error", err.Error()))
+        return err
+    }
+}
+```
+
+**Logger is at Info level** - Debug logs are filtered out. Use Info for user-visible feedback and operational events.
+
+**Output Format**: All logs written as JSON to stdout, safe for container log aggregation (Docker, Kubernetes, etc.)
+
+### Structured Field Convention
+
+**Command and Application Layer** (user-facing and orchestration):
+- Always include `"operation"` (string) - function/method name for traceability
+- Include context fields: `platform`, `date`, `status`, `uri`, `mode`
+- Include metrics: `character_count`, `token_count`, `estimated_cost_usd`, `duration`
+- For error-level logs: include `error` field with error message
+
+**Adapter and Repository Layer** (external service integration):
+- Context-specific fields (e.g., `file_path`, `total_dates`, `platform`)
+- Include relevant error details for debugging external failures
+- Metrics specific to the adapter: `file_size`, `response_time`
+
+**General Pattern**:
+- Use descriptive field names that clarify what the value represents
+- Include enough context to debug issues without looking at code
+- Avoid generic field names - `platform` is better than `type`
+- For errors: use `"error"` field with the error message
+
+**Log Levels Used**:
+- **Info**: Normal operations, user-facing feedback, successful completions
+- **Warn**: Recoverable issues, fallbacks, expected failures
+- **Error**: Critical failures that stop operations
+- **Debug**: Filtered out (logger at Info level only)
+
+### Secret Sanitization
+
+- API keys, access tokens, and passwords are automatically redacted by `SanitizeSecrets()` function
+- Applied to all logs via the `ReplaceAttr` hook in logger initialization (in `cmd/publish.go`)
+- Sensitive keys detected: `password`, `token`, `key`, `secret`, `credential`, `api_key`, `access_token`, etc.
+- All slog output is safe for log aggregation services (Datadog, CloudWatch, ELK, etc.)
+
+Example automatic redaction:
+```
+Input:  slog.String("uac_mistral_api_key", "sk-proj-abcdef123456")
+Output: slog.String("uac_mistral_api_key", "sk-***456")
+```
+
+No special action needed - sensitive fields are redacted automatically for every log.
+
+### Error Handling and Logging
+
+**Returning Errors from Functions**:
+- Always wrap errors with context using ApplicationError or fmt.Errorf
+- Include the operation name and relevant fields in the error message
+- Return early from the function - let the caller decide whether to log
+- Pattern: `return nil, ApplicationError{Op: op, Err: err}`
+
+**Logging Errors**:
+- Log at Error level for critical operational failures (command layer)
+- Include structured error context: error message, operation, relevant fields
+- Pattern: `logger.Error("operation failed", slog.String("error", err.Error()))`
+- Don't log every error in every layer - apply selective logging based on layer
+
+**Error Propagation**:
+- Domain layer: Errors are never logged, only returned
+- Adapter layer: Errors are wrapped with context, selectively logged for critical issues
+- Application layer: Errors are returned with ApplicationError wrapper, not logged here
+- Command layer: Errors from services are caught and logged before displaying to user
+
+### 12-Factor Compliance
+- **All logs go to stdout** in JSON format
+- **No file writing or local log storage**
+- **No log level configuration** - hardcoded to Info level
+- **No log format configuration** - hardcoded to JSON
+- Container/deployment infrastructure handles log aggregation (Docker, Kubernetes, cloud logging)
+- Secrets automatically sanitized before logging
+
 ## Key Files Reference
 
 ### AI Integration Files

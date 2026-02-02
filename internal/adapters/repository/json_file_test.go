@@ -2,8 +2,6 @@ package repository
 
 import (
 	"context"
-	"log/slog"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -14,10 +12,9 @@ import (
 )
 
 func TestNewJSONFileRepository_ValidFile(t *testing.T) {
-	logger := createTestLogger(t)
 	sampleFile := filepath.Join("testdata", "posts_sample.json")
 
-	repo, err := NewJSONFileRepository(sampleFile, logger)
+	repo, err := NewJSONFileRepository(sampleFile)
 
 	require.NoError(t, err)
 	assert.NotNil(t, repo)
@@ -27,10 +24,9 @@ func TestNewJSONFileRepository_ValidFile(t *testing.T) {
 }
 
 func TestNewJSONFileRepository_FileNotFound(t *testing.T) {
-	logger := createTestLogger(t)
 	nonExistentFile := filepath.Join("testdata", "nonexistent.json")
 
-	repo, err := NewJSONFileRepository(nonExistentFile, logger)
+	repo, err := NewJSONFileRepository(nonExistentFile)
 
 	assert.Nil(t, repo)
 	require.Error(t, err)
@@ -41,30 +37,17 @@ func TestNewJSONFileRepository_FileNotFound(t *testing.T) {
 }
 
 func TestNewJSONFileRepository_EmptyFilePath(t *testing.T) {
-	logger := createTestLogger(t)
-
-	repo, err := NewJSONFileRepository("", logger)
+	repo, err := NewJSONFileRepository("")
 
 	assert.Nil(t, repo)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "file path cannot be empty")
 }
 
-func TestNewJSONFileRepository_NilLogger(t *testing.T) {
-	sampleFile := filepath.Join("testdata", "posts_sample.json")
-
-	repo, err := NewJSONFileRepository(sampleFile, nil)
-
-	assert.Nil(t, repo)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "logger cannot be nil")
-}
-
 func TestNewJSONFileRepository_CorruptedJSON(t *testing.T) {
-	logger := createTestLogger(t)
 	corruptedFile := filepath.Join("testdata", "posts_corrupted.json")
 
-	repo, err := NewJSONFileRepository(corruptedFile, logger)
+	repo, err := NewJSONFileRepository(corruptedFile)
 
 	assert.Nil(t, repo)
 	require.Error(t, err)
@@ -75,10 +58,9 @@ func TestNewJSONFileRepository_CorruptedJSON(t *testing.T) {
 }
 
 func TestNewJSONFileRepository_InvalidData(t *testing.T) {
-	logger := createTestLogger(t)
 	invalidFile := filepath.Join("testdata", "posts_invalid_data.json")
 
-	repo, err := NewJSONFileRepository(invalidFile, logger)
+	repo, err := NewJSONFileRepository(invalidFile)
 
 	assert.Nil(t, repo)
 	require.Error(t, err)
@@ -297,10 +279,8 @@ func TestValidateDataSource_Success(t *testing.T) {
 }
 
 func TestValidateDataSource_FileNotFound(t *testing.T) {
-	logger := createTestLogger(t)
 	repo := &JSONFileRepository{
 		filePath: filepath.Join("testdata", "nonexistent.json"),
-		logger:   logger,
 		data:     make(postsData),
 	}
 	ctx := context.Background()
@@ -315,11 +295,9 @@ func TestValidateDataSource_FileNotFound(t *testing.T) {
 }
 
 func TestValidateDataSource_NoDataLoaded(t *testing.T) {
-	logger := createTestLogger(t)
 	sampleFile := filepath.Join("testdata", "posts_sample.json")
 	repo := &JSONFileRepository{
 		filePath: sampleFile,
-		logger:   logger,
 		data:     nil, // No data loaded
 	}
 	ctx := context.Background()
@@ -455,29 +433,18 @@ func TestDateKeyRegexValidation(t *testing.T) {
 
 func createTestRepository(t *testing.T) *JSONFileRepository {
 	t.Helper()
-	logger := createTestLogger(t)
 	sampleFile := filepath.Join("testdata", "posts_sample.json")
 
-	repo, err := NewJSONFileRepository(sampleFile, logger)
+	repo, err := NewJSONFileRepository(sampleFile)
 	require.NoError(t, err)
 	return repo
-}
-
-func createTestLogger(t *testing.T) *slog.Logger {
-	t.Helper()
-	// Create a simple logger for testing (no need for infrastructure wrapper)
-	handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})
-	return slog.New(handler)
 }
 
 // Benchmark tests
 
 func BenchmarkGetPostsByDate(b *testing.B) {
-	handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn})
-	logger := slog.New(handler)
-
 	sampleFile := filepath.Join("testdata", "posts_sample.json")
-	repo, err := NewJSONFileRepository(sampleFile, logger)
+	repo, err := NewJSONFileRepository(sampleFile)
 	require.NoError(b, err)
 
 	ctx := context.Background()
@@ -492,11 +459,8 @@ func BenchmarkGetPostsByDate(b *testing.B) {
 }
 
 func BenchmarkListAvailableDates(b *testing.B) {
-	handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn})
-	logger := slog.New(handler)
-
 	sampleFile := filepath.Join("testdata", "posts_sample.json")
-	repo, err := NewJSONFileRepository(sampleFile, logger)
+	repo, err := NewJSONFileRepository(sampleFile)
 	require.NoError(b, err)
 
 	ctx := context.Background()

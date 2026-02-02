@@ -31,7 +31,6 @@ type postsData map[string][]*rawPost
 // and provides O(1) lookups by date key.
 type JSONFileRepository struct {
 	filePath string                     // Path to the JSON file
-	logger   *slog.Logger               // Logger for operation tracking
 	data     postsData                  // In-memory cache of all post data
 	stats    *ports.PostRepositoryStats // Cached statistics about the data
 }
@@ -41,7 +40,7 @@ var dateKeyRegex = regexp.MustCompile(`^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])
 
 // NewJSONFileRepository creates a new JSONFileRepository instance.
 // It loads and validates the JSON file during initialization.
-func NewJSONFileRepository(filePath string, logger *slog.Logger) (*JSONFileRepository, error) {
+func NewJSONFileRepository(filePath string) (*JSONFileRepository, error) {
 	const op = "NewJSONFileRepository"
 
 	if filePath == "" {
@@ -51,16 +50,8 @@ func NewJSONFileRepository(filePath string, logger *slog.Logger) (*JSONFileRepos
 		}
 	}
 
-	if logger == nil {
-		return nil, ports.RepositoryError{
-			Op:  op,
-			Err: fmt.Errorf("logger cannot be nil"),
-		}
-	}
-
 	repo := &JSONFileRepository{
 		filePath: filePath,
-		logger:   logger,
 	}
 
 	// Load the JSON file during initialization
@@ -68,7 +59,7 @@ func NewJSONFileRepository(filePath string, logger *slog.Logger) (*JSONFileRepos
 		return nil, ports.RepositoryError{Op: op, Err: err}
 	}
 
-	logger.Info("JSON file repository initialized",
+	slog.Default().Info("JSON file repository initialized",
 		slog.String("file_path", filePath),
 		slog.Int("total_dates", len(repo.data)),
 	)
@@ -90,7 +81,7 @@ func (r *JSONFileRepository) loadData() error {
 	}
 	defer func() {
 		if closeErr := file.Close(); closeErr != nil {
-			r.logger.Error("failed to close file",
+			slog.Default().Error("failed to close file",
 				slog.String("file", r.filePath),
 				slog.Any("error", closeErr))
 		}
@@ -175,7 +166,7 @@ func (r *JSONFileRepository) GetPostsByDate(ctx context.Context, dateKey string)
 		}
 	}
 
-	r.logger.Debug("Retrieving posts by date",
+	slog.Default().Debug("Retrieving posts by date",
 		slog.String("date_key", dateKey),
 	)
 
@@ -190,7 +181,7 @@ func (r *JSONFileRepository) GetPostsByDate(ctx context.Context, dateKey string)
 	rawPosts, exists := r.data[dateKey]
 	if !exists || len(rawPosts) == 0 {
 		// Return empty slice for missing dates (not an error)
-		r.logger.Debug("No posts found for date",
+		slog.Default().Debug("No posts found for date",
 			slog.String("date_key", dateKey),
 		)
 		return []*domain.Post{}, nil
@@ -209,7 +200,7 @@ func (r *JSONFileRepository) GetPostsByDate(ctx context.Context, dateKey string)
 		posts = append(posts, post)
 	}
 
-	r.logger.Debug("Retrieved posts successfully",
+	slog.Default().Debug("Retrieved posts successfully",
 		slog.String("date_key", dateKey),
 		slog.Int("post_count", len(posts)),
 	)
@@ -265,7 +256,7 @@ func (r *JSONFileRepository) ListAvailableDates(ctx context.Context) ([]string, 
 		return compareDateKeys(dates[i], dates[j])
 	})
 
-	r.logger.Debug("Listed available dates",
+	slog.Default().Debug("Listed available dates",
 		slog.Int("total_dates", len(dates)),
 	)
 
@@ -309,7 +300,7 @@ func (r *JSONFileRepository) GetPostCount(ctx context.Context) (int, error) {
 		totalPosts += len(posts)
 	}
 
-	r.logger.Debug("Counted total posts",
+	slog.Default().Debug("Counted total posts",
 		slog.Int("total_posts", totalPosts),
 	)
 
@@ -351,7 +342,7 @@ func (r *JSONFileRepository) ValidateDataSource(ctx context.Context) error {
 		}
 	}
 	if closeErr := file.Close(); closeErr != nil {
-		r.logger.Error("failed to close file during validation",
+		slog.Default().Error("failed to close file during validation",
 			slog.String("file", r.filePath),
 			slog.Any("error", closeErr))
 	}
@@ -374,7 +365,7 @@ func (r *JSONFileRepository) ValidateDataSource(ctx context.Context) error {
 	}
 	r.stats = stats
 
-	r.logger.Info("Data source validation successful",
+	slog.Default().Info("Data source validation successful",
 		slog.String("file_path", r.filePath),
 		slog.Int64("file_size", fileInfo.Size()),
 		slog.Int("total_posts", stats.TotalPosts),

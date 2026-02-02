@@ -205,7 +205,6 @@ func TestNewContainer_ValidConfig(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, container)
 	assert.NotNil(t, container.Config)
-	assert.NotNil(t, container.Logger)
 	assert.NotNil(t, container.PostRepository)
 	assert.NotNil(t, container.BlueskyPublisher)
 	assert.NotNil(t, container.MastodonPublisher)
@@ -402,12 +401,6 @@ func TestContainer_GetMethods(t *testing.T) {
 		assert.NotNil(t, generator)
 		_, ok := generator.(*placeholderGenerator)
 		assert.True(t, ok)
-	})
-
-	t.Run("GetLogger", func(t *testing.T) {
-		logger := container.GetLogger()
-		assert.NotNil(t, logger)
-		assert.Equal(t, container.Logger, logger)
 	})
 
 	t.Run("GetConfig", func(t *testing.T) {
