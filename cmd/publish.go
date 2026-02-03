@@ -16,12 +16,6 @@ import (
 	"codeberg.org/brennenstuhl/uac-socializer/internal/infrastructure"
 )
 
-var (
-	dryRun   bool
-	dateFlag string
-	platform string
-)
-
 // publishCmd represents the publish command
 var publishCmd = &cobra.Command{
 	Use:   "publish",
@@ -60,14 +54,19 @@ func init() {
 	rootCmd.AddCommand(publishCmd)
 
 	// Add command flags
-	publishCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview generated content without publishing (recommended for testing)")
-	publishCmd.Flags().StringVar(&dateFlag, "date", "", "Target date in MM-DD format (default: today)")
-	publishCmd.Flags().StringVar(&platform, "platform", "all", "Target platform: bluesky|mastodon|all")
+	publishCmd.Flags().Bool("dry-run", false, "Preview generated content without publishing (recommended for testing)")
+	publishCmd.Flags().String("date", "", "Target date in MM-DD format (default: today)")
+	publishCmd.Flags().String("platform", "all", "Target platform: bluesky|mastodon|all")
 }
 
 // runPublishCommand executes the publish workflow with comprehensive error handling.
 func runPublishCommand(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
+
+	// Extract flag values from Cobra's flag store
+	dryRun, _ := cmd.Flags().GetBool("dry-run")
+	dateFlag, _ := cmd.Flags().GetString("date")
+	platform, _ := cmd.Flags().GetString("platform")
 
 	// 1. Config Loading
 	config, err := app.LoadConfig()
