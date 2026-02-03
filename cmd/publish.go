@@ -129,11 +129,16 @@ func runPublishCommand(cmd *cobra.Command, args []string) error {
 		if dryRun {
 			// Dry-run mode: log preview of generated content
 			post := result.Post()
-			logger.Info("Dry-run content preview",
-				slog.String("operation", "PublishCommand"),
-				slog.String("mode", "dry-run"),
-				slog.String("date", post.AnniversaryDateKey()),
-				slog.String("uri", post.URI()))
+			// Nil safety check for post
+			if post == nil {
+				logger.Warn("Post is nil in publish result", slog.String("operation", "PublishCommand"))
+			} else {
+				logger.Info("Dry-run content preview",
+					slog.String("operation", "PublishCommand"),
+					slog.String("mode", "dry-run"),
+					slog.String("date", post.AnniversaryDateKey()),
+					slog.String("uri", post.URI()))
+			}
 
 			if len(response.Generated) > 0 {
 				logger.Info("Generated content available",
@@ -167,10 +172,15 @@ func runPublishCommand(cmd *cobra.Command, args []string) error {
 		} else {
 			// Live mode: log actual publishing results
 			post := result.Post()
-			logger.Info("Publishing anniversary posts",
-				slog.String("operation", "PublishCommand"),
-				slog.String("date", post.AnniversaryDateKey()),
-				slog.String("uri", post.URI()))
+			// Nil safety check for post
+			if post == nil {
+				logger.Warn("Post is nil in publish result", slog.String("operation", "PublishCommand"))
+			} else {
+				logger.Info("Publishing anniversary posts",
+					slog.String("operation", "PublishCommand"),
+					slog.String("date", post.AnniversaryDateKey()),
+					slog.String("uri", post.URI()))
+			}
 
 			successCount := 0
 			failureCount := 0

@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"testing"
 	"time"
 
@@ -144,8 +143,7 @@ func createTestGeneratedContent(text, platform string) *domain.GeneratedContent 
 }
 
 func createTestPublishService(repo ports.PostRepository, gen ports.ContentGenerator, publishers map[string]ports.SocialPublisher) *PublishService {
-	logger := slog.Default()
-	return NewPublishService(repo, gen, publishers, logger)
+	return NewPublishService(repo, gen, publishers)
 }
 
 // Test cases
@@ -156,15 +154,13 @@ func TestNewPublishService(t *testing.T) {
 	publishers := map[string]ports.SocialPublisher{
 		"bluesky": NewMockSocialPublisher("bluesky"),
 	}
-	logger := slog.Default()
 
-	service := NewPublishService(repo, gen, publishers, logger)
+	service := NewPublishService(repo, gen, publishers)
 
 	assert.NotNil(t, service)
 	assert.Equal(t, repo, service.repository)
 	assert.Equal(t, gen, service.generator)
 	assert.Equal(t, publishers, service.publishers)
-	assert.Equal(t, logger, service.logger)
 }
 
 func TestPublishAnniversaryPosts_HappyPath(t *testing.T) {

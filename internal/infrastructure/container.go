@@ -269,6 +269,5 @@ func (c *Container) GetPublishService() *app.PublishService {
 		c.PostRepository,
 		c.ContentGenerator,
 		publishers,
-		slog.Default(),
 	)
 }

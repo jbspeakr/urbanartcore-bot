@@ -3,6 +3,7 @@ package domain
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 	"time"
 )
@@ -117,16 +118,25 @@ func NewGeneratedContent(text, platform string, hashtags []string, promptUsed st
 
 // Text returns the generated post text.
 func (gc *GeneratedContent) Text() string {
+	if gc == nil {
+		return ""
+	}
 	return gc.text
 }
 
 // Platform returns the target platform.
 func (gc *GeneratedContent) Platform() string {
+	if gc == nil {
+		return ""
+	}
 	return gc.platform
 }
 
 // Hashtags returns a copy of the hashtags.
 func (gc *GeneratedContent) Hashtags() []string {
+	if gc == nil {
+		return []string{}
+	}
 	hashtags := make([]string, len(gc.hashtags))
 	copy(hashtags, gc.hashtags)
 	return hashtags
@@ -134,40 +144,57 @@ func (gc *GeneratedContent) Hashtags() []string {
 
 // Metadata returns a copy of the metadata map.
 func (gc *GeneratedContent) Metadata() map[string]string {
-	metadata := make(map[string]string)
-	for k, v := range gc.metadata {
-		metadata[k] = v
+	if gc == nil {
+		return map[string]string{}
 	}
-	return metadata
+	return maps.Clone(gc.metadata)
 }
 
 // PromptUsed returns the original prompt used for generation.
 func (gc *GeneratedContent) PromptUsed() string {
+	if gc == nil {
+		return ""
+	}
 	return gc.promptUsed
 }
 
 // GeneratedAt returns when the content was generated.
 func (gc *GeneratedContent) GeneratedAt() time.Time {
+	if gc == nil {
+		return time.Time{}
+	}
 	return gc.generatedAt
 }
 
 // TokenCount returns the number of tokens used in generation.
 func (gc *GeneratedContent) TokenCount() int {
+	if gc == nil {
+		return 0
+	}
 	return gc.tokenCount
 }
 
 // Cost returns the cost of generation in USD.
 func (gc *GeneratedContent) Cost() float64 {
+	if gc == nil {
+		return 0.0
+	}
 	return gc.cost
 }
 
 // CharacterCount returns the number of characters in the generated text.
 func (gc *GeneratedContent) CharacterCount() int {
+	if gc == nil {
+		return 0
+	}
 	return len(gc.text)
 }
 
 // IsWithinLimit checks if the content fits within the platform's character limit.
 func (gc *GeneratedContent) IsWithinLimit() bool {
+	if gc == nil {
+		return false
+	}
 	return gc.CharacterCount() <= getPlatformLimit(gc.platform)
 }
 
@@ -204,51 +231,81 @@ func NewPlatformResult(platform string, status PublishStatus, content *Generated
 
 // Platform returns the platform name.
 func (pr *PlatformResult) Platform() string {
+	if pr == nil {
+		return ""
+	}
 	return pr.platform
 }
 
 // Status returns the publish status.
 func (pr *PlatformResult) Status() PublishStatus {
+	if pr == nil {
+		return StatusPending
+	}
 	return pr.status
 }
 
 // IsSuccess returns true if the publishing was successful.
 func (pr *PlatformResult) IsSuccess() bool {
+	if pr == nil {
+		return false
+	}
 	return pr.status == StatusSuccess
 }
 
 // Content returns the generated content that was published.
 func (pr *PlatformResult) Content() *GeneratedContent {
+	if pr == nil {
+		return nil
+	}
 	return pr.content
 }
 
 // PublishedURL returns the URL of the published post.
 func (pr *PlatformResult) PublishedURL() string {
+	if pr == nil {
+		return ""
+	}
 	return pr.publishedURL
 }
 
 // Error returns the error that occurred during publishing.
 func (pr *PlatformResult) Error() error {
+	if pr == nil {
+		return nil
+	}
 	return pr.error
 }
 
 // PublishedAt returns when the publishing completed.
 func (pr *PlatformResult) PublishedAt() time.Time {
+	if pr == nil {
+		return time.Time{}
+	}
 	return pr.publishedAt
 }
 
 // RetryCount returns the number of retry attempts.
 func (pr *PlatformResult) RetryCount() int {
+	if pr == nil {
+		return 0
+	}
 	return pr.retryCount
 }
 
 // ResponseTime returns the time taken for the publish operation.
 func (pr *PlatformResult) ResponseTime() time.Duration {
+	if pr == nil {
+		return 0
+	}
 	return pr.responseTime
 }
 
 // SetSuccess updates the result with success information.
 func (pr *PlatformResult) SetSuccess(publishedURL string, responseTime time.Duration) {
+	if pr == nil {
+		return
+	}
 	pr.status = StatusSuccess
 	pr.publishedURL = publishedURL
 	pr.responseTime = responseTime
@@ -257,6 +314,9 @@ func (pr *PlatformResult) SetSuccess(publishedURL string, responseTime time.Dura
 
 // SetFailure updates the result with failure information.
 func (pr *PlatformResult) SetFailure(err error, responseTime time.Duration) {
+	if pr == nil {
+		return
+	}
 	pr.status = StatusFailed
 	pr.error = err
 	pr.responseTime = responseTime
@@ -265,6 +325,9 @@ func (pr *PlatformResult) SetFailure(err error, responseTime time.Duration) {
 
 // SetSkipped updates the result with skipped information (e.g., for dry runs).
 func (pr *PlatformResult) SetSkipped(reason string, responseTime time.Duration) {
+	if pr == nil {
+		return
+	}
 	pr.status = StatusSkipped
 	pr.publishedURL = reason
 	pr.responseTime = responseTime
@@ -273,6 +336,9 @@ func (pr *PlatformResult) SetSkipped(reason string, responseTime time.Duration) 
 
 // IncrementRetry increments the retry count.
 func (pr *PlatformResult) IncrementRetry() {
+	if pr == nil {
+		return
+	}
 	pr.retryCount++
 }
 
@@ -306,11 +372,17 @@ func NewPublishResult(post *Post, dryRun bool) (*PublishResult, error) {
 
 // Post returns the original post.
 func (pr *PublishResult) Post() *Post {
+	if pr == nil {
+		return nil
+	}
 	return pr.post
 }
 
 // IsDryRun returns true if this was a dry run.
 func (pr *PublishResult) IsDryRun() bool {
+	if pr == nil {
+		return false
+	}
 	return pr.dryRun
 }
 
@@ -333,11 +405,17 @@ func (pr *PublishResult) AddPlatformResult(result *PlatformResult) error {
 
 // GetPlatformResult returns the result for a specific platform.
 func (pr *PublishResult) GetPlatformResult(platform string) *PlatformResult {
+	if pr == nil {
+		return nil
+	}
 	return pr.platformResults[strings.ToLower(platform)]
 }
 
 // Platforms returns a list of all platforms that were attempted.
 func (pr *PublishResult) Platforms() []string {
+	if pr == nil {
+		return []string{}
+	}
 	platforms := make([]string, 0, len(pr.platformResults))
 	for platform := range pr.platformResults {
 		platforms = append(platforms, platform)
@@ -347,7 +425,7 @@ func (pr *PublishResult) Platforms() []string {
 
 // IsSuccess returns true if all platforms published successfully.
 func (pr *PublishResult) IsSuccess() bool {
-	if len(pr.platformResults) == 0 {
+	if pr == nil || len(pr.platformResults) == 0 {
 		return false
 	}
 
@@ -362,6 +440,9 @@ func (pr *PublishResult) IsSuccess() bool {
 
 // HasFailures returns true if any platform failed to publish.
 func (pr *PublishResult) HasFailures() bool {
+	if pr == nil {
+		return false
+	}
 	for _, result := range pr.platformResults {
 		if result.Status() == StatusFailed {
 			return true
@@ -372,6 +453,9 @@ func (pr *PublishResult) HasFailures() bool {
 
 // SuccessCount returns the number of successful publishes.
 func (pr *PublishResult) SuccessCount() int {
+	if pr == nil {
+		return 0
+	}
 	count := 0
 	for _, result := range pr.platformResults {
 		if result.IsSuccess() {
@@ -383,6 +467,9 @@ func (pr *PublishResult) SuccessCount() int {
 
 // FailureCount returns the number of failed publishes.
 func (pr *PublishResult) FailureCount() int {
+	if pr == nil {
+		return 0
+	}
 	count := 0
 	for _, result := range pr.platformResults {
 		if result.Status() == StatusFailed {
@@ -394,16 +481,25 @@ func (pr *PublishResult) FailureCount() int {
 
 // TotalCost returns the total AI generation cost across all platforms.
 func (pr *PublishResult) TotalCost() float64 {
+	if pr == nil {
+		return 0.0
+	}
 	return pr.totalCost
 }
 
 // TotalTokens returns the total tokens used across all platforms.
 func (pr *PublishResult) TotalTokens() int {
+	if pr == nil {
+		return 0
+	}
 	return pr.totalTokens
 }
 
 // Duration returns the total time taken for the publish operation.
 func (pr *PublishResult) Duration() time.Duration {
+	if pr == nil {
+		return 0
+	}
 	if pr.endTime.IsZero() {
 		return time.Since(pr.startTime)
 	}
@@ -412,11 +508,17 @@ func (pr *PublishResult) Duration() time.Duration {
 
 // Complete marks the publish operation as complete.
 func (pr *PublishResult) Complete() {
+	if pr == nil {
+		return
+	}
 	pr.endTime = time.Now()
 }
 
 // GetPlatformResults returns all platform results as a slice.
 func (pr *PublishResult) GetPlatformResults() []*PlatformResult {
+	if pr == nil {
+		return []*PlatformResult{}
+	}
 	results := make([]*PlatformResult, 0, len(pr.platformResults))
 	for _, result := range pr.platformResults {
 		results = append(results, result)
@@ -426,6 +528,10 @@ func (pr *PublishResult) GetPlatformResults() []*PlatformResult {
 
 // String returns a human-readable representation of the publish result.
 func (pr *PublishResult) String() string {
+	if pr == nil {
+		return "PublishResult{nil}"
+	}
+
 	status := "success"
 	if pr.HasFailures() {
 		status = "partial"
@@ -434,8 +540,13 @@ func (pr *PublishResult) String() string {
 		}
 	}
 
+	postURI := "unknown"
+	if pr.post != nil {
+		postURI = pr.post.URI()
+	}
+
 	return fmt.Sprintf("PublishResult{Post: %s, Status: %s, Platforms: %d, Cost: $%.4f}",
-		pr.post.URI(), status, len(pr.platformResults), pr.totalCost)
+		postURI, status, len(pr.platformResults), pr.totalCost)
 }
 
 // Helper functions

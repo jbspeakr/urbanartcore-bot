@@ -52,7 +52,7 @@ func TestLoadConfig_AllEnvVars(t *testing.T) {
 
 func TestLoadConfig_Defaults(t *testing.T) {
 	// Clear all UAC environment variables to test defaults
-	clearUACEnvVars(t)
+	clearUACEnvVars()
 
 	config, err := LoadConfig()
 	require.NoError(t, err)
@@ -76,7 +76,7 @@ func TestLoadConfig_Defaults(t *testing.T) {
 }
 
 func TestLoadConfig_InvalidDuration(t *testing.T) {
-	clearUACEnvVars(t)
+	clearUACEnvVars()
 	t.Setenv("UAC_AI_TIMEOUT", "invalid-duration")
 
 	_, err := LoadConfig()
@@ -296,7 +296,7 @@ func TestConfigError_EmptyOp(t *testing.T) {
 }
 
 // Helper function to clear all UAC environment variables for testing defaults
-func clearUACEnvVars(t *testing.T) {
+func clearUACEnvVars() {
 	envVars := []string{
 		"UAC_DATA_PATH",
 		"UAC_PROMPTS_PATH",

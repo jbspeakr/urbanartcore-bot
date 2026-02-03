@@ -85,28 +85,43 @@ func NewPost(uri, dateStr string) (*Post, error) {
 
 // URI returns the full URL to the blog post.
 func (p *Post) URI() string {
+	if p == nil {
+		return ""
+	}
 	return p.uri
 }
 
 // Date returns the original publication date.
 func (p *Post) Date() time.Time {
+	if p == nil {
+		return time.Time{}
+	}
 	return p.date
 }
 
 // DateString returns the date formatted as YYYY-MM-DD.
 func (p *Post) DateString() string {
+	if p == nil {
+		return ""
+	}
 	return p.date.Format(DateLayout)
 }
 
 // AnniversaryDateKey returns the MM-DD formatted key used for grouping
 // anniversary posts by date.
 func (p *Post) AnniversaryDateKey() string {
+	if p == nil {
+		return ""
+	}
 	return p.date.Format("01-02")
 }
 
 // YearsAgo calculates how many years have passed since the original
 // publication date, relative to the given reference date.
 func (p *Post) YearsAgo(referenceDate time.Time) int {
+	if p == nil {
+		return 0
+	}
 	years := referenceDate.Year() - p.date.Year()
 
 	// Adjust if the anniversary hasn't occurred yet this year
@@ -124,10 +139,16 @@ func (p *Post) YearsAgo(referenceDate time.Time) int {
 // IsAnniversary checks if the given date represents an anniversary
 // of this post (same month and day, different year).
 func (p *Post) IsAnniversary(checkDate time.Time) bool {
+	if p == nil {
+		return false
+	}
 	return p.date.Month() == checkDate.Month() && p.date.Day() == checkDate.Day()
 }
 
 // String returns a human-readable representation of the post.
 func (p *Post) String() string {
+	if p == nil {
+		return "Post{nil}"
+	}
 	return fmt.Sprintf("Post{URI: %s, Date: %s}", p.uri, p.DateString())
 }

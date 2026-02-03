@@ -61,7 +61,6 @@ type PublishService struct {
 	repository ports.PostRepository
 	generator  ports.ContentGenerator
 	publishers map[string]ports.SocialPublisher
-	logger     *slog.Logger
 }
 
 // NewPublishService creates a new PublishService with the provided dependencies.
@@ -69,13 +68,16 @@ func NewPublishService(
 	repository ports.PostRepository,
 	generator ports.ContentGenerator,
 	publishers map[string]ports.SocialPublisher,
-	logger *slog.Logger,
 ) *PublishService {
+	// Nil safety: initialize empty map if nil
+	if publishers == nil {
+		publishers = make(map[string]ports.SocialPublisher)
+	}
+
 	return &PublishService{
 		repository: repository,
 		generator:  generator,
 		publishers: publishers,
-		logger:     logger,
 	}
 }
 
@@ -84,15 +86,25 @@ func NewPublishService(
 func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *PublishRequest) (*PublishResponse, error) {
 	const op = "PublishAnniversaryPosts"
 
-	ps.logger.Info("Starting anniversary post publishing",
-		slog.String("dateKey", req.DateKey),
-		slog.Any("platforms", req.Platforms),
-		slog.Bool("dryRun", req.DryRun))
-
 	// Step 1: Input Validation
 	if err := ps.validateRequest(req); err != nil {
 		return nil, ApplicationError{Op: op, Err: err}
 	}
+
+	// Nil safety checks for service dependencies
+	// These checks happen after validation to allow testing of validation logic
+	// In production, these should never be nil due to container initialization
+	if ps.repository == nil {
+		return nil, ApplicationError{Op: op, Err: errors.New("repository is required but is nil")}
+	}
+	if ps.generator == nil {
+		return nil, ApplicationError{Op: op, Err: errors.New("generator is required but is nil")}
+	}
+
+	slog.Default().Info("Starting anniversary post publishing",
+		slog.String("dateKey", req.DateKey),
+		slog.Any("platforms", req.Platforms),
+		slog.Bool("dryRun", req.DryRun))
 
 	// Step 2: Data Retrieval
 	post, err := ps.repository.GetPostForDate(ctx, req.DateKey)
@@ -103,7 +115,12 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 		return nil, ApplicationError{Op: op, Err: fmt.Errorf("failed to retrieve post: %w", err)}
 	}
 
-	ps.logger.Info("Retrieved post for anniversary date",
+	// Nil safety check: ensure post is not nil
+	if post == nil {
+		return nil, ApplicationError{Op: op, Err: errors.New("repository returned nil post")}
+	}
+
+	slog.Default().Info("Retrieved post for anniversary date",
 		slog.String("dateKey", req.DateKey),
 		slog.String("uri", post.URI()))
 
@@ -117,7 +134,7 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 		return nil, ApplicationError{Op: op, Err: ErrNoPlatforms}
 	}
 
-	ps.logger.Info("Resolved target platforms", slog.Any("platforms", platforms))
+	slog.Default().Info("Resolved target platforms", slog.Any("platforms", platforms))
 
 	// Initialize result tracking
 	publishResult, err := domain.NewPublishResult(post, req.DryRun)
@@ -131,17 +148,17 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 	for _, platform := range platforms {
 		select {
 		case <-ctx.Done():
-			ps.logger.Warn("Content generation cancelled by context")
+			slog.Default().Warn("Content generation cancelled by context")
 			return nil, ApplicationError{Op: op, Err: ErrContextCancelled}
 		default:
 		}
 
-		ps.logger.Info("Generating content for platform", slog.String("platform", platform))
+		slog.Default().Info("Generating content for platform", slog.String("platform", platform))
 
 		content, err := ps.generateContentForPlatform(ctx, post, platform, req.DateKey, req.DryRun)
 		if err != nil {
 			// Platform error - continue with other platforms
-			ps.logger.Error("Content generation failed for platform",
+			slog.Default().Error("Content generation failed for platform",
 				slog.String("platform", platform),
 				slog.String("error", err.Error()))
 
@@ -149,13 +166,13 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 			platformResult, _ := domain.NewPlatformResult(platform, domain.StatusFailed, nil)
 			platformResult.SetFailure(fmt.Errorf("content generation failed: %w", err), 0)
 			if err := publishResult.AddPlatformResult(platformResult); err != nil {
-				ps.logger.Error("Failed to add platform result", slog.String("error", err.Error()))
+				slog.Default().Error("Failed to add platform result", slog.String("error", err.Error()))
 			}
 			continue
 		}
 
 		generatedContent[platform] = content
-		ps.logger.Info("Content generated successfully",
+		slog.Default().Info("Content generated successfully",
 			slog.String("platform", platform),
 			slog.Int("characters", content.CharacterCount()),
 			slog.Int("tokens", content.TokenCount()))
@@ -170,17 +187,17 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 	for platform, content := range generatedContent {
 		select {
 		case <-ctx.Done():
-			ps.logger.Warn("Publishing cancelled by context")
+			slog.Default().Warn("Publishing cancelled by context")
 			return nil, ApplicationError{Op: op, Err: ErrContextCancelled}
 		default:
 		}
 
-		ps.logger.Info("Publishing to platform", slog.String("platform", platform))
+		slog.Default().Info("Publishing to platform", slog.String("platform", platform))
 
 		platformResult, err := ps.publishToPlatform(ctx, platform, content, req.DryRun)
 		if err != nil {
 			// Platform error - continue with other platforms
-			ps.logger.Error("Publishing failed for platform",
+			slog.Default().Error("Publishing failed for platform",
 				slog.String("platform", platform),
 				slog.String("error", err.Error()))
 
@@ -191,14 +208,14 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 		}
 
 		if err := publishResult.AddPlatformResult(platformResult); err != nil {
-			ps.logger.Error("Failed to add platform result", slog.String("error", err.Error()))
+			slog.Default().Error("Failed to add platform result", slog.String("error", err.Error()))
 		}
 	}
 
 	// Step 6: Result Aggregation
 	publishResult.Complete()
 
-	ps.logger.Info("Publishing operation completed",
+	slog.Default().Info("Publishing operation completed",
 		slog.Int("successCount", publishResult.SuccessCount()),
 		slog.Int("failureCount", publishResult.FailureCount()),
 		slog.Float64("totalCost", publishResult.TotalCost()),
@@ -224,6 +241,11 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 
 // validateRequest validates the publishing request parameters.
 func (ps *PublishService) validateRequest(req *PublishRequest) error {
+	// Nil safety: handle nil receiver gracefully
+	if ps == nil {
+		return errors.New("publish service cannot be nil")
+	}
+
 	if req == nil {
 		return errors.New("request cannot be nil")
 	}
@@ -256,6 +278,14 @@ func (ps *PublishService) validateRequest(req *PublishRequest) error {
 
 // resolvePlatforms converts platform names to normalized platform list.
 func (ps *PublishService) resolvePlatforms(platforms []string) ([]string, error) {
+	// Nil safety check
+	if ps == nil {
+		return nil, errors.New("publish service is nil")
+	}
+	if ps.publishers == nil {
+		return nil, errors.New("publishers map is nil")
+	}
+
 	resolved := make([]string, 0)
 
 	for _, platform := range platforms {
@@ -271,7 +301,7 @@ func (ps *PublishService) resolvePlatforms(platforms []string) ([]string, error)
 			if _, exists := ps.publishers[platform]; exists {
 				resolved = append(resolved, platform)
 			} else {
-				ps.logger.Warn("Publisher not available for platform", slog.String("platform", platform))
+				slog.Default().Warn("Publisher not available for platform", slog.String("platform", platform))
 			}
 		}
 	}
@@ -291,6 +321,11 @@ func (ps *PublishService) resolvePlatforms(platforms []string) ([]string, error)
 
 // generateContentForPlatform generates content for a specific platform.
 func (ps *PublishService) generateContentForPlatform(ctx context.Context, post *domain.Post, platform, dateKey string, dryRun bool) (*domain.GeneratedContent, error) {
+	// Nil safety check
+	if post == nil {
+		return nil, errors.New("post cannot be nil")
+	}
+
 	req, err := ports.NewGenerationRequest([]*domain.Post{post}, platform, dateKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create generation request: %w", err)
@@ -306,7 +341,7 @@ func (ps *PublishService) generateContentForPlatform(ctx context.Context, post *
 		content, err := ps.generator.GenerateContent(ctx, req)
 		if err != nil {
 			if strings.Contains(err.Error(), "not implemented") {
-				ps.logger.Info("DRY RUN - content generation simulated", slog.String("platform", platform))
+				slog.Default().Info("DRY RUN - content generation simulated", slog.String("platform", platform))
 				return ps.createMockContent(platform, post, dateKey), nil
 			}
 			return nil, err
@@ -319,13 +354,18 @@ func (ps *PublishService) generateContentForPlatform(ctx context.Context, post *
 
 // publishToPlatform publishes content to a specific platform.
 func (ps *PublishService) publishToPlatform(ctx context.Context, platform string, content *domain.GeneratedContent, dryRun bool) (*domain.PlatformResult, error) {
+	// Nil safety check
+	if content == nil {
+		return nil, errors.New("content cannot be nil")
+	}
+
 	publisher, exists := ps.publishers[platform]
 	if !exists {
 		return nil, fmt.Errorf("no publisher available for platform: %s", platform)
 	}
 
 	if dryRun {
-		ps.logger.Info("DRY RUN - skipping actual publish", slog.String("platform", platform))
+		slog.Default().Info("DRY RUN - skipping actual publish", slog.String("platform", platform))
 
 		// Validate content in dry-run mode, but expect "not implemented" error
 		if err := publisher.ValidateContent(ctx, content); err != nil {
@@ -365,6 +405,14 @@ func (ps *PublishService) publishToPlatform(ctx context.Context, platform string
 
 // createMockContent creates mock content for dry-run mode.
 func (ps *PublishService) createMockContent(platform string, post *domain.Post, dateKey string) *domain.GeneratedContent {
+	// Nil safety check
+	if post == nil {
+		slog.Default().Warn("createMockContent called with nil post, using fallback")
+		mockText := fmt.Sprintf("🎉 Anniversary post for %s! #UrbanArt #Anniversary", dateKey)
+		content, _ := domain.NewGeneratedContent(mockText, platform, []string{"#UrbanArt", "#Anniversary"}, "mock-prompt-for-dry-run", 100, 0.01)
+		return content
+	}
+
 	mockText := fmt.Sprintf("🎉 Anniversary post for %s! Celebrating %d year(s) of Urban Art Core content. #UrbanArt #Anniversary",
 		dateKey, time.Now().Year()-post.Date().Year())
 
