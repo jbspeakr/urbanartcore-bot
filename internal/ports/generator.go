@@ -162,6 +162,23 @@ func DefaultGenerationOptions() *GenerationOptions {
 	}
 }
 
+// Validate checks that GenerationOptions values are within acceptable bounds.
+// minRetries and maxRetries specify the allowed retry count range.
+// Returns an error if any values exceed limits.
+func (g *GenerationOptions) Validate(minRetries, maxRetries int) error {
+	const op = "GenerationOptions.Validate"
+
+	if g.RetryCount < minRetries || g.RetryCount > maxRetries {
+		return fmt.Errorf("%s: retry_count must be between %d and %d (got: %d)", op, minRetries, maxRetries, g.RetryCount)
+	}
+
+	if g.Timeout < 0 {
+		return fmt.Errorf("%s: timeout must be non-negative (got: %v)", op, g.Timeout)
+	}
+
+	return nil
+}
+
 // AdvancedGenerator is an optional interface that generators can implement
 // to provide additional functionality beyond basic content generation.
 type AdvancedGenerator interface {

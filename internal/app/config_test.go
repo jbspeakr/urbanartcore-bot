@@ -24,6 +24,8 @@ func TestLoadConfig_AllEnvVars(t *testing.T) {
 		"UAC_MASTODON_ACCESS_TOKEN": "test-token-123",
 		"UAC_AI_RETRY_COUNT":        "5",
 		"UAC_AI_TIMEOUT":            "45s",
+		"UAC_MAX_RETRY_COUNT":       "15",
+		"UAC_MIN_RETRY_COUNT":       "1",
 	}
 
 	// Set environment variables
@@ -48,6 +50,8 @@ func TestLoadConfig_AllEnvVars(t *testing.T) {
 	assert.Equal(t, "test-token-123", config.MastodonAccessToken)
 	assert.Equal(t, 5, config.AIRetryCount)
 	assert.Equal(t, 45*time.Second, config.AITimeout)
+	assert.Equal(t, 15, config.MaxRetryCount)
+	assert.Equal(t, 1, config.MinRetryCount)
 }
 
 func TestLoadConfig_Defaults(t *testing.T) {
@@ -90,6 +94,8 @@ func TestValidateConfig_Success(t *testing.T) {
 		AITimeout:          30 * time.Second,
 		AIRetryCount:       3,
 		MistralMaxTokens:   1000,
+		MinRetryCount:      0,
+		MaxRetryCount:      10,
 	}
 
 	err := config.Validate()
@@ -115,6 +121,8 @@ func TestValidateConfig_InvalidTemperature(t *testing.T) {
 				AITimeout:          30 * time.Second,
 				AIRetryCount:       3,
 				MistralMaxTokens:   1000,
+				MinRetryCount:      0,
+				MaxRetryCount:      10,
 			}
 
 			err := config.Validate()
@@ -145,6 +153,8 @@ func TestValidateConfig_InvalidTimeout(t *testing.T) {
 				AITimeout:          tc.timeout,
 				AIRetryCount:       3,
 				MistralMaxTokens:   1000,
+				MinRetryCount:      0,
+				MaxRetryCount:      10,
 			}
 
 			err := config.Validate()
@@ -160,11 +170,13 @@ func TestValidateConfig_InvalidRetryCount(t *testing.T) {
 		AITimeout:          30 * time.Second,
 		AIRetryCount:       -1,
 		MistralMaxTokens:   1000,
+		MinRetryCount:      0,
+		MaxRetryCount:      10,
 	}
 
 	err := config.Validate()
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "ai_retry_count must be non-negative")
+	assert.Contains(t, err.Error(), "ai_retry_count must be between 0 and 10")
 }
 
 func TestValidateConfig_InvalidMaxTokens(t *testing.T) {
@@ -183,11 +195,72 @@ func TestValidateConfig_InvalidMaxTokens(t *testing.T) {
 				AITimeout:          30 * time.Second,
 				AIRetryCount:       3,
 				MistralMaxTokens:   tc.maxTokens,
+				MinRetryCount:      0,
+				MaxRetryCount:      10,
 			}
 
 			err := config.Validate()
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "mistral_max_tokens must be positive")
+		})
+	}
+}
+
+func TestValidateConfig_InvalidRetryBounds(t *testing.T) {
+	testCases := []struct {
+		name          string
+		minRetryCount int
+		maxRetryCount int
+		expectedError string
+	}{
+		{"negative_min", -1, 10, "min_retry_count must be non-negative"},
+		{"max_less_than_min", 5, 3, "must be >="}, // Match substring since full message includes values
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			config := &Config{
+				MistralTemperature: 0.7,
+				AITimeout:          30 * time.Second,
+				AIRetryCount:       3,
+				MistralMaxTokens:   1000,
+				MinRetryCount:      tc.minRetryCount,
+				MaxRetryCount:      tc.maxRetryCount,
+			}
+
+			err := config.Validate()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.expectedError)
+		})
+	}
+}
+
+func TestValidateConfig_ValidRetryBounds(t *testing.T) {
+	testCases := []struct {
+		name          string
+		minRetryCount int
+		maxRetryCount int
+		aiRetryCount  int
+	}{
+		{"default_bounds", 0, 10, 3},
+		{"custom_bounds", 1, 5, 3},
+		{"zero_min", 0, 10, 0},
+		{"at_max", 0, 10, 10},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			config := &Config{
+				MistralTemperature: 0.7,
+				AITimeout:          30 * time.Second,
+				AIRetryCount:       tc.aiRetryCount,
+				MistralMaxTokens:   1000,
+				MinRetryCount:      tc.minRetryCount,
+				MaxRetryCount:      tc.maxRetryCount,
+			}
+
+			err := config.Validate()
+			require.NoError(t, err)
 		})
 	}
 }

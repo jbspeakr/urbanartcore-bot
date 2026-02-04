@@ -186,17 +186,63 @@ func TestPlatformResult_SetFailure(t *testing.T) {
 	assert.False(t, result.IsSuccess())
 }
 
+func TestPlatformResult_SetSkipped(t *testing.T) {
+	result, err := NewPlatformResult(PlatformBluesky, StatusPending, nil)
+	require.NoError(t, err)
+
+	skipReason := "dry-run-bluesky"
+	responseTime := 100 * time.Millisecond
+
+	result.SetSkipped(skipReason, responseTime)
+
+	assert.Equal(t, StatusSkipped, result.Status())
+	assert.Equal(t, skipReason, result.SkipReason())
+	assert.Equal(t, responseTime, result.ResponseTime())
+	// Ensure publishedURL is not used for skip reason
+	assert.Empty(t, result.PublishedURL())
+}
+
 func TestPlatformResult_IncrementRetry(t *testing.T) {
 	result, err := NewPlatformResult(PlatformBluesky, StatusPending, nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, 0, result.RetryCount())
 
-	result.IncrementRetry()
+	// Increment with max retries = 10
+	maxRetries := 10
+	ok := result.IncrementRetry(maxRetries)
+	assert.True(t, ok)
 	assert.Equal(t, 1, result.RetryCount())
 
-	result.IncrementRetry()
+	ok = result.IncrementRetry(maxRetries)
+	assert.True(t, ok)
 	assert.Equal(t, 2, result.RetryCount())
+
+	// Test bounds enforcement
+	for i := 2; i < maxRetries; i++ {
+		ok := result.IncrementRetry(maxRetries)
+		assert.True(t, ok)
+	}
+	assert.Equal(t, maxRetries, result.RetryCount())
+
+	// Should reject further increments
+	ok = result.IncrementRetry(maxRetries)
+	assert.False(t, ok)
+	assert.Equal(t, maxRetries, result.RetryCount())
+
+	// Test with max retries = 0 (no retries allowed)
+	result2, err := NewPlatformResult(PlatformMastodon, StatusPending, nil)
+	require.NoError(t, err)
+	ok = result2.IncrementRetry(0)
+	assert.False(t, ok)
+	assert.Equal(t, 0, result2.RetryCount())
+
+	// Test with invalid max retries
+	result3, err := NewPlatformResult(PlatformBluesky, StatusPending, nil)
+	require.NoError(t, err)
+	ok = result3.IncrementRetry(-1)
+	assert.False(t, ok)
+	assert.Equal(t, 0, result3.RetryCount())
 }
 
 func TestNewPublishResult_ValidInput(t *testing.T) {
@@ -416,6 +462,81 @@ func TestValidateTextLength(t *testing.T) {
 	err = validateTextLength(strings.Repeat("A", MastodonCharacterLimit+1), PlatformMastodon)
 	assert.Error(t, err)
 	assert.True(t, errors.Is(err, ErrTextTooLong))
+}
+
+func TestGeneratedContent_EmojiBluesky(t *testing.T) {
+	// Test case: Bluesky with emoji
+	// 150 emoji characters = 150 runes ≈ 600 UTF-8 bytes
+	// Bluesky uses byte count, so 600 > 300 → should FAIL
+	emoji := strings.Repeat("🎨", 150)
+
+	content, err := NewGeneratedContent(emoji, PlatformBluesky, []string{}, "", 0, 0)
+
+	assert.Nil(t, content)
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, ErrTextTooLong))
+
+	// Verify error message mentions bytes
+	assert.Contains(t, err.Error(), "bytes")
+}
+
+func TestGeneratedContent_EmojiMastodon(t *testing.T) {
+	// Test case: Mastodon with emoji
+	// 250 emoji characters = 250 runes ≈ 1000 UTF-8 bytes
+	// Mastodon uses rune count, so 250 ≤ 500 → should PASS
+	emoji := strings.Repeat("🎨", 250)
+
+	content, err := NewGeneratedContent(emoji, PlatformMastodon, []string{}, "", 0, 0)
+
+	require.NoError(t, err)
+	assert.NotNil(t, content)
+	assert.True(t, content.IsWithinLimit())
+
+	// Verify metadata shows rune count
+	metadata := content.Metadata()
+	assert.Equal(t, "250", metadata["character_count"]) // Rune count for Mastodon
+}
+
+func TestGeneratedContent_MastodonEmojiLimit(t *testing.T) {
+	// Test case: Mastodon with emoji over limit
+	// 501 emoji characters = 501 runes
+	// Mastodon uses rune count, so 501 > 500 → should FAIL
+	emoji := strings.Repeat("🎨", 501)
+
+	content, err := NewGeneratedContent(emoji, PlatformMastodon, []string{}, "", 0, 0)
+
+	assert.Nil(t, content)
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, ErrTextTooLong))
+
+	// Verify error message mentions characters
+	assert.Contains(t, err.Error(), "characters")
+}
+
+func TestGeneratedContent_MastodonPlainTextLimit(t *testing.T) {
+	// Test case: Mastodon with plain text over limit
+	// 501 ASCII characters = 501 runes
+	// Mastodon uses rune count, so 501 > 500 → should FAIL
+	text := strings.Repeat("A", 501)
+
+	content, err := NewGeneratedContent(text, PlatformMastodon, []string{}, "", 0, 0)
+
+	assert.Nil(t, content)
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, ErrTextTooLong))
+}
+
+func TestGeneratedContent_BlueskayPlainTextLimit(t *testing.T) {
+	// Test case: Bluesky with plain text at limit
+	// 300 ASCII characters = 300 bytes
+	// Bluesky uses byte count, so 300 ≤ 300 → should PASS
+	text := strings.Repeat("A", 300)
+
+	content, err := NewGeneratedContent(text, PlatformBluesky, []string{}, "", 0, 0)
+
+	require.NoError(t, err)
+	assert.NotNil(t, content)
+	assert.True(t, content.IsWithinLimit())
 }
 
 func TestConstants(t *testing.T) {

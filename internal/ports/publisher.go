@@ -101,6 +101,23 @@ func DefaultPublishOptions() *PublishOptions {
 	}
 }
 
+// Validate checks that PublishOptions values are within acceptable bounds.
+// minRetries and maxRetries specify the allowed retry count range.
+// Returns an error if any values exceed limits.
+func (p *PublishOptions) Validate(minRetries, maxRetries int) error {
+	const op = "PublishOptions.Validate"
+
+	if p.RetryCount < minRetries || p.RetryCount > maxRetries {
+		return fmt.Errorf("%s: retry_count must be between %d and %d (got: %d)", op, minRetries, maxRetries, p.RetryCount)
+	}
+
+	if p.Timeout < 0 {
+		return fmt.Errorf("%s: timeout must be non-negative (got: %v)", op, p.Timeout)
+	}
+
+	return nil
+}
+
 // AdvancedPublisher is an optional interface that publishers can implement
 // to provide additional functionality beyond basic publishing.
 type AdvancedPublisher interface {

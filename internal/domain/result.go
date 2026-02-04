@@ -85,8 +85,9 @@ func NewGeneratedContent(text, platform string, hashtags []string, promptUsed st
 	}
 
 	// Create metadata with basic metrics
+	// Note: character_count is platform-specific (bytes for Bluesky, runes for Mastodon)
 	metadata := map[string]string{
-		"character_count": fmt.Sprintf("%d", len(text)),
+		"character_count": fmt.Sprintf("%d", countTextLength(text, platform)),
 		"hashtag_count":   fmt.Sprintf("%d", len(hashtags)),
 		"platform_limit":  fmt.Sprintf("%d", getPlatformLimit(platform)),
 	}
@@ -182,7 +183,9 @@ func (gc *GeneratedContent) Cost() float64 {
 	return gc.cost
 }
 
-// CharacterCount returns the number of characters in the generated text.
+// CharacterCount returns the byte count of the generated text.
+// Note: This returns byte count for backward compatibility. For platform-aware counting,
+// use countTextLength(text, platform) which returns bytes for Bluesky and runes for Mastodon.
 func (gc *GeneratedContent) CharacterCount() int {
 	if gc == nil {
 		return 0
@@ -191,11 +194,14 @@ func (gc *GeneratedContent) CharacterCount() int {
 }
 
 // IsWithinLimit checks if the content fits within the platform's character limit.
+// Uses platform-specific counting: bytes for Bluesky, runes for Mastodon.
 func (gc *GeneratedContent) IsWithinLimit() bool {
 	if gc == nil {
 		return false
 	}
-	return gc.CharacterCount() <= getPlatformLimit(gc.platform)
+	limit := getPlatformLimit(gc.platform)
+	currentLength := countTextLength(gc.text, gc.platform)
+	return currentLength <= limit
 }
 
 // PlatformResult represents the outcome of publishing to a specific platform.
@@ -205,6 +211,7 @@ type PlatformResult struct {
 	content      *GeneratedContent // Generated content used
 	publishedURL string            // URL of published post (if successful)
 	error        error             // Error message (if failed)
+	skipReason   string            // Reason for skipping (e.g., dry-run mode)
 	publishedAt  time.Time         // When publishing completed
 	retryCount   int               // Number of retry attempts
 	responseTime time.Duration     // Time taken for the publish operation
@@ -277,6 +284,14 @@ func (pr *PlatformResult) Error() error {
 	return pr.error
 }
 
+// SkipReason returns the reason for skipping (e.g., for dry runs).
+func (pr *PlatformResult) SkipReason() string {
+	if pr == nil {
+		return ""
+	}
+	return pr.skipReason
+}
+
 // PublishedAt returns when the publishing completed.
 func (pr *PlatformResult) PublishedAt() time.Time {
 	if pr == nil {
@@ -324,22 +339,33 @@ func (pr *PlatformResult) SetFailure(err error, responseTime time.Duration) {
 }
 
 // SetSkipped updates the result with skipped information (e.g., for dry runs).
+// reason should describe why the publish was skipped.
 func (pr *PlatformResult) SetSkipped(reason string, responseTime time.Duration) {
 	if pr == nil {
 		return
 	}
 	pr.status = StatusSkipped
-	pr.publishedURL = reason
+	pr.skipReason = reason
 	pr.responseTime = responseTime
 	pr.publishedAt = time.Now()
 }
 
-// IncrementRetry increments the retry count.
-func (pr *PlatformResult) IncrementRetry() {
+// IncrementRetry increments the retry count up to a maximum bound.
+// Returns true if the retry count was incremented, false if at maximum.
+// maxRetries specifies the maximum allowed retry attempts (must be >= 0).
+func (pr *PlatformResult) IncrementRetry(maxRetries int) bool {
 	if pr == nil {
-		return
+		return false
+	}
+	// Enforce maximum to prevent excessive retries
+	if maxRetries < 0 {
+		return false // Invalid max retries
+	}
+	if pr.retryCount >= maxRetries {
+		return false
 	}
 	pr.retryCount++
+	return true
 }
 
 // PublishResult aggregates publishing outcomes across multiple platforms.
@@ -562,11 +588,38 @@ func IsValidPlatform(platform string) bool {
 	}
 }
 
+// countTextLength returns the length based on platform spec.
+// Bluesky uses byte count (UTF-8), Mastodon uses rune count (characters).
+func countTextLength(text, platform string) int {
+	switch strings.ToLower(platform) {
+	case PlatformBluesky:
+		return len(text) // UTF-8 bytes
+	case PlatformMastodon:
+		return len([]rune(text)) // Character count
+	default:
+		return len(text)
+	}
+}
+
 // validateTextLength checks if text fits within platform character limits.
+// For Bluesky: counts UTF-8 bytes
+// For Mastodon: counts runes (characters)
 func validateTextLength(text, platform string) error {
 	limit := getPlatformLimit(platform)
-	if len(text) > limit {
-		return fmt.Errorf("%w: %d characters, limit is %d for %s", ErrTextTooLong, len(text), limit, platform)
+	currentLength := countTextLength(text, platform)
+
+	if currentLength > limit {
+		var unit string
+		switch strings.ToLower(platform) {
+		case PlatformBluesky:
+			unit = "bytes"
+		case PlatformMastodon:
+			unit = "characters"
+		default:
+			unit = "characters"
+		}
+
+		return fmt.Errorf("%w: %d %s, limit is %d for %s", ErrTextTooLong, currentLength, unit, limit, platform)
 	}
 	return nil
 }

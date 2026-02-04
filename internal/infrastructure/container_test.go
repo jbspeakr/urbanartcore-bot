@@ -31,6 +31,8 @@ func createTestConfig(dataPath string) *app.Config {
 		MastodonAccessToken: "test-token",
 		AIRetryCount:        3,
 		AITimeout:           30 * time.Second,
+		MinRetryCount:       0,
+		MaxRetryCount:       10,
 	}
 }
 

@@ -586,10 +586,11 @@ No special action needed - sensitive fields are redacted automatically for every
 - **Go 1.25.6+** - latest language features required
 - `github.com/spf13/cobra` (v1.10.2+) - CLI framework
 - `github.com/spf13/viper` (v1.21.0+) - Configuration management
-- `github.com/ZaguanLabs/mistral-go` - Mistral AI integration
-- `github.com/bluesky-social/indigo` - Bluesky/ATProto with facets and embeds
-- `github.com/mattn/go-mastodon` - Mastodon API client
+- `github.com/ZaguanLabs/mistral-go` - Mistral AI integration (Phase 5)
+- `golang.org/x/net` - HTML parsing for link preview extraction
 - `github.com/stretchr/testify` - Test assertions and mocking
+
+**Note:** Social platform adapters (Bluesky, Mastodon) use pure REST/HTTP over stdlib (`net/http`). No external platform-specific libraries required.
 
 ### Architectural Constraints
 - **Hexagonal architecture**: All external integrations through ports/adapters
@@ -690,18 +691,28 @@ No special action needed - sensitive fields are redacted automatically for every
   - Content generation preview with mock responses
   - Dry-run testing recommended before live publishing
 
-### To Be Implemented
+**Phase 4: Social Platform Adapters** ✅ COMPLETE
+- ✅ MastodonAdapter (`internal/adapters/publisher/mastodon.go`)
+  - Implements SocialPublisher interface for Mastodon
+  - Content validation for 500-character limit (rune-based)
+  - Pure REST/HTTP calls (no external libraries)
+  - OAuth Bearer token authentication
+  - Error classification and retry logic
+- ✅ BlueskyAdapter (`internal/adapters/publisher/bluesky.go`)
+  - Implements SocialPublisher interface for Bluesky/ATProto
+  - Content validation for 300-byte limit (UTF-8)
+  - Pure REST/HTTP calls (no external libraries)
+  - Session management with caching and expiry
+  - ATProto facet generation for rich text (hashtags, links)
+  - External embed support for link cards with previews
+- ✅ Facet helpers (`internal/adapters/publisher/bluesky_facets.go`)
+  - ByteRange validation and UTF-8 aware positioning
+  - Hashtag and link facet generation
+  - External embed building with metadata extraction
+- ✅ Comprehensive unit tests (85%+ coverage for both adapters)
+- ✅ All tests passing, zero dependencies on platform-specific libraries
 
-**Phase 4: Social Platform Adapters** - ⏳ NEXT PHASE
-- [ ] MastodonAdapter (`internal/adapters/publisher/mastodon.go`)
-  - Implement SocialPublisher interface for Mastodon
-  - Content validation for 500-character limit
-  - Integration with github.com/mattn/go-mastodon
-- [ ] BlueskyAdapter (`internal/adapters/publisher/bluesky.go`)
-  - Implement SocialPublisher interface for Bluesky/ATProto
-  - Content validation for 300-character limit
-  - ATProto facets/embeds support via github.com/bluesky-social/indigo
-  - Rich text formatting and link handling
+### To Be Implemented
 
 **Phase 5: AI Integration**
 - [ ] MistralAdapter (`internal/adapters/generator/mistral.go`)
@@ -762,5 +773,64 @@ export UAC_MASTODON_SERVER="https://mastodon.social"
 ```
 
 ---
+
+## API Integration Strategy: Pure REST/HTTP
+
+### Design Philosophy
+
+All social media platform integrations use **pure REST/HTTP** over the Go standard library (`net/http`) with no external service libraries. This approach provides:
+
+1. **Minimal Dependencies**: Reduces external library dependencies to just Cobra/Viper for CLI and testify for testing
+2. **Maximum Clarity**: All HTTP calls are explicit and easily auditable
+3. **Flexibility**: Can quickly adapt to API changes without waiting for library updates
+4. **Consistency**: Both Bluesky and Mastodon adapters follow identical HTTP patterns
+5. **Testability**: Simple to mock HTTP requests/responses in tests
+6. **Smaller Binary**: No library bloat, faster builds
+
+### Implementation Details
+
+**MastodonAdapter** (`internal/adapters/publisher/mastodon.go`):
+- Direct HTTP calls to Mastodon REST API
+- `/api/v1/accounts/verify_credentials` for connection test
+- `/api/v1/statuses` for posting (POST with Bearer token auth)
+- Response parsing via `encoding/json` (stdlib)
+
+**BlueskyAdapter** (`internal/adapters/publisher/bluesky.go`):
+- Direct HTTP calls to ATProto/Bluesky REST API
+- `/xrpc/com.atproto.server.createSession` for authentication
+- `/xrpc/com.atproto.repo.createRecord` for posting
+- Session caching with expiry management
+- Facet generation for rich text (hashtags, links)
+- External embed support for link cards
+
+### Dependencies
+
+**Required (Go stdlib only)**:
+- `net/http` - HTTP client
+- `encoding/json` - JSON marshaling/unmarshaling
+- `context` - Request cancellation and timeouts
+- `log/slog` - Structured logging (included in Go 1.21+)
+- `golang.org/x/net/html` - HTML parsing for link preview extraction
+
+**NOT used** (removed for simplicity):
+- ~~`github.com/mattn/go-mastodon`~~ - Replaced with pure REST calls
+- ~~`github.com/bluesky-social/indigo`~~ - Replaced with pure REST calls
+
+### Error Handling
+
+All adapter errors classified via standard HTTP status codes:
+- `401`/`403` - Authentication failures (non-retryable)
+- `429` - Rate limiting (retryable)
+- `5xx` - Server errors (retryable)
+- Network timeouts (retryable)
+- Validation errors (non-retryable)
+
+### Benefits Over Time
+
+- **No dependency bloat**: Only core Cobra/Viper for CLI
+- **Reduced attack surface**: Fewer external libraries to audit
+- **Easier debugging**: See exact HTTP requests/responses
+- **Faster iteration**: No waiting for library releases
+- **Clear semantics**: HTTP status codes are self-documenting
 
 This architecture provides a clean, testable foundation for social media automation with Mistral AI-powered content generation. All external integrations flow through well-defined ports and adapters, enabling easy platform switching and comprehensive testing.

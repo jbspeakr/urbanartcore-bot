@@ -32,8 +32,10 @@ type Config struct {
 	MastodonAccessToken string `mapstructure:"mastodon_access_token"`
 
 	// Operational configuration
-	AIRetryCount int           `mapstructure:"ai_retry_count"`
-	AITimeout    time.Duration `mapstructure:"ai_timeout"`
+	AIRetryCount  int           `mapstructure:"ai_retry_count"`
+	AITimeout     time.Duration `mapstructure:"ai_timeout"`
+	MaxRetryCount int           `mapstructure:"max_retry_count"`
+	MinRetryCount int           `mapstructure:"min_retry_count"`
 }
 
 // ConfigError represents configuration-related errors.
@@ -87,6 +89,8 @@ func LoadConfig() (*Config, error) {
 		"mastodon_access_token",
 		"ai_retry_count",
 		"ai_timeout",
+		"max_retry_count",
+		"min_retry_count",
 	}
 
 	for _, envVar := range envVars {
@@ -103,6 +107,8 @@ func LoadConfig() (*Config, error) {
 	v.SetDefault("mistral_temperature", 0.7)
 	v.SetDefault("ai_retry_count", 3)
 	v.SetDefault("ai_timeout", "30s")
+	v.SetDefault("max_retry_count", 10)
+	v.SetDefault("min_retry_count", 0)
 
 	// Parse duration string first before unmarshal to provide better error messages
 	if timeoutStr := v.GetString("ai_timeout"); timeoutStr != "" {
@@ -132,6 +138,21 @@ func LoadConfig() (*Config, error) {
 func (c *Config) Validate() error {
 	const op = "Validate"
 
+	// Validate retry count bounds are properly configured
+	if c.MinRetryCount < 0 {
+		return ConfigError{
+			Op:  op,
+			Err: fmt.Errorf("min_retry_count must be non-negative (got: %d)", c.MinRetryCount),
+		}
+	}
+
+	if c.MaxRetryCount < c.MinRetryCount {
+		return ConfigError{
+			Op:  op,
+			Err: fmt.Errorf("max_retry_count (%d) must be >= min_retry_count (%d)", c.MaxRetryCount, c.MinRetryCount),
+		}
+	}
+
 	// Validate Mistral temperature (0.0 to 1.0)
 	if c.MistralTemperature < 0.0 || c.MistralTemperature > 1.0 {
 		return ConfigError{
@@ -148,11 +169,11 @@ func (c *Config) Validate() error {
 		}
 	}
 
-	// Validate AI retry count is non-negative
-	if c.AIRetryCount < 0 {
+	// Validate AI retry count bounds
+	if c.AIRetryCount < c.MinRetryCount || c.AIRetryCount > c.MaxRetryCount {
 		return ConfigError{
 			Op:  op,
-			Err: fmt.Errorf("ai_retry_count must be non-negative (got: %d)", c.AIRetryCount),
+			Err: fmt.Errorf("ai_retry_count must be between %d and %d (got: %d)", c.MinRetryCount, c.MaxRetryCount, c.AIRetryCount),
 		}
 	}
 
