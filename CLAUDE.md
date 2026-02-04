@@ -587,6 +587,7 @@ No special action needed - sensitive fields are redacted automatically for every
 - `github.com/spf13/cobra` (v1.10.2+) - CLI framework
 - `github.com/spf13/viper` (v1.21.0+) - Configuration management
 - `github.com/ZaguanLabs/mistral-go` - Mistral AI integration (Phase 5)
+- `github.com/disintegration/imaging` (v1.6.2) - Image resizing for link preview thumbnails (infrastructure utility)
 - `golang.org/x/net` - HTML parsing for link preview extraction
 - `github.com/stretchr/testify` - Test assertions and mocking
 
@@ -832,5 +833,20 @@ All adapter errors classified via standard HTTP status codes:
 - **Easier debugging**: See exact HTTP requests/responses
 - **Faster iteration**: No waiting for library releases
 - **Clear semantics**: HTTP status codes are self-documenting
+
+### Architectural Exception: Image Processing Library
+
+The `github.com/disintegration/imaging` library is used for image thumbnail resizing in the Bluesky adapter and is a documented exception to the "pure REST/HTTP over stdlib" philosophy:
+
+**Rationale:**
+1. **Infrastructure Utility vs. API Integration** - The imaging library performs general-purpose image processing (resizing, format conversion) for link preview thumbnails. This is infrastructure/utility work, not social media platform API integration.
+2. **Domain Complexity** - High-quality image resampling (Lanczos interpolation) requires sophisticated algorithms. Implementing this with stdlib's lower-level `golang.org/x/image/draw` would add significant boilerplate without benefit.
+3. **Clear Separation** - Image resizing occurs within the adapter's internal implementation for preparing rich link embeds. It does not replace REST/HTTP communication with Bluesky's ATProto API.
+4. **Well-Maintained Library** - `disintegration/imaging` is a stable, single-purpose library with no external dependencies, making it a low-risk addition.
+
+**Scope:** Image processing is limited to:
+- Downloading link preview thumbnails from external URLs
+- Resizing oversized images to ATProto blob size constraints (1000x1000px, 1MB)
+- Converting to JPEG format for consistent encoding
 
 This architecture provides a clean, testable foundation for social media automation with Mistral AI-powered content generation. All external integrations flow through well-defined ports and adapters, enabling easy platform switching and comprehensive testing.

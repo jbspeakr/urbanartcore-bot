@@ -601,7 +601,10 @@ func (a *BlueskyAdapter) extractLinkPreview(ctx context.Context, uri string) (*L
 
 	if resp.StatusCode != http.StatusOK {
 		// Drain body to release connection back to pool
-		bodyBytes, _ := io.ReadAll(resp.Body)
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("unexpected status code: %d (failed to read body: %w)", resp.StatusCode, err)
+		}
 		return nil, fmt.Errorf("unexpected status code: %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
@@ -704,12 +707,17 @@ func (a *BlueskyAdapter) downloadAndEncodeThumbnail(ctx context.Context, thumbUR
 
 	if resp.StatusCode != http.StatusOK {
 		// Drain body to release connection back to pool
-		bodyBytes, _ := io.ReadAll(resp.Body)
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("unexpected status code: %d (failed to read body: %w)", resp.StatusCode, err)
+		}
 		return nil, fmt.Errorf("unexpected status code: %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	// Check content length - skip gracefully if oversized
 	if resp.ContentLength > maxThumbnailSize {
+		// Drain body to release connection back to pool
+		_, _ = io.Copy(io.Discard, resp.Body)
 		slog.Default().Warn("Image exceeds size limit, skipping thumbnail",
 			slog.Int64("size", resp.ContentLength),
 			slog.Int64("limit", maxThumbnailSize))
@@ -828,7 +836,10 @@ func (a *BlueskyAdapter) uploadBlobToBluesky(ctx context.Context, blobData []byt
 
 	// Handle HTTP status codes
 	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			bodyBytes = []byte("(failed to read body)")
+		}
 
 		// Classify error based on status code
 		switch resp.StatusCode {

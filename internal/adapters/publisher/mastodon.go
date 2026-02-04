@@ -286,7 +286,10 @@ func (a *MastodonAdapter) TestConnection(ctx context.Context) error {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			bodyBytes = []byte("(failed to read body)")
+		}
 		return ports.PublisherError{
 			Op:        op,
 			Platform:  domain.PlatformMastodon,
@@ -431,7 +434,10 @@ func (a *MastodonAdapter) Publish(ctx context.Context, content *domain.Generated
 
 	// Handle error responses
 	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			bodyBytes = []byte("(failed to read body)")
+		}
 		errStr := string(bodyBytes)
 
 		var pubErr error
