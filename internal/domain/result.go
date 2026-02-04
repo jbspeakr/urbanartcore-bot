@@ -184,8 +184,8 @@ func (gc *GeneratedContent) Cost() float64 {
 }
 
 // CharacterCount returns the byte count of the generated text.
-// Note: This returns byte count for backward compatibility. For platform-aware counting,
-// use countTextLength(text, platform) which returns bytes for Bluesky and runes for Mastodon.
+// For platform-aware counting, use Metadata() to access the "character_count" field
+// or IsWithinLimit() to check if content fits the platform's character limit.
 func (gc *GeneratedContent) CharacterCount() int {
 	if gc == nil {
 		return 0
