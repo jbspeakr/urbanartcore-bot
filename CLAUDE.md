@@ -540,13 +540,18 @@ No special action needed - sensitive fields are redacted automatically for every
 - `internal/adapters/repository/json_file_test.go` - Repository tests with 86.7% coverage
 - `internal/adapters/repository/testdata/` - Test fixtures
 
-### AI Integration Files (To Be Implemented)
-- `internal/adapters/generator/mistral.go` - Mistral API integration (Phase 5)
-- `internal/infrastructure/prompts/` - Platform-specific prompt templates (Phase 5)
+### AI Integration Files
+- `internal/adapters/generator/mistral.go` - Mistral API integration with full ContentGenerator implementation
+- `internal/adapters/generator/mistral_test.go` - Comprehensive test suite for Mistral adapter
+- `internal/infrastructure/prompts/prompt_manager.go` - Prompt template manager implementation
+- `internal/infrastructure/prompts/bluesky.txt` - Bluesky-optimized prompt template
+- `internal/infrastructure/prompts/mastodon.txt` - Mastodon-optimized prompt template
 
-### Social Platform Adapters (To Be Implemented)
-- `internal/adapters/publisher/bluesky.go` - Bluesky/ATProto implementation (Phase 4)
-- `internal/adapters/publisher/mastodon.go` - Mastodon API implementation (Phase 4)
+### Social Platform Adapters
+- `internal/adapters/publisher/bluesky.go` - Bluesky/ATProto implementation
+- `internal/adapters/publisher/bluesky_facets.go` - ATProto facet generation helpers
+- `internal/adapters/publisher/mastodon.go` - Mastodon API implementation
+- `internal/adapters/publisher/*_test.go` - Comprehensive test suites
 
 ### Configuration
 - `.env.example` - Environment variable examples
@@ -669,9 +674,10 @@ No special action needed - sensitive fields are redacted automatically for every
   - Configuration validation with clear error messages
   - Sanitization for logging
 - ✅ Dependency injection container (`internal/infrastructure/container.go`)
-  - All dependencies properly wired
-  - Placeholder implementations for phases 4-5
-  - Container validation and health checks (95.1% test coverage)
+  - All dependencies properly wired with real adapters
+  - Real implementations for all phases (repository, publishers, content generator)
+  - Container validation and health checks with proper error handling
+  - Test coverage handles adapter authentication requirements
 
 **Phase 3: Core Use Case** ✅ COMPLETE
 - ✅ PublishService (`internal/app/publish.go`)
@@ -713,19 +719,27 @@ No special action needed - sensitive fields are redacted automatically for every
 - ✅ Comprehensive unit tests (85%+ coverage for both adapters)
 - ✅ All tests passing, zero dependencies on platform-specific libraries
 
-### To Be Implemented
+**Phase 5: AI Integration** ✅ COMPLETE
+- ✅ MistralAdapter (`internal/adapters/generator/mistral.go`)
+  - Implements ContentGenerator interface
+  - Integration with github.com/gage-technologies/mistral-go
+  - Prompt template rendering with dynamic variables via PromptManager
+  - Token counting and cost calculation (model-specific pricing)
+  - Rate limit handling with exponential backoff retry logic
+  - Comprehensive error classification (retryable vs non-retryable)
+  - Model selection support (mistral-large, mistral-medium, mistral-small)
+- ✅ Prompt templates and validation
+  - Platform-specific prompt files in `internal/infrastructure/prompts/`
+  - PromptManager implementation with template variable substitution
+  - Content validation against platform constraints (byte/rune counting)
+  - AI error handling and fallbacks via retry mechanism
+  - JSON response format enforcement for consistent parsing
+- ✅ Full integration with container and PublishService
+  - Real MistralAdapter wired into dependency injection container
+  - Complete end-to-end workflow: posts → AI generation → platform publishing
+  - Comprehensive test coverage with mocked responses
 
-**Phase 5: AI Integration**
-- [ ] MistralAdapter (`internal/adapters/generator/mistral.go`)
-  - Implement ContentGenerator interface
-  - Integration with github.com/ZaguanLabs/mistral-go
-  - Prompt template rendering with dynamic variables
-  - Token counting and cost calculation
-  - Rate limit handling with exponential backoff
-- [ ] Prompt templates and validation
-  - Platform-specific prompt files (`internal/infrastructure/prompts/`)
-  - Content validation against platform constraints
-  - AI error handling and fallbacks
+### To Be Implemented
 
 **Phase 6: Testing & Quality**
 - [ ] Integration tests with mock external services
@@ -741,7 +755,7 @@ No special action needed - sensitive fields are redacted automatically for every
 
 ```bash
 # Build the binary
-go build -o bin/uac-socializer ./cmd/uac-socializer
+go build -o bin/uac-socializer .
 
 # Run all tests
 go test ./...
@@ -755,18 +769,18 @@ go fmt ./... && go vet ./...
 # Static analysis (if golangci-lint installed)
 golangci-lint run
 
-# Test dry-run mode (no credentials needed)
+# Test dry-run mode (requires all credentials for adapter initialization)
 export UAC_DATA_PATH="data/posts_by_date.json"
-./bin/uac-socializer publish --dry-run --date 09-14 --platform all
-
-# Local testing with required env vars (for Phase 4-5 adapters)
 export UAC_MISTRAL_API_KEY="your-mistral-key"
 export UAC_BLUESKY_HANDLE="your-handle.bsky.social"
 export UAC_BLUESKY_PASSWORD="your-app-password"
 export UAC_MASTODON_ACCESS_TOKEN="your-access-token"
 export UAC_MASTODON_SERVER="https://mastodon.social"
 
-# When adapters are ready, publish to all platforms
+# Dry-run mode (generates content via AI but doesn't publish)
+./bin/uac-socializer publish --dry-run --date 09-14 --platform all
+
+# Publish to all platforms with AI-generated content
 ./bin/uac-socializer publish --date 09-14 --platform all
 
 # Publish today's posts to Bluesky only

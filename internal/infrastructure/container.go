@@ -6,97 +6,14 @@ import (
 	"log/slog"
 	"strings"
 
+	"codeberg.org/brennenstuhl/uac-socializer/internal/adapters/generator"
+	"codeberg.org/brennenstuhl/uac-socializer/internal/adapters/publisher"
 	"codeberg.org/brennenstuhl/uac-socializer/internal/adapters/repository"
 	"codeberg.org/brennenstuhl/uac-socializer/internal/app"
 	"codeberg.org/brennenstuhl/uac-socializer/internal/domain"
+	"codeberg.org/brennenstuhl/uac-socializer/internal/infrastructure/prompts"
 	"codeberg.org/brennenstuhl/uac-socializer/internal/ports"
 )
-
-// Placeholder repository implementation
-type placeholderRepository struct{}
-
-func (r *placeholderRepository) GetPostForDate(ctx context.Context, dateKey string) (*domain.Post, error) {
-	return nil, fmt.Errorf("not implemented: GetPostForDate will be available in Phase 3")
-}
-
-func (r *placeholderRepository) ListAvailableDates(ctx context.Context) ([]string, error) {
-	return nil, fmt.Errorf("not implemented: ListAvailableDates will be available in Phase 2")
-}
-
-func (r *placeholderRepository) GetPostCount(ctx context.Context) (int, error) {
-	return 0, fmt.Errorf("not implemented: GetPostCount will be available in Phase 2")
-}
-
-func (r *placeholderRepository) ValidateDataSource(ctx context.Context) error {
-	return fmt.Errorf("not implemented: ValidateDataSource will be available in Phase 2")
-}
-
-// Placeholder publisher implementation
-type placeholderPublisher struct {
-	platform string
-}
-
-func newPlaceholderPublisher(platform string) *placeholderPublisher {
-	return &placeholderPublisher{platform: platform}
-}
-
-func (p *placeholderPublisher) Platform() string {
-	return p.platform
-}
-
-func (p *placeholderPublisher) Publish(ctx context.Context, content *domain.GeneratedContent) (*domain.PlatformResult, error) {
-	return nil, fmt.Errorf("not implemented: %s publisher will be available in Phase 4", p.platform)
-}
-
-func (p *placeholderPublisher) ValidateContent(ctx context.Context, content *domain.GeneratedContent) error {
-	return fmt.Errorf("not implemented: %s content validation will be available in Phase 4", p.platform)
-}
-
-func (p *placeholderPublisher) GetCharacterLimit() int {
-	switch p.platform {
-	case domain.PlatformBluesky:
-		return domain.BlueskyCharacterLimit
-	case domain.PlatformMastodon:
-		return domain.MastodonCharacterLimit
-	default:
-		return 280
-	}
-}
-
-func (p *placeholderPublisher) SupportsHashtags() bool {
-	return true // Most platforms support hashtags
-}
-
-func (p *placeholderPublisher) SupportsMedia() bool {
-	return true // Most platforms support media
-}
-
-func (p *placeholderPublisher) TestConnection(ctx context.Context) error {
-	return fmt.Errorf("not implemented: %s connection test will be available in Phase 4", p.platform)
-}
-
-// Placeholder content generator implementation
-type placeholderGenerator struct{}
-
-func (g *placeholderGenerator) GenerateContent(ctx context.Context, req *ports.GenerationRequest) (*domain.GeneratedContent, error) {
-	return nil, fmt.Errorf("not implemented: GenerateContent will be available in Phase 5")
-}
-
-func (g *placeholderGenerator) GenerateForAllPlatforms(ctx context.Context, posts []*domain.Post, dateKey string) (map[string]*domain.GeneratedContent, error) {
-	return nil, fmt.Errorf("not implemented: GenerateForAllPlatforms will be available in Phase 5")
-}
-
-func (g *placeholderGenerator) ValidatePrompt(ctx context.Context, platform string, prompt string) error {
-	return fmt.Errorf("not implemented: ValidatePrompt will be available in Phase 5")
-}
-
-func (g *placeholderGenerator) GetSupportedModels(ctx context.Context) ([]string, error) {
-	return nil, fmt.Errorf("not implemented: GetSupportedModels will be available in Phase 5")
-}
-
-func (g *placeholderGenerator) TestConnection(ctx context.Context) error {
-	return fmt.Errorf("not implemented: TestConnection will be available in Phase 5")
-}
 
 // Container holds all application dependencies.
 // Logger is not included as a field - use slog.Default() globally after initialization.
@@ -106,6 +23,7 @@ type Container struct {
 	BlueskyPublisher  ports.SocialPublisher
 	MastodonPublisher ports.SocialPublisher
 	ContentGenerator  ports.ContentGenerator
+	PromptManager     ports.PromptManager
 }
 
 // NewContainer creates and initializes a new dependency injection container.
@@ -139,17 +57,40 @@ func NewContainer(ctx context.Context, config *app.Config) (*Container, error) {
 		slog.String("type", "JSONFileRepository"),
 		slog.String("dataPath", config.DataPath))
 
-	// Initialize social publishers (placeholders for Phase 4)
-	blueskyPublisher := newPlaceholderPublisher(domain.PlatformBluesky)
-	mastodonPublisher := newPlaceholderPublisher(domain.PlatformMastodon)
-	logger.Debug("Initialized social publishers",
-		slog.String("bluesky", "placeholder"),
-		slog.String("mastodon", "placeholder"),
-	)
+	// Initialize social publishers with real adapters (Phase 4)
+	blueskyPublisher, err := publisher.NewBlueskyAdapter(config.BlueskyHandle, config.BlueskyPassword)
+	if err != nil {
+		return nil, fmt.Errorf("%s: failed to initialize Bluesky publisher: %w", op, err)
+	}
+	logger.Debug("Initialized Bluesky publisher",
+		slog.String("type", "BlueskyAdapter"),
+		slog.String("handle", config.BlueskyHandle))
 
-	// Initialize content generator (placeholder for Phase 5)
-	contentGenerator := &placeholderGenerator{}
-	logger.Debug("Initialized content generator", slog.String("type", "placeholder"))
+	mastodonPublisher, err := publisher.NewMastodonAdapter(config.MastodonServer, config.MastodonAccessToken)
+	if err != nil {
+		return nil, fmt.Errorf("%s: failed to initialize Mastodon publisher: %w", op, err)
+	}
+	logger.Debug("Initialized Mastodon publisher",
+		slog.String("type", "MastodonAdapter"),
+		slog.String("server", config.MastodonServer))
+
+	// Initialize prompt manager with real implementation
+	promptManager, err := prompts.NewPromptManager(config.PromptsPath)
+	if err != nil {
+		return nil, fmt.Errorf("%s: failed to initialize prompt manager: %w", op, err)
+	}
+	logger.Debug("Initialized prompt manager",
+		slog.String("type", "PromptManager"),
+		slog.String("prompts_path", config.PromptsPath))
+
+	// Initialize content generator with real MistralAdapter (Phase 5)
+	contentGenerator, err := generator.NewMistralAdapter(config.GetMistralConfig(), promptManager)
+	if err != nil {
+		return nil, fmt.Errorf("%s: failed to initialize content generator: %w", op, err)
+	}
+	logger.Debug("Initialized content generator",
+		slog.String("type", "MistralAdapter"),
+		slog.String("model", config.MistralModel))
 
 	container := &Container{
 		Config:            config,
@@ -157,6 +98,7 @@ func NewContainer(ctx context.Context, config *app.Config) (*Container, error) {
 		BlueskyPublisher:  blueskyPublisher,
 		MastodonPublisher: mastodonPublisher,
 		ContentGenerator:  contentGenerator,
+		PromptManager:     promptManager,
 	}
 
 	logger.Info("Dependency container initialized successfully",
@@ -179,35 +121,55 @@ func (c *Container) Validate(ctx context.Context) error {
 		return fmt.Errorf("%s: configuration invalid: %w", op, err)
 	}
 
-	// Verify repository is accessible (this will fail with placeholder)
+	// Verify repository is accessible
 	if err := c.PostRepository.ValidateDataSource(ctx); err != nil {
-		// For placeholders, we expect this to fail, so we'll log a warning instead
-		logger.Warn("Repository validation failed (expected for placeholder)",
+		logger.Warn("Repository validation failed",
 			slog.String("operation", op),
 			slog.String("error", err.Error()),
 		)
+	} else {
+		logger.Debug("Repository validation successful", slog.String("operation", op))
 	}
 
-	// Test publisher connections (these will fail with placeholders)
+	// Test publisher connections
 	if err := c.BlueskyPublisher.TestConnection(ctx); err != nil {
-		logger.Warn("Bluesky publisher connection test failed (expected for placeholder)",
+		logger.Warn("Bluesky publisher connection test failed",
 			slog.String("operation", op),
 			slog.String("error", err.Error()),
 		)
+	} else {
+		logger.Debug("Bluesky publisher connection test successful", slog.String("operation", op))
 	}
 
 	if err := c.MastodonPublisher.TestConnection(ctx); err != nil {
-		logger.Warn("Mastodon publisher connection test failed (expected for placeholder)",
+		logger.Warn("Mastodon publisher connection test failed",
 			slog.String("operation", op),
 			slog.String("error", err.Error()),
 		)
+	} else {
+		logger.Debug("Mastodon publisher connection test successful", slog.String("operation", op))
 	}
 
-	// Test content generator connection (this will fail with placeholder)
+	// Test content generator connection
 	if err := c.ContentGenerator.TestConnection(ctx); err != nil {
-		logger.Warn("Content generator connection test failed (expected for placeholder)",
+		logger.Warn("Content generator connection test failed",
 			slog.String("operation", op),
 			slog.String("error", err.Error()),
+		)
+	} else {
+		logger.Debug("Content generator connection test successful", slog.String("operation", op))
+	}
+
+	// Test prompt manager by attempting to list prompts
+	if prompts, err := c.PromptManager.ListPrompts(ctx); err != nil {
+		logger.Warn("Prompt manager list prompts test failed",
+			slog.String("operation", op),
+			slog.String("error", err.Error()),
+		)
+	} else {
+		logger.Debug("Prompt manager validation successful",
+			slog.String("operation", op),
+			slog.Int("prompts_available", len(prompts)),
 		)
 	}
 
@@ -251,6 +213,11 @@ func (c *Container) GetPublisher(platform string) (ports.SocialPublisher, error)
 // GetContentGenerator returns the configured content generator.
 func (c *Container) GetContentGenerator() ports.ContentGenerator {
 	return c.ContentGenerator
+}
+
+// GetPromptManager returns the configured prompt manager.
+func (c *Container) GetPromptManager() ports.PromptManager {
+	return c.PromptManager
 }
 
 // GetConfig returns the application configuration.
