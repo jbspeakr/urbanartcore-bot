@@ -320,8 +320,12 @@ func (m *MistralAdapter) generateWithRetry(ctx context.Context, prompt, platform
 		}
 
 		if attempt > 0 {
-			// Calculate exponential backoff: 1s * 2^attempt
-			delay := time.Duration(math.Pow(2, float64(attempt))) * time.Second
+			// Calculate exponential backoff: 1s * 2^attempt, capped at 30s
+			const maxBackoffDelay = 30 * time.Second
+			delay := min(
+				time.Duration(math.Pow(2, float64(attempt)))*time.Second,
+				maxBackoffDelay,
+			)
 			logger.Warn("Retrying content generation",
 				slog.String("operation", op),
 				slog.Int("attempt", attempt),
