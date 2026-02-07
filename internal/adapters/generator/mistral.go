@@ -385,7 +385,7 @@ func (m *MistralAdapter) generateWithRetry(ctx context.Context, prompt, platform
 }
 
 // generate performs a single content generation attempt.
-func (m *MistralAdapter) generate(_ context.Context, prompt, platform string) (*domain.GeneratedContent, error) {
+func (m *MistralAdapter) generate(ctx context.Context, prompt, platform string) (*domain.GeneratedContent, error) {
 	const op = "generate"
 
 	// Prepare messages for Mistral API
@@ -408,10 +408,32 @@ func (m *MistralAdapter) generate(_ context.Context, prompt, platform string) (*
 		ResponseFormat: mistral.ResponseFormatJsonObject,
 	}
 
-	// Call Mistral API (the SDK client handles its own timeout from config)
-	resp, err := m.client.Chat(m.config.Model, messages, params)
-	if err != nil {
-		return nil, m.classifyError(op, err)
+	// Call Mistral API with context awareness
+	type result struct {
+		resp *mistral.ChatCompletionResponse
+		err  error
+	}
+	resultCh := make(chan result, 1)
+
+	go func() {
+		resp, err := m.client.Chat(m.config.Model, messages, params)
+		resultCh <- result{resp: resp, err: err}
+	}()
+
+	var resp *mistral.ChatCompletionResponse
+	select {
+	case <-ctx.Done():
+		return nil, ports.GeneratorError{
+			Op:        op,
+			Model:     m.config.Model,
+			Err:       ctx.Err(),
+			Retryable: false,
+		}
+	case res := <-resultCh:
+		if res.err != nil {
+			return nil, m.classifyError(op, res.err)
+		}
+		resp = res.resp
 	}
 
 	// Extract response
