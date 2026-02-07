@@ -286,6 +286,15 @@ func (a *MastodonAdapter) TestConnection(ctx context.Context) error {
 		if err != nil {
 			bodyBytes = []byte("(failed to read body)")
 		}
+		// Classify based on HTTP status code
+		if resp.StatusCode >= 500 {
+			return ports.PublisherError{
+
+				Platform:  domain.PlatformMastodon,
+				Err:       fmt.Errorf("%w: status %d: %s", ports.ErrPlatformUnavailable, resp.StatusCode, string(bodyBytes)),
+				Retryable: true,
+			}
+		}
 		return ports.PublisherError{
 
 			Platform:  domain.PlatformMastodon,

@@ -148,13 +148,27 @@ func (a *BlueskyAdapter) authenticate(ctx context.Context) error {
 
 	resp, err := a.httpClient.Do(req)
 	if err != nil {
+		// Check for timeout/network errors
+		if isNetworkError(err) {
+			return fmt.Errorf("%w: %v", ports.ErrNetworkTimeout, err)
+		}
 		return fmt.Errorf("session request failed: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("session request failed with status %d: %s", resp.StatusCode, string(bodyBytes))
+		// Classify based on HTTP status code
+		switch resp.StatusCode {
+		case http.StatusUnauthorized, http.StatusForbidden:
+			return fmt.Errorf("authentication failed: status %d: %s", resp.StatusCode, string(bodyBytes))
+		case http.StatusTooManyRequests:
+			return fmt.Errorf("rate limit exceeded: status %d: %s", resp.StatusCode, string(bodyBytes))
+		case http.StatusInternalServerError, http.StatusServiceUnavailable, http.StatusBadGateway, http.StatusGatewayTimeout:
+			return fmt.Errorf("service unavailable: status %d: %s", resp.StatusCode, string(bodyBytes))
+		default:
+			return fmt.Errorf("session request failed with status %d: %s", resp.StatusCode, string(bodyBytes))
+		}
 	}
 
 	// Parse response
@@ -306,10 +320,12 @@ func (a *BlueskyAdapter) TestConnection(ctx context.Context) error {
 
 	// Ensure session is valid (will refresh if needed)
 	if err := a.ensureValidSession(timeoutCtx); err != nil {
+		classified := classifyError(err)
+		// TestConnection errors are always retryable since connection tests should be retried
 		return ports.PublisherError{
 
 			Platform:  "bluesky",
-			Err:       fmt.Errorf("session validation failed: %w", err),
+			Err:       classified,
 			Retryable: true,
 		}
 	}

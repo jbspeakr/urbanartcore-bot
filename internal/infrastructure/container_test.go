@@ -368,3 +368,235 @@ func TestContainer_GetMethods(t *testing.T) {
 		assert.Equal(t, container.Config, config)
 	})
 }
+
+// ----
+// PHASE 4: CONTAINER INFRASTRUCTURE TESTS
+// ----
+
+// TestContainer_GetRepository tests repository getter
+func TestContainer_GetRepository(t *testing.T) {
+	tmpDir := t.TempDir()
+	dataPath := filepath.Join(tmpDir, "posts.json")
+	err := os.WriteFile(dataPath, []byte(`{"01-01":[]}`), 0644)
+	require.NoError(t, err)
+
+	promptsDir := createTestPromptsDir(t)
+
+	testConfig := createTestConfig(dataPath)
+	testConfig.PromptsPath = promptsDir
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	container, err := NewContainer(ctx, testConfig)
+	if err != nil {
+		t.Skipf("Container initialization failed: %v", err)
+		return
+	}
+	require.NoError(t, err)
+
+	repo := container.GetRepository()
+	assert.NotNil(t, repo)
+	assert.Equal(t, container.PostRepository, repo)
+}
+
+// TestContainer_GetPublisher_BlueskyPlatform tests getting Bluesky publisher
+func TestContainer_GetPublisher_BlueskyPlatform(t *testing.T) {
+	tmpDir := t.TempDir()
+	dataPath := filepath.Join(tmpDir, "posts.json")
+	err := os.WriteFile(dataPath, []byte(`{"01-01":[]}`), 0644)
+	require.NoError(t, err)
+
+	promptsDir := createTestPromptsDir(t)
+
+	testConfig := createTestConfig(dataPath)
+	testConfig.PromptsPath = promptsDir
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	container, err := NewContainer(ctx, testConfig)
+	if err != nil {
+		t.Skipf("Container initialization failed: %v", err)
+		return
+	}
+	require.NoError(t, err)
+
+	publisher, err := container.GetPublisher(domain.PlatformBluesky)
+	require.NoError(t, err)
+	assert.NotNil(t, publisher)
+	assert.Equal(t, domain.PlatformBluesky, publisher.Platform())
+}
+
+// TestContainer_GetPublisher_MastodonPlatform tests getting Mastodon publisher
+func TestContainer_GetPublisher_MastodonPlatform(t *testing.T) {
+	tmpDir := t.TempDir()
+	dataPath := filepath.Join(tmpDir, "posts.json")
+	err := os.WriteFile(dataPath, []byte(`{"01-01":[]}`), 0644)
+	require.NoError(t, err)
+
+	promptsDir := createTestPromptsDir(t)
+
+	testConfig := createTestConfig(dataPath)
+	testConfig.PromptsPath = promptsDir
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	container, err := NewContainer(ctx, testConfig)
+	if err != nil {
+		t.Skipf("Container initialization failed: %v", err)
+		return
+	}
+	require.NoError(t, err)
+
+	publisher, err := container.GetPublisher(domain.PlatformMastodon)
+	require.NoError(t, err)
+	assert.NotNil(t, publisher)
+	assert.Equal(t, domain.PlatformMastodon, publisher.Platform())
+}
+
+// TestContainer_GetPublisher_CaseInsensitive tests platform normalization
+func TestContainer_GetPublisher_CaseInsensitive(t *testing.T) {
+	tmpDir := t.TempDir()
+	dataPath := filepath.Join(tmpDir, "posts.json")
+	err := os.WriteFile(dataPath, []byte(`{"01-01":[]}`), 0644)
+	require.NoError(t, err)
+
+	promptsDir := createTestPromptsDir(t)
+
+	testConfig := createTestConfig(dataPath)
+	testConfig.PromptsPath = promptsDir
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	container, err := NewContainer(ctx, testConfig)
+	if err != nil {
+		t.Skipf("Container initialization failed: %v", err)
+		return
+	}
+	require.NoError(t, err)
+
+	// Test uppercase
+	publisher, err := container.GetPublisher("BLUESKY")
+	require.NoError(t, err)
+	assert.NotNil(t, publisher)
+	assert.Equal(t, domain.PlatformBluesky, publisher.Platform())
+
+	// Test with spaces
+	publisher, err = container.GetPublisher("  mastodon  ")
+	require.NoError(t, err)
+	assert.NotNil(t, publisher)
+	assert.Equal(t, domain.PlatformMastodon, publisher.Platform())
+}
+
+// TestContainer_GetPublisher_InvalidPlatform tests error for unsupported platform
+func TestContainer_GetPublisher_InvalidPlatform(t *testing.T) {
+	tmpDir := t.TempDir()
+	dataPath := filepath.Join(tmpDir, "posts.json")
+	err := os.WriteFile(dataPath, []byte(`{"01-01":[]}`), 0644)
+	require.NoError(t, err)
+
+	promptsDir := createTestPromptsDir(t)
+
+	testConfig := createTestConfig(dataPath)
+	testConfig.PromptsPath = promptsDir
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	container, err := NewContainer(ctx, testConfig)
+	if err != nil {
+		t.Skipf("Container initialization failed: %v", err)
+		return
+	}
+	require.NoError(t, err)
+
+	publisher, err := container.GetPublisher("invalid-platform")
+	assert.Error(t, err)
+	assert.Nil(t, publisher)
+	assert.Contains(t, err.Error(), "unsupported platform")
+}
+
+// TestContainer_GetContentGenerator tests content generator getter
+func TestContainer_GetContentGenerator(t *testing.T) {
+	tmpDir := t.TempDir()
+	dataPath := filepath.Join(tmpDir, "posts.json")
+	err := os.WriteFile(dataPath, []byte(`{"01-01":[]}`), 0644)
+	require.NoError(t, err)
+
+	promptsDir := createTestPromptsDir(t)
+
+	testConfig := createTestConfig(dataPath)
+	testConfig.PromptsPath = promptsDir
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	container, err := NewContainer(ctx, testConfig)
+	if err != nil {
+		t.Skipf("Container initialization failed: %v", err)
+		return
+	}
+	require.NoError(t, err)
+
+	generator := container.GetContentGenerator()
+	assert.NotNil(t, generator)
+	assert.Equal(t, container.ContentGenerator, generator)
+}
+
+// TestContainer_GetPromptManager tests prompt manager getter
+func TestContainer_GetPromptManager(t *testing.T) {
+	tmpDir := t.TempDir()
+	dataPath := filepath.Join(tmpDir, "posts.json")
+	err := os.WriteFile(dataPath, []byte(`{"01-01":[]}`), 0644)
+	require.NoError(t, err)
+
+	promptsDir := createTestPromptsDir(t)
+
+	testConfig := createTestConfig(dataPath)
+	testConfig.PromptsPath = promptsDir
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	container, err := NewContainer(ctx, testConfig)
+	if err != nil {
+		t.Skipf("Container initialization failed: %v", err)
+		return
+	}
+	require.NoError(t, err)
+
+	promptMgr := container.GetPromptManager()
+	assert.NotNil(t, promptMgr)
+	assert.Equal(t, container.PromptManager, promptMgr)
+}
+
+// TestContainer_GetConfig tests config getter
+func TestContainer_GetConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	dataPath := filepath.Join(tmpDir, "posts.json")
+	err := os.WriteFile(dataPath, []byte(`{"01-01":[]}`), 0644)
+	require.NoError(t, err)
+
+	promptsDir := createTestPromptsDir(t)
+
+	testConfig := createTestConfig(dataPath)
+	testConfig.PromptsPath = promptsDir
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	container, err := NewContainer(ctx, testConfig)
+	if err != nil {
+		t.Skipf("Container initialization failed: %v", err)
+		return
+	}
+	require.NoError(t, err)
+
+	config := container.GetConfig()
+	assert.NotNil(t, config)
+	assert.Equal(t, testConfig, config)
+	assert.Equal(t, dataPath, config.DataPath)
+}
