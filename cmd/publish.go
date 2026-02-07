@@ -131,10 +131,9 @@ func runPublishCommand(cmd *cobra.Command, args []string) error {
 			post := result.Post()
 			// Nil safety check for post
 			if post == nil {
-				logger.Warn("Post is nil in publish result", slog.String("operation", "PublishCommand"))
+				logger.Warn("Post is nil in publish result")
 			} else {
 				logger.Info("Dry-run content preview",
-					slog.String("operation", "PublishCommand"),
 					slog.String("mode", "dry-run"),
 					slog.String("date", post.AnniversaryDateKey()),
 					slog.String("uri", post.URI()))
@@ -142,12 +141,10 @@ func runPublishCommand(cmd *cobra.Command, args []string) error {
 
 			if len(response.Generated) > 0 {
 				logger.Info("Generated content available",
-					slog.String("operation", "PublishCommand"),
 					slog.Int("platforms", len(response.Generated)))
 
 				for platform, content := range response.Generated {
 					logger.Info("Generated content for platform",
-						slog.String("operation", "PublishCommand"),
 						slog.String("platform", platform),
 						slog.Int("character_count", content.CharacterCount()),
 						slog.Int("character_limit", getCharacterLimit(platform)),
@@ -157,17 +154,15 @@ func runPublishCommand(cmd *cobra.Command, args []string) error {
 
 			// Summary for dry-run
 			logger.Info("Dry-run summary",
-				slog.String("operation", "PublishCommand"),
 				slog.Duration("duration", result.Duration()))
 		} else {
 			// Live mode: log actual publishing results
 			post := result.Post()
 			// Nil safety check for post
 			if post == nil {
-				logger.Warn("Post is nil in publish result", slog.String("operation", "PublishCommand"))
+				logger.Warn("Post is nil in publish result")
 			} else {
 				logger.Info("Publishing anniversary posts",
-					slog.String("operation", "PublishCommand"),
 					slog.String("date", post.AnniversaryDateKey()),
 					slog.String("uri", post.URI()))
 			}
@@ -181,7 +176,6 @@ func runPublishCommand(cmd *cobra.Command, args []string) error {
 				switch platformResult.Status() {
 				case domain.StatusSuccess:
 					logger.Info("Publishing result",
-						slog.String("operation", "PublishCommand"),
 						slog.String("platform", platform),
 						slog.String("status", "success"),
 						slog.String("uri", platformResult.PublishedURL()),
@@ -193,14 +187,12 @@ func runPublishCommand(cmd *cobra.Command, args []string) error {
 						errMsg = err.Error()
 					}
 					logger.Info("Publishing result",
-						slog.String("operation", "PublishCommand"),
 						slog.String("platform", platform),
 						slog.String("status", "failure"),
 						slog.String("error", errMsg))
 					failureCount++
 				case domain.StatusSkipped:
 					logger.Info("Publishing result",
-						slog.String("operation", "PublishCommand"),
 						slog.String("platform", platform),
 						slog.String("status", "skipped"))
 					skippedCount++
@@ -215,7 +207,6 @@ func runPublishCommand(cmd *cobra.Command, args []string) error {
 			}
 
 			logger.Info("Publishing summary",
-				slog.String("operation", "PublishCommand"),
 				slog.Int("successful", successCount),
 				slog.Int("failed", failureCount),
 				slog.Int("skipped", skippedCount),

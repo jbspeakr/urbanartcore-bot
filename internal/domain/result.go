@@ -51,23 +51,21 @@ type GeneratedContent struct {
 
 // NewGeneratedContent creates a new GeneratedContent with validation.
 func NewGeneratedContent(text, platform string, hashtags []string, promptUsed string) (*GeneratedContent, error) {
-	const op = "NewGeneratedContent"
-
 	// Validate platform
 	platform = strings.ToLower(strings.TrimSpace(platform))
 	if !IsValidPlatform(platform) {
-		return nil, DomainError{Op: op, Err: fmt.Errorf("%w: %q", ErrInvalidPlatform, platform)}
+		return nil, DomainError{Err: fmt.Errorf("%w: %q", ErrInvalidPlatform, platform)}
 	}
 
 	// Validate text content
 	text = strings.TrimSpace(text)
 	if text == "" {
-		return nil, DomainError{Op: op, Err: ErrEmptyGeneratedText}
+		return nil, DomainError{Err: ErrEmptyGeneratedText}
 	}
 
 	// Check platform-specific character limits
 	if err := validateTextLength(text, platform); err != nil {
-		return nil, DomainError{Op: op, Err: err}
+		return nil, DomainError{Err: err}
 	}
 
 	// Create metadata with basic metrics
@@ -187,11 +185,9 @@ type PlatformResult struct {
 
 // NewPlatformResult creates a new PlatformResult.
 func NewPlatformResult(platform string, status PublishStatus, content *GeneratedContent) (*PlatformResult, error) {
-	const op = "NewPlatformResult"
-
 	platform = strings.ToLower(strings.TrimSpace(platform))
 	if !IsValidPlatform(platform) {
-		return nil, DomainError{Op: op, Err: fmt.Errorf("%w: %q", ErrInvalidPlatform, platform)}
+		return nil, DomainError{Err: fmt.Errorf("%w: %q", ErrInvalidPlatform, platform)}
 	}
 
 	return &PlatformResult{
@@ -348,10 +344,8 @@ type PublishResult struct {
 
 // NewPublishResult creates a new PublishResult.
 func NewPublishResult(post *Post, dryRun bool) (*PublishResult, error) {
-	const op = "NewPublishResult"
-
 	if post == nil {
-		return nil, DomainError{Op: op, Err: errors.New("post cannot be nil")}
+		return nil, DomainError{Err: errors.New("post cannot be nil")}
 	}
 
 	return &PublishResult{

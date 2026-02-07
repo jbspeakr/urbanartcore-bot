@@ -52,12 +52,10 @@ var (
 // - Platform-specific count requirements
 // - No duplicate hashtags
 func ValidateHashtags(hashtags []string, platform string) error {
-	const op = "ValidateHashtags"
-
 	// Validate platform
 	platform = strings.ToLower(strings.TrimSpace(platform))
 	if !IsValidPlatform(platform) {
-		return DomainError{Op: op, Err: fmt.Errorf("%w: %q", ErrInvalidPlatform, platform)}
+		return DomainError{Err: fmt.Errorf("%w: %q", ErrInvalidPlatform, platform)}
 	}
 
 	// Determine platform-specific hashtag count requirements
@@ -78,7 +76,6 @@ func ValidateHashtags(hashtags []string, platform string) error {
 	// Check hashtag count
 	if len(hashtags) < minHashtags {
 		return DomainError{
-			Op: op,
 			Err: fmt.Errorf("%w: %s requires at least %d hashtags, got %d",
 				ErrInvalidHashtagCount, platform, minHashtags, len(hashtags)),
 		}
@@ -86,7 +83,6 @@ func ValidateHashtags(hashtags []string, platform string) error {
 
 	if len(hashtags) > maxHashtags {
 		return DomainError{
-			Op: op,
 			Err: fmt.Errorf("%w: %s allows maximum %d hashtags, got %d",
 				ErrInvalidHashtagCount, platform, maxHashtags, len(hashtags)),
 		}
@@ -103,7 +99,6 @@ func ValidateHashtags(hashtags []string, platform string) error {
 
 		if cleanTag == "" {
 			return DomainError{
-				Op:  op,
 				Err: fmt.Errorf("%w: hashtag at index %d is empty", ErrInvalidHashtagFormat, i),
 			}
 		}
@@ -111,7 +106,6 @@ func ValidateHashtags(hashtags []string, platform string) error {
 		// Check length
 		if len(cleanTag) < MinHashtagLength {
 			return DomainError{
-				Op: op,
 				Err: fmt.Errorf("%w: hashtag %q is too short (minimum %d characters)",
 					ErrInvalidHashtagFormat, cleanTag, MinHashtagLength),
 			}
@@ -119,7 +113,6 @@ func ValidateHashtags(hashtags []string, platform string) error {
 
 		if len(cleanTag) > MaxHashtagLength {
 			return DomainError{
-				Op: op,
 				Err: fmt.Errorf("%w: hashtag %q is too long (maximum %d characters)",
 					ErrInvalidHashtagFormat, cleanTag, MaxHashtagLength),
 			}
@@ -128,7 +121,6 @@ func ValidateHashtags(hashtags []string, platform string) error {
 		// Check format (alphanumeric and underscores only)
 		if !hashtagPattern.MatchString(cleanTag) {
 			return DomainError{
-				Op: op,
 				Err: fmt.Errorf("%w: hashtag %q contains invalid characters (only alphanumeric and underscores allowed)",
 					ErrInvalidHashtagFormat, cleanTag),
 			}
@@ -138,7 +130,6 @@ func ValidateHashtags(hashtags []string, platform string) error {
 		lowerTag := strings.ToLower(cleanTag)
 		if _, exists := seen[lowerTag]; exists {
 			return DomainError{
-				Op:  op,
 				Err: fmt.Errorf("%w: hashtag %q appears multiple times", ErrDuplicateHashtag, cleanTag),
 			}
 		}
@@ -154,18 +145,15 @@ func ValidateHashtags(hashtags []string, platform string) error {
 // - Minimum length requirement
 // - No obvious injection patterns
 func ValidateContentQuality(text string) error {
-	const op = "ValidateContentQuality"
-
 	// Check for empty content
 	text = strings.TrimSpace(text)
 	if text == "" {
-		return DomainError{Op: op, Err: ErrEmptyContent}
+		return DomainError{Err: ErrEmptyContent}
 	}
 
 	// Check minimum length
 	if len(text) < MinContentLength {
 		return DomainError{
-			Op: op,
 			Err: fmt.Errorf("%w: content has %d characters, minimum is %d",
 				ErrContentTooShort, len(text), MinContentLength),
 		}
@@ -176,7 +164,6 @@ func ValidateContentQuality(text string) error {
 	for _, pattern := range injectionPatterns {
 		if pattern.MatchString(lowerText) {
 			return DomainError{
-				Op: op,
 				Err: fmt.Errorf("%w: found suspicious pattern matching %q",
 					ErrInjectionDetected, pattern.String()),
 			}
@@ -194,7 +181,6 @@ func ValidateContentQuality(text string) error {
 	// If more than 5% of characters are control characters, flag as suspicious
 	if len(text) > 0 && float64(controlCharCount)/float64(len(text)) > 0.05 {
 		return DomainError{
-			Op: op,
 			Err: fmt.Errorf("%w: excessive control characters detected (%d of %d)",
 				ErrInvalidContentQuality, controlCharCount, len(text)),
 		}
@@ -207,18 +193,16 @@ func ValidateContentQuality(text string) error {
 // This ensures the AI-generated content includes the blog post link.
 // The URI check is case-insensitive and allows for both full and partial matches.
 func ContainsURI(text string, expectedURI string) error {
-	const op = "ContainsURI"
-
 	// Validate inputs
 	text = strings.TrimSpace(text)
 	expectedURI = strings.TrimSpace(expectedURI)
 
 	if text == "" {
-		return DomainError{Op: op, Err: ErrEmptyContent}
+		return DomainError{Err: ErrEmptyContent}
 	}
 
 	if expectedURI == "" {
-		return DomainError{Op: op, Err: errors.New("expected URI cannot be empty")}
+		return DomainError{Err: errors.New("expected URI cannot be empty")}
 	}
 
 	// Normalize for case-insensitive comparison
@@ -240,7 +224,6 @@ func ContainsURI(text string, expectedURI string) error {
 
 	// URI not found
 	return DomainError{
-		Op:  op,
 		Err: fmt.Errorf("%w: URI %q not found in content", ErrURINotFound, expectedURI),
 	}
 }

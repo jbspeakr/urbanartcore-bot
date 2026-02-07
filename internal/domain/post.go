@@ -9,15 +9,11 @@ import (
 
 // DomainError represents business rule violations in the domain layer.
 type DomainError struct {
-	Op  string // Operation that caused the error
-	Err error  // Underlying error
+	Err error // Underlying error
 }
 
 func (e DomainError) Error() string {
-	if e.Op == "" {
-		return e.Err.Error()
-	}
-	return fmt.Sprintf("%s: %v", e.Op, e.Err)
+	return e.Err.Error()
 }
 
 func (e DomainError) Unwrap() error {
@@ -53,28 +49,26 @@ type Post struct {
 // It ensures URI format is valid and date is within acceptable range.
 // Content extraction is delegated to Mistral AI via the URI.
 func NewPost(uri, dateStr string) (*Post, error) {
-	const op = "NewPost"
-
 	// Validate URI format
 	parsedURL, err := url.Parse(uri)
 	if err != nil {
-		return nil, DomainError{Op: op, Err: fmt.Errorf("%w: %v", ErrInvalidURI, err)}
+		return nil, DomainError{Err: fmt.Errorf("%w: %v", ErrInvalidURI, err)}
 	}
 
 	if parsedURL.Scheme == "" || parsedURL.Host == "" {
-		return nil, DomainError{Op: op, Err: fmt.Errorf("%w: missing scheme or host", ErrInvalidURI)}
+		return nil, DomainError{Err: fmt.Errorf("%w: missing scheme or host", ErrInvalidURI)}
 	}
 
 	// Validate and parse date
 	parsedDate, err := time.Parse(DateLayout, dateStr)
 	if err != nil {
-		return nil, DomainError{Op: op, Err: fmt.Errorf("%w: expected format YYYY-MM-DD", ErrInvalidDate)}
+		return nil, DomainError{Err: fmt.Errorf("%w: expected format YYYY-MM-DD", ErrInvalidDate)}
 	}
 
 	// Validate date range
 	year := parsedDate.Year()
 	if year < MinValidYear || year > MaxValidYear {
-		return nil, DomainError{Op: op, Err: fmt.Errorf("%w: year must be between %d and %d", ErrDateOutOfRange, MinValidYear, MaxValidYear)}
+		return nil, DomainError{Err: fmt.Errorf("%w: year must be between %d and %d", ErrDateOutOfRange, MinValidYear, MaxValidYear)}
 	}
 
 	return &Post{

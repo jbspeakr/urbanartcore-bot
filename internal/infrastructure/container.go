@@ -43,7 +43,6 @@ func NewContainer(ctx context.Context, config *app.Config) (*Container, error) {
 	logger := slog.Default()
 
 	logger.Debug("Initializing dependency container",
-		slog.String("operation", op),
 		slog.Any("config", config.SanitizeForLogging()),
 	)
 
@@ -102,7 +101,6 @@ func NewContainer(ctx context.Context, config *app.Config) (*Container, error) {
 	}
 
 	logger.Info("Dependency container initialized successfully",
-		slog.String("operation", op),
 		slog.String("data_path", config.DataPath),
 	)
 
@@ -114,7 +112,7 @@ func (c *Container) Validate(ctx context.Context) error {
 	const op = "Container.Validate"
 	logger := slog.Default()
 
-	logger.Debug("Starting container validation", slog.String("operation", op))
+	logger.Debug("Starting container validation")
 
 	// Verify config is valid
 	if err := c.Config.Validate(); err != nil {
@@ -124,63 +122,56 @@ func (c *Container) Validate(ctx context.Context) error {
 	// Verify repository is accessible
 	if err := c.PostRepository.ValidateDataSource(ctx); err != nil {
 		logger.Warn("Repository validation failed",
-			slog.String("operation", op),
 			slog.String("error", err.Error()),
 		)
 	} else {
-		logger.Debug("Repository validation successful", slog.String("operation", op))
+		logger.Debug("Repository validation successful")
 	}
 
 	// Test publisher connections
 	if err := c.BlueskyPublisher.TestConnection(ctx); err != nil {
 		logger.Warn("Bluesky publisher connection test failed",
-			slog.String("operation", op),
 			slog.String("error", err.Error()),
 		)
 	} else {
-		logger.Debug("Bluesky publisher connection test successful", slog.String("operation", op))
+		logger.Debug("Bluesky publisher connection test successful")
 	}
 
 	if err := c.MastodonPublisher.TestConnection(ctx); err != nil {
 		logger.Warn("Mastodon publisher connection test failed",
-			slog.String("operation", op),
 			slog.String("error", err.Error()),
 		)
 	} else {
-		logger.Debug("Mastodon publisher connection test successful", slog.String("operation", op))
+		logger.Debug("Mastodon publisher connection test successful")
 	}
 
 	// Test content generator connection
 	if err := c.ContentGenerator.TestConnection(ctx); err != nil {
 		logger.Warn("Content generator connection test failed",
-			slog.String("operation", op),
 			slog.String("error", err.Error()),
 		)
 	} else {
-		logger.Debug("Content generator connection test successful", slog.String("operation", op))
+		logger.Debug("Content generator connection test successful")
 	}
 
 	// Test prompt manager by attempting to list prompts
 	if prompts, err := c.PromptManager.ListPrompts(ctx); err != nil {
 		logger.Warn("Prompt manager list prompts test failed",
-			slog.String("operation", op),
 			slog.String("error", err.Error()),
 		)
 	} else {
 		logger.Debug("Prompt manager validation successful",
-			slog.String("operation", op),
 			slog.Int("prompts_available", len(prompts)),
 		)
 	}
 
-	logger.Debug("Container validation completed", slog.String("operation", op))
+	logger.Debug("Container validation completed")
 	return nil
 }
 
 // Close releases any resources held by the container.
 func (c *Container) Close() error {
-	const op = "Container.Close"
-	slog.Default().Debug("Closing dependency container", slog.String("operation", op))
+	slog.Default().Debug("Closing dependency container")
 
 	// Future cleanup will happen here:
 	// - Close database connections
