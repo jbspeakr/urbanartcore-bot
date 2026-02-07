@@ -197,12 +197,7 @@ The `data/posts_by_date.json` file uses MM-DD keys to organize anniversary posts
 
 ### Mistral AI Integration
 
-The application uses Mistral AI to generate engaging, platform-specific content:
-
-**Model Selection**:
-- Primary: `mistral-large` for high-quality content generation
-- Fallback: `mistral-medium` for cost optimization
-- Development: `mistral-small` for testing and iteration
+The application uses Mistral AI to generate engaging, platform-specific content with the model specified in configuration.
 
 **Content Generation Flow**:
 1. **Context Building**: Combine post metadata with anniversary context
@@ -352,7 +347,7 @@ Flags:
 ### AI-Specific Error Handling
 - **Rate Limit Handling**: Exponential backoff for API limits
 - **Content Validation**: Reject inappropriate or malformed AI responses
-- **Fallback Strategies**: Use simpler models or cached content on failures
+- **Retry Logic**: Exponential backoff with configurable retry count
 - **Token Limit Management**: Handle context window limitations gracefully
 - **Cost Controls**: Track and limit AI API usage
 
@@ -360,7 +355,7 @@ Flags:
 Uses Go's structured logging (`slog`) with AI-specific fields:
 - **Debug**: AI prompts, responses, and generation parameters
 - **Info**: Content generation success, platform publishing results
-- **Warn**: AI fallbacks, content modifications, rate limit warnings
+- **Warn**: Retry attempts, content modifications, rate limit warnings
 - **Error**: AI failures, platform errors, critical system issues
 
 ## Structured Logging (slog) Requirements
@@ -406,12 +401,12 @@ All logging must use `slog.Default()` throughout the application. This enables:
 
 **Application Layer** (`internal/app/`)
 - Info: Successful use case completion, important state transitions, major operation steps
-- Warn: Recoverable issues, fallbacks, retries
+- Warn: Recoverable issues, retries
 - Error: Use case failures, validation errors, dependency failures
 
 **Adapter Layer** (`internal/adapters/`)
 - Info: Successful external operations (file I/O, API calls, publishes)
-- Warn: Rate limiting, retries, fallback behavior
+- Warn: Rate limiting, retries
 - Error: External service failures, connection errors, validation failures
 
 **Command Layer** (`cmd/`)
@@ -421,7 +416,7 @@ All logging must use `slog.Default()` throughout the application. This enables:
 
 **Infrastructure Layer** (`internal/infrastructure/`)
 - Info: Startup completion, configuration applied, container initialization
-- Warn: Degraded modes, fallback strategies
+- Warn: Degraded modes
 - Error: Initialization failures, connection errors
 
 ### Using slog.Default()
@@ -614,10 +609,10 @@ No special action needed - sensitive fields are redacted automatically for every
 
 ### Mistral AI Integration Requirements
 - **Always use Mistral AI**: Content generation is mandatory, not optional
+- **Single model configuration**: Only the configured model is used (no fallback to alternative models)
 - **URI parsing**: Mistral AI parses blog post URIs directly for content extraction (no pre-extracted title/summary)
 - **Respect rate limits**: Implement exponential backoff for API rate limiting
-- **Token management**: Monitor and report token usage
-- **Fallback handling**: Handle API timeouts and service errors gracefully
+- **Retry logic**: Exponential backoff on retryable errors, fail on non-retryable errors
 - **Content validation**: Validate AI responses meet platform requirements
 
 ### Testing Requirements
@@ -726,12 +721,12 @@ No special action needed - sensitive fields are redacted automatically for every
   - Prompt template rendering with dynamic variables via PromptManager
   - Rate limit handling with exponential backoff retry logic
   - Comprehensive error classification (retryable vs non-retryable)
-  - Model selection support (mistral-large, mistral-medium, mistral-small)
+  - Single model support (configured via UAC_MISTRAL_MODEL)
 - ✅ Prompt templates and validation
   - Platform-specific prompt files in `internal/infrastructure/prompts/`
   - PromptManager implementation with template variable substitution
   - Content validation against platform constraints (byte/rune counting)
-  - AI error handling and fallbacks via retry mechanism
+  - AI error handling with exponential backoff retry mechanism
   - JSON response format enforcement for consistent parsing
 - ✅ Full integration with container and PublishService
   - Real MistralAdapter wired into dependency injection container

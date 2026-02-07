@@ -67,11 +67,6 @@ func (m *MockContentGenerator) ValidatePrompt(ctx context.Context, platform, pro
 	return args.Error(0)
 }
 
-func (m *MockContentGenerator) GetSupportedModels(ctx context.Context) ([]string, error) {
-	args := m.Called(ctx)
-	return args.Get(0).([]string), args.Error(1)
-}
-
 func (m *MockContentGenerator) TestConnection(ctx context.Context) error {
 	args := m.Called(ctx)
 	return args.Error(0)

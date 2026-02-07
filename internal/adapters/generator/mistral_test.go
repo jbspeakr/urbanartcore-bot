@@ -695,22 +695,6 @@ func TestValidatePrompt(t *testing.T) {
 	}
 }
 
-// TestGetSupportedModels tests model listing
-func TestGetSupportedModels(t *testing.T) {
-	config := createTestConfig()
-	adapter, err := NewMistralAdapter(config, &mockPromptManager{})
-	require.NoError(t, err)
-
-	ctx := context.Background()
-	models, err := adapter.GetSupportedModels(ctx)
-
-	require.NoError(t, err)
-	assert.NotEmpty(t, models)
-	assert.Contains(t, models, "mistral-large-latest")
-	assert.Contains(t, models, "mistral-medium-latest")
-	assert.Contains(t, models, "mistral-small-latest")
-}
-
 // TestRetryLogic tests exponential backoff retry behavior
 func TestRetryLogic(t *testing.T) {
 	t.Run("respects retry count", func(t *testing.T) {
@@ -817,26 +801,6 @@ func TestHTTPStatusError(t *testing.T) {
 			assert.Equal(t, tt.expectedCode, code, "error: %v", tt.err)
 		}
 	})
-}
-
-// TestGenerateContentWithModelOverride tests using a custom model in the request
-func TestGenerateContentWithModelOverride(t *testing.T) {
-	config := createTestConfig()
-	config.Model = "mistral-small-latest" // Default model
-	promptMgr := &mockPromptManager{}
-	adapter, err := NewMistralAdapter(config, promptMgr)
-	require.NoError(t, err)
-
-	post := createTestPost()
-	req, _ := ports.NewGenerationRequest([]*domain.Post{post}, "bluesky", "09-14")
-	req.WithModel("mistral-large-latest") // Override with different model
-
-	ctx := context.Background()
-	_, err = adapter.GenerateContent(ctx, req)
-
-	// Will fail with auth error, but verify the model override was attempted
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "API key")
 }
 
 // TestGenerateWithAllErrorTypes tests comprehensive error classification

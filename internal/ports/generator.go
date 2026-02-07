@@ -56,7 +56,6 @@ type GenerationRequest struct {
 	Platform    string            `json:"platform"`    // Target platform (bluesky, mastodon)
 	DateKey     string            `json:"date_key"`    // MM-DD anniversary date
 	Context     map[string]string `json:"context"`     // Additional context for AI
-	Model       string            `json:"model"`       // Specific AI model to use
 	Temperature float32           `json:"temperature"` // Creativity level (0.0-1.0)
 	MaxTokens   int               `json:"max_tokens"`  // Maximum tokens to generate
 }
@@ -83,12 +82,6 @@ func NewGenerationRequest(posts []*domain.Post, platform string, dateKey string)
 		Temperature: 0.7, // Balanced creativity
 		MaxTokens:   500, // Conservative limit
 	}, nil
-}
-
-// WithModel sets the AI model to use for generation.
-func (gr *GenerationRequest) WithModel(model string) *GenerationRequest {
-	gr.Model = model
-	return gr
 }
 
 // WithTemperature sets the creativity level for generation.
@@ -130,10 +123,6 @@ type ContentGenerator interface {
 	// Used during application startup to validate prompt templates.
 	ValidatePrompt(ctx context.Context, platform string, prompt string) error
 
-	// GetSupportedModels returns a list of AI models available for content generation.
-	// Useful for configuration and fallback strategies.
-	GetSupportedModels(ctx context.Context) ([]string, error)
-
 	// TestConnection verifies connectivity to the AI service with current credentials.
 	// Used during application startup and health checks.
 	TestConnection(ctx context.Context) error
@@ -144,7 +133,6 @@ type GenerationOptions struct {
 	DryRun          bool              `json:"dry_run"`          // Don't consume API quota
 	RetryCount      int               `json:"retry_count"`      // Number of retry attempts
 	Timeout         time.Duration     `json:"timeout"`          // Generation timeout
-	FallbackModel   string            `json:"fallback_model"`   // Model to use if primary fails
 	CustomPrompt    string            `json:"custom_prompt"`    // Override default prompt
 	PreserveContext bool              `json:"preserve_context"` // Keep conversation context
 	Metadata        map[string]string `json:"metadata"`         // Additional generation context

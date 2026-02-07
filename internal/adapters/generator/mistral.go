@@ -109,32 +109,26 @@ func (m *MistralAdapter) GenerateContent(ctx context.Context, req *ports.Generat
 		}
 	}
 
-	// Use model from request if specified, otherwise use config default
-	model := m.config.Model
-	if req.Model != "" {
-		model = req.Model
-	}
-
 	logger.Info("Generating content",
 		slog.String("operation", op),
 		slog.String("platform", req.Platform),
 		slog.String("date_key", req.DateKey),
 		slog.Int("post_count", len(req.Posts)),
-		slog.String("model", model))
+		slog.String("model", m.config.Model))
 
 	// Render prompt template
 	prompt, err := m.promptMgr.RenderPrompt(ctx, req.Platform, req)
 	if err != nil {
 		return nil, ports.GeneratorError{
 			Op:        op,
-			Model:     model,
+			Model:     m.config.Model,
 			Err:       fmt.Errorf("failed to render prompt: %w", err),
 			Retryable: false,
 		}
 	}
 
 	// Generate content with retry logic
-	content, err := m.generateWithRetry(ctx, model, prompt, req.Platform)
+	content, err := m.generateWithRetry(ctx, prompt, req.Platform)
 	if err != nil {
 		return nil, err // Error already wrapped by generateWithRetry
 	}
@@ -185,8 +179,7 @@ func (m *MistralAdapter) GenerateForAllPlatforms(ctx context.Context, posts []*d
 		}
 
 		// Apply default settings from config
-		req.WithModel(m.config.Model).
-			WithTemperature(float32(m.config.Temperature)).
+		req.WithTemperature(float32(m.config.Temperature)).
 			WithMaxTokens(m.config.MaxTokens)
 
 		// Generate content for this platform
@@ -242,22 +235,6 @@ func (m *MistralAdapter) ValidatePrompt(ctx context.Context, platform string, pr
 	}
 
 	return nil
-}
-
-// GetSupportedModels returns a list of AI models available for content generation.
-func (m *MistralAdapter) GetSupportedModels(ctx context.Context) ([]string, error) {
-	// Return statically defined models from the Mistral SDK
-	models := []string{
-		mistral.ModelMistralLargeLatest,
-		mistral.ModelMistralMediumLatest,
-		mistral.ModelMistralSmallLatest,
-		mistral.ModelMistralLarge2402,
-		mistral.ModelMistralMedium2312,
-		mistral.ModelMistralSmall2402,
-		mistral.ModelMistralSmall2312,
-	}
-
-	return models, nil
 }
 
 // TestConnection verifies connectivity to the AI service with current credentials.
@@ -323,7 +300,7 @@ func (m *MistralAdapter) TestConnection(ctx context.Context) error {
 }
 
 // generateWithRetry generates content with exponential backoff retry logic.
-func (m *MistralAdapter) generateWithRetry(ctx context.Context, model, prompt, platform string) (*domain.GeneratedContent, error) {
+func (m *MistralAdapter) generateWithRetry(ctx context.Context, prompt, platform string) (*domain.GeneratedContent, error) {
 	const op = "generateWithRetry"
 	logger := slog.Default()
 
@@ -335,7 +312,7 @@ func (m *MistralAdapter) generateWithRetry(ctx context.Context, model, prompt, p
 		case <-ctx.Done():
 			return nil, ports.GeneratorError{
 				Op:        op,
-				Model:     model,
+				Model:     m.config.Model,
 				Err:       ctx.Err(),
 				Retryable: false,
 			}
@@ -356,7 +333,7 @@ func (m *MistralAdapter) generateWithRetry(ctx context.Context, model, prompt, p
 			case <-ctx.Done():
 				return nil, ports.GeneratorError{
 					Op:        op,
-					Model:     model,
+					Model:     m.config.Model,
 					Err:       ctx.Err(),
 					Retryable: false,
 				}
@@ -364,7 +341,7 @@ func (m *MistralAdapter) generateWithRetry(ctx context.Context, model, prompt, p
 		}
 
 		// Attempt generation
-		content, err := m.generate(ctx, model, prompt, platform)
+		content, err := m.generate(ctx, prompt, platform)
 
 		if err == nil {
 			return content, nil
@@ -397,14 +374,14 @@ func (m *MistralAdapter) generateWithRetry(ctx context.Context, model, prompt, p
 
 	return nil, ports.GeneratorError{
 		Op:        op,
-		Model:     model,
+		Model:     m.config.Model,
 		Err:       fmt.Errorf("exhausted %d retries: %w", m.config.RetryCount, lastErr),
 		Retryable: false,
 	}
 }
 
 // generate performs a single content generation attempt.
-func (m *MistralAdapter) generate(_ context.Context, model, prompt, platform string) (*domain.GeneratedContent, error) {
+func (m *MistralAdapter) generate(_ context.Context, prompt, platform string) (*domain.GeneratedContent, error) {
 	const op = "generate"
 
 	// Prepare messages for Mistral API
@@ -428,7 +405,7 @@ func (m *MistralAdapter) generate(_ context.Context, model, prompt, platform str
 	}
 
 	// Call Mistral API (the SDK client handles its own timeout from config)
-	resp, err := m.client.Chat(model, messages, params)
+	resp, err := m.client.Chat(m.config.Model, messages, params)
 	if err != nil {
 		return nil, m.classifyError(op, err)
 	}
@@ -437,7 +414,7 @@ func (m *MistralAdapter) generate(_ context.Context, model, prompt, platform str
 	if len(resp.Choices) == 0 {
 		return nil, ports.GeneratorError{
 			Op:        op,
-			Model:     model,
+			Model:     m.config.Model,
 			Err:       errors.New("no choices in response"),
 			Retryable: true,
 		}
@@ -457,7 +434,7 @@ func (m *MistralAdapter) generate(_ context.Context, model, prompt, platform str
 	if err := json.Unmarshal([]byte(content), &apiResponse); err != nil {
 		return nil, ports.GeneratorError{
 			Op:        op,
-			Model:     model,
+			Model:     m.config.Model,
 			Err:       fmt.Errorf("failed to parse JSON response: %w", err),
 			Retryable: true, // AI might fix JSON on retry
 		}
@@ -467,7 +444,7 @@ func (m *MistralAdapter) generate(_ context.Context, model, prompt, platform str
 	if apiResponse.Text == "" {
 		return nil, ports.GeneratorError{
 			Op:        op,
-			Model:     model,
+			Model:     m.config.Model,
 			Err:       errors.New("generated text is empty"),
 			Retryable: true,
 		}
@@ -483,7 +460,7 @@ func (m *MistralAdapter) generate(_ context.Context, model, prompt, platform str
 	if err != nil {
 		return nil, ports.GeneratorError{
 			Op:        op,
-			Model:     model,
+			Model:     m.config.Model,
 			Err:       fmt.Errorf("content validation failed: %w", err),
 			Retryable: true, // AI might generate valid content on retry
 		}
