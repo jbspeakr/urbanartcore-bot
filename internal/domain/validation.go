@@ -93,7 +93,7 @@ func ValidateHashtags(hashtags []string, platform string) error {
 	}
 
 	// Track seen hashtags for duplicate detection (case-insensitive)
-	seen := make(map[string]bool)
+	seen := make(map[string]struct{})
 
 	// Validate each hashtag
 	for i, tag := range hashtags {
@@ -136,13 +136,13 @@ func ValidateHashtags(hashtags []string, platform string) error {
 
 		// Check for duplicates (case-insensitive)
 		lowerTag := strings.ToLower(cleanTag)
-		if seen[lowerTag] {
+		if _, exists := seen[lowerTag]; exists {
 			return DomainError{
 				Op:  op,
 				Err: fmt.Errorf("%w: hashtag %q appears multiple times", ErrDuplicateHashtag, cleanTag),
 			}
 		}
-		seen[lowerTag] = true
+		seen[lowerTag] = struct{}{}
 	}
 
 	return nil
