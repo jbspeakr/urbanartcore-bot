@@ -260,43 +260,30 @@ func (m *MistralAdapter) TestConnection(ctx context.Context) error {
 		SafePrompt:  false,
 	}
 
-	// Make a test API call with timeout
-	testCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-
-	// We need to wrap the call to check for context cancellation
-	type result struct {
-		resp *mistral.ChatCompletionResponse
-		err  error
+	// Make a test API call (client already has timeout configured)
+	resp, err := m.client.Chat(m.config.Model, messages, params)
+	if err != nil {
+		logger.Error("Connection test failed",
+			slog.String("operation", op),
+			slog.String("error", err.Error()))
+		return m.classifyError(op, err)
 	}
-	resultCh := make(chan result, 1)
 
-	go func() {
-		resp, err := m.client.Chat(m.config.Model, messages, params)
-		resultCh <- result{resp: resp, err: err}
-	}()
-
-	select {
-	case <-testCtx.Done():
+	if resp == nil || len(resp.Choices) == 0 {
+		logger.Error("Connection test failed - no response",
+			slog.String("operation", op))
 		return ports.GeneratorError{
 			Op:        op,
 			Model:     m.config.Model,
-			Err:       ports.ErrServiceUnavailable,
+			Err:       errors.New("empty response from service"),
 			Retryable: true,
 		}
-	case res := <-resultCh:
-		if res.err != nil {
-			logger.Error("Connection test failed",
-				slog.String("operation", op),
-				slog.String("error", res.err.Error()))
-			return m.classifyError(op, res.err)
-		}
-
-		logger.Info("Connection test successful",
-			slog.String("operation", op),
-			slog.String("model", m.config.Model))
-		return nil
 	}
+
+	logger.Info("Connection test successful",
+		slog.String("operation", op),
+		slog.String("model", m.config.Model))
+	return nil
 }
 
 // generateWithRetry generates content with exponential backoff retry logic.
@@ -345,7 +332,7 @@ func (m *MistralAdapter) generateWithRetry(ctx context.Context, prompt, platform
 		}
 
 		// Attempt generation
-		content, err := m.generate(ctx, prompt, platform)
+		content, err := m.generate(prompt, platform)
 
 		if err == nil {
 			return content, nil
@@ -385,7 +372,7 @@ func (m *MistralAdapter) generateWithRetry(ctx context.Context, prompt, platform
 }
 
 // generate performs a single content generation attempt.
-func (m *MistralAdapter) generate(ctx context.Context, prompt, platform string) (*domain.GeneratedContent, error) {
+func (m *MistralAdapter) generate(prompt, platform string) (*domain.GeneratedContent, error) {
 	const op = "generate"
 
 	// Prepare messages for Mistral API
@@ -408,32 +395,10 @@ func (m *MistralAdapter) generate(ctx context.Context, prompt, platform string) 
 		ResponseFormat: mistral.ResponseFormatJsonObject,
 	}
 
-	// Call Mistral API with context awareness
-	type result struct {
-		resp *mistral.ChatCompletionResponse
-		err  error
-	}
-	resultCh := make(chan result, 1)
-
-	go func() {
-		resp, err := m.client.Chat(m.config.Model, messages, params)
-		resultCh <- result{resp: resp, err: err}
-	}()
-
-	var resp *mistral.ChatCompletionResponse
-	select {
-	case <-ctx.Done():
-		return nil, ports.GeneratorError{
-			Op:        op,
-			Model:     m.config.Model,
-			Err:       ctx.Err(),
-			Retryable: false,
-		}
-	case res := <-resultCh:
-		if res.err != nil {
-			return nil, m.classifyError(op, res.err)
-		}
-		resp = res.resp
+	// Call Mistral API (client already has timeout configured)
+	resp, err := m.client.Chat(m.config.Model, messages, params)
+	if err != nil {
+		return nil, m.classifyError(op, err)
 	}
 
 	// Extract response
