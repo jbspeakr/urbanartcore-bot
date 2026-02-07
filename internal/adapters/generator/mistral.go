@@ -141,9 +141,7 @@ func (m *MistralAdapter) GenerateContent(ctx context.Context, req *ports.Generat
 
 	logger.Info("Content generated successfully",
 		slog.String("operation", op),
-		slog.String("platform", req.Platform),
-		slog.Int("tokens_used", content.TokenCount()),
-		slog.Float64("cost_usd", content.Cost()))
+		slog.String("platform", req.Platform))
 
 	return content, nil
 }
@@ -314,7 +312,7 @@ func (m *MistralAdapter) TestConnection(ctx context.Context) error {
 			logger.Error("Connection test failed",
 				slog.String("operation", op),
 				slog.String("error", res.err.Error()))
-			return m.classifyError(op, res.err, 0)
+			return m.classifyError(op, res.err)
 		}
 
 		logger.Info("Connection test successful",
@@ -330,18 +328,16 @@ func (m *MistralAdapter) generateWithRetry(ctx context.Context, model, prompt, p
 	logger := slog.Default()
 
 	var lastErr error
-	var tokensUsed int
 
 	for attempt := 0; attempt <= m.config.RetryCount; attempt++ {
 		// Check context before attempting
 		select {
 		case <-ctx.Done():
 			return nil, ports.GeneratorError{
-				Op:         op,
-				Model:      model,
-				Err:        ctx.Err(),
-				Retryable:  false,
-				TokensUsed: tokensUsed,
+				Op:        op,
+				Model:     model,
+				Err:       ctx.Err(),
+				Retryable: false,
 			}
 		default:
 		}
@@ -359,18 +355,16 @@ func (m *MistralAdapter) generateWithRetry(ctx context.Context, model, prompt, p
 			case <-time.After(delay):
 			case <-ctx.Done():
 				return nil, ports.GeneratorError{
-					Op:         op,
-					Model:      model,
-					Err:        ctx.Err(),
-					Retryable:  false,
-					TokensUsed: tokensUsed,
+					Op:        op,
+					Model:     model,
+					Err:       ctx.Err(),
+					Retryable: false,
 				}
 			}
 		}
 
 		// Attempt generation
-		content, tokens, err := m.generate(ctx, model, prompt, platform)
-		tokensUsed += tokens
+		content, err := m.generate(ctx, model, prompt, platform)
 
 		if err == nil {
 			return content, nil
@@ -402,16 +396,15 @@ func (m *MistralAdapter) generateWithRetry(ctx context.Context, model, prompt, p
 		slog.String("error", lastErr.Error()))
 
 	return nil, ports.GeneratorError{
-		Op:         op,
-		Model:      model,
-		Err:        fmt.Errorf("exhausted %d retries: %w", m.config.RetryCount, lastErr),
-		Retryable:  false,
-		TokensUsed: tokensUsed,
+		Op:        op,
+		Model:     model,
+		Err:       fmt.Errorf("exhausted %d retries: %w", m.config.RetryCount, lastErr),
+		Retryable: false,
 	}
 }
 
 // generate performs a single content generation attempt.
-func (m *MistralAdapter) generate(_ context.Context, model, prompt, platform string) (*domain.GeneratedContent, int, error) {
+func (m *MistralAdapter) generate(_ context.Context, model, prompt, platform string) (*domain.GeneratedContent, error) {
 	const op = "generate"
 
 	// Prepare messages for Mistral API
@@ -437,17 +430,16 @@ func (m *MistralAdapter) generate(_ context.Context, model, prompt, platform str
 	// Call Mistral API (the SDK client handles its own timeout from config)
 	resp, err := m.client.Chat(model, messages, params)
 	if err != nil {
-		return nil, 0, m.classifyError(op, err, 0)
+		return nil, m.classifyError(op, err)
 	}
 
 	// Extract response
 	if len(resp.Choices) == 0 {
-		return nil, resp.Usage.TotalTokens, ports.GeneratorError{
-			Op:         op,
-			Model:      model,
-			Err:        errors.New("no choices in response"),
-			Retryable:  true,
-			TokensUsed: resp.Usage.TotalTokens,
+		return nil, ports.GeneratorError{
+			Op:        op,
+			Model:     model,
+			Err:       errors.New("no choices in response"),
+			Retryable: true,
 		}
 	}
 
@@ -463,28 +455,23 @@ func (m *MistralAdapter) generate(_ context.Context, model, prompt, platform str
 	}
 
 	if err := json.Unmarshal([]byte(content), &apiResponse); err != nil {
-		return nil, resp.Usage.TotalTokens, ports.GeneratorError{
-			Op:         op,
-			Model:      model,
-			Err:        fmt.Errorf("failed to parse JSON response: %w", err),
-			Retryable:  true, // AI might fix JSON on retry
-			TokensUsed: resp.Usage.TotalTokens,
+		return nil, ports.GeneratorError{
+			Op:        op,
+			Model:     model,
+			Err:       fmt.Errorf("failed to parse JSON response: %w", err),
+			Retryable: true, // AI might fix JSON on retry
 		}
 	}
 
 	// Validate response fields
 	if apiResponse.Text == "" {
-		return nil, resp.Usage.TotalTokens, ports.GeneratorError{
-			Op:         op,
-			Model:      model,
-			Err:        errors.New("generated text is empty"),
-			Retryable:  true,
-			TokensUsed: resp.Usage.TotalTokens,
+		return nil, ports.GeneratorError{
+			Op:        op,
+			Model:     model,
+			Err:       errors.New("generated text is empty"),
+			Retryable: true,
 		}
 	}
-
-	// Calculate cost (approximate based on Mistral pricing)
-	cost := m.calculateCost(model, resp.Usage.PromptTokens, resp.Usage.CompletionTokens)
 
 	// Create domain object with validation
 	generatedContent, err := domain.NewGeneratedContent(
@@ -492,24 +479,21 @@ func (m *MistralAdapter) generate(_ context.Context, model, prompt, platform str
 		platform,
 		apiResponse.Hashtags,
 		prompt,
-		resp.Usage.TotalTokens,
-		cost,
 	)
 	if err != nil {
-		return nil, resp.Usage.TotalTokens, ports.GeneratorError{
-			Op:         op,
-			Model:      model,
-			Err:        fmt.Errorf("content validation failed: %w", err),
-			Retryable:  true, // AI might generate valid content on retry
-			TokensUsed: resp.Usage.TotalTokens,
+		return nil, ports.GeneratorError{
+			Op:        op,
+			Model:     model,
+			Err:       fmt.Errorf("content validation failed: %w", err),
+			Retryable: true, // AI might generate valid content on retry
 		}
 	}
 
-	return generatedContent, resp.Usage.TotalTokens, nil
+	return generatedContent, nil
 }
 
 // classifyError classifies API errors into retryable and non-retryable categories.
-func (m *MistralAdapter) classifyError(op string, err error, tokens int) error {
+func (m *MistralAdapter) classifyError(op string, err error) error {
 	if err == nil {
 		return nil
 	}
@@ -523,11 +507,10 @@ func (m *MistralAdapter) classifyError(op string, err error, tokens int) error {
 		strings.Contains(errStrLower, "401") ||
 		strings.Contains(errStrLower, "403") {
 		return ports.GeneratorError{
-			Op:         op,
-			Model:      m.config.Model,
-			Err:        ports.ErrAPIKeyInvalid,
-			Retryable:  false,
-			TokensUsed: tokens,
+			Op:        op,
+			Model:     m.config.Model,
+			Err:       ports.ErrAPIKeyInvalid,
+			Retryable: false,
 		}
 	}
 
@@ -536,11 +519,10 @@ func (m *MistralAdapter) classifyError(op string, err error, tokens int) error {
 		strings.Contains(errStrLower, "429") ||
 		strings.Contains(errStrLower, "too many requests") {
 		return ports.GeneratorError{
-			Op:         op,
-			Model:      m.config.Model,
-			Err:        errors.New("rate limit exceeded"),
-			Retryable:  true,
-			TokensUsed: tokens,
+			Op:        op,
+			Model:     m.config.Model,
+			Err:       errors.New("rate limit exceeded"),
+			Retryable: true,
 		}
 	}
 
@@ -552,11 +534,10 @@ func (m *MistralAdapter) classifyError(op string, err error, tokens int) error {
 		strings.Contains(errStrLower, "internal server error") ||
 		strings.Contains(errStrLower, "service unavailable") {
 		return ports.GeneratorError{
-			Op:         op,
-			Model:      m.config.Model,
-			Err:        ports.ErrServiceUnavailable,
-			Retryable:  true,
-			TokensUsed: tokens,
+			Op:        op,
+			Model:     m.config.Model,
+			Err:       ports.ErrServiceUnavailable,
+			Retryable: true,
 		}
 	}
 
@@ -565,11 +546,10 @@ func (m *MistralAdapter) classifyError(op string, err error, tokens int) error {
 		strings.Contains(errStrLower, "deadline exceeded") ||
 		errors.Is(err, context.DeadlineExceeded) {
 		return ports.GeneratorError{
-			Op:         op,
-			Model:      m.config.Model,
-			Err:        errors.New("request timeout"),
-			Retryable:  true,
-			TokensUsed: tokens,
+			Op:        op,
+			Model:     m.config.Model,
+			Err:       errors.New("request timeout"),
+			Retryable: true,
 		}
 	}
 
@@ -577,11 +557,10 @@ func (m *MistralAdapter) classifyError(op string, err error, tokens int) error {
 	if strings.Contains(errStrLower, "content filtered") ||
 		strings.Contains(errStrLower, "safety") {
 		return ports.GeneratorError{
-			Op:         op,
-			Model:      m.config.Model,
-			Err:        ports.ErrContentFiltered,
-			Retryable:  false,
-			TokensUsed: tokens,
+			Op:        op,
+			Model:     m.config.Model,
+			Err:       ports.ErrContentFiltered,
+			Retryable: false,
 		}
 	}
 
@@ -589,11 +568,10 @@ func (m *MistralAdapter) classifyError(op string, err error, tokens int) error {
 	if strings.Contains(errStrLower, "model not found") ||
 		strings.Contains(errStrLower, "invalid model") {
 		return ports.GeneratorError{
-			Op:         op,
-			Model:      m.config.Model,
-			Err:        ports.ErrModelNotFound,
-			Retryable:  false,
-			TokensUsed: tokens,
+			Op:        op,
+			Model:     m.config.Model,
+			Err:       ports.ErrModelNotFound,
+			Retryable: false,
 		}
 	}
 
@@ -601,11 +579,10 @@ func (m *MistralAdapter) classifyError(op string, err error, tokens int) error {
 	if strings.Contains(errStrLower, "quota") ||
 		strings.Contains(errStrLower, "insufficient") {
 		return ports.GeneratorError{
-			Op:         op,
-			Model:      m.config.Model,
-			Err:        ports.ErrInsufficientQuota,
-			Retryable:  false,
-			TokensUsed: tokens,
+			Op:        op,
+			Model:     m.config.Model,
+			Err:       ports.ErrInsufficientQuota,
+			Retryable: false,
 		}
 	}
 
@@ -614,51 +591,20 @@ func (m *MistralAdapter) classifyError(op string, err error, tokens int) error {
 		strings.Contains(errStrLower, "network") ||
 		strings.Contains(errStrLower, "dns") {
 		return ports.GeneratorError{
-			Op:         op,
-			Model:      m.config.Model,
-			Err:        fmt.Errorf("network error: %w", err),
-			Retryable:  true,
-			TokensUsed: tokens,
+			Op:        op,
+			Model:     m.config.Model,
+			Err:       fmt.Errorf("network error: %w", err),
+			Retryable: true,
 		}
 	}
 
 	// Default: treat as retryable with original error
 	return ports.GeneratorError{
-		Op:         op,
-		Model:      m.config.Model,
-		Err:        err,
-		Retryable:  true,
-		TokensUsed: tokens,
+		Op:        op,
+		Model:     m.config.Model,
+		Err:       err,
+		Retryable: true,
 	}
-}
-
-// calculateCost estimates the API cost based on token usage and model.
-// Pricing is approximate based on Mistral's public pricing (as of 2024).
-func (m *MistralAdapter) calculateCost(model string, promptTokens, completionTokens int) float64 {
-	// Mistral pricing (USD per 1M tokens)
-	// Source: https://mistral.ai/pricing (approximate rates)
-	var promptCostPer1M, completionCostPer1M float64
-
-	switch model {
-	case mistral.ModelMistralLargeLatest, mistral.ModelMistralLarge2402:
-		promptCostPer1M = 4.0
-		completionCostPer1M = 12.0
-	case mistral.ModelMistralMediumLatest, mistral.ModelMistralMedium2312:
-		promptCostPer1M = 2.7
-		completionCostPer1M = 8.1
-	case mistral.ModelMistralSmallLatest, mistral.ModelMistralSmall2402, mistral.ModelMistralSmall2312:
-		promptCostPer1M = 1.0
-		completionCostPer1M = 3.0
-	default:
-		// Default to small model pricing
-		promptCostPer1M = 1.0
-		completionCostPer1M = 3.0
-	}
-
-	promptCost := (float64(promptTokens) / 1_000_000.0) * promptCostPer1M
-	completionCost := (float64(completionTokens) / 1_000_000.0) * completionCostPer1M
-
-	return promptCost + completionCost
 }
 
 // Ensure MistralAdapter implements ContentGenerator interface

@@ -208,8 +208,6 @@ func TestMastodonAdapter_ValidateContent(t *testing.T) {
 		domain.PlatformMastodon,
 		[]string{"#test", "#mastodon"},
 		"test-prompt",
-		100,
-		0.01,
 	)
 	require.NoError(t, err)
 
@@ -221,10 +219,8 @@ func TestMastodonAdapter_ValidateContent(t *testing.T) {
 	tooLongContent, _ := domain.NewGeneratedContent(
 		longText,
 		domain.PlatformMastodon,
-		nil,
+		[]string{},
 		"test-prompt",
-		100,
-		0.01,
 	)
 	// This will fail domain validation, so create manually for adapter test
 	_ = tooLongContent
@@ -233,10 +229,8 @@ func TestMastodonAdapter_ValidateContent(t *testing.T) {
 	blueskyContent, err := domain.NewGeneratedContent(
 		"Test post",
 		domain.PlatformBluesky,
-		nil,
+		[]string{},
 		"test-prompt",
-		100,
-		0.01,
 	)
 	require.NoError(t, err)
 
@@ -325,10 +319,8 @@ func TestMastodonAdapter_ValidateContent_EmptyText(t *testing.T) {
 	_, err := domain.NewGeneratedContent(
 		"",
 		domain.PlatformMastodon,
-		nil,
+		[]string{},
 		"test-prompt",
-		100,
-		0.01,
 	)
 
 	// Domain validation should catch empty text
@@ -355,8 +347,6 @@ func TestMastodonAdapter_ValidateContent_UnicodeCharacters(t *testing.T) {
 		domain.PlatformMastodon,
 		[]string{"#art"},
 		"test-prompt",
-		100,
-		0.01,
 	)
 	require.NoError(t, err)
 
@@ -437,8 +427,6 @@ func TestMastodonAdapter_Publish(t *testing.T) {
 		domain.PlatformMastodon,
 		[]string{"#test"},
 		"test-prompt",
-		100,
-		0.01,
 	)
 	require.NoError(t, err)
 
@@ -511,10 +499,8 @@ func TestFormatTootContent(t *testing.T) {
 				c, _ := domain.NewGeneratedContent(
 					"Test post",
 					domain.PlatformMastodon,
-					nil,
+					[]string{},
 					"test-prompt",
-					100,
-					0.01,
 				)
 				return c
 			}(),
@@ -528,8 +514,6 @@ func TestFormatTootContent(t *testing.T) {
 					domain.PlatformMastodon,
 					[]string{"#test", "#mastodon"},
 					"test-prompt",
-					100,
-					0.01,
 				)
 				return c
 			}(),
@@ -543,8 +527,6 @@ func TestFormatTootContent(t *testing.T) {
 					domain.PlatformMastodon,
 					[]string{"#greetings"},
 					"test-prompt",
-					100,
-					0.01,
 				)
 				return c
 			}(),
@@ -916,8 +898,6 @@ func TestMastodonAdapter_ValidateContent_WithHashtags(t *testing.T) {
 				domain.PlatformMastodon,
 				tt.hashtags,
 				"test-prompt",
-				100,
-				0.01,
 			)
 			require.NoError(t, err)
 

@@ -724,7 +724,6 @@ No special action needed - sensitive fields are redacted automatically for every
   - Implements ContentGenerator interface
   - Integration with github.com/gage-technologies/mistral-go
   - Prompt template rendering with dynamic variables via PromptManager
-  - Token counting and cost calculation (model-specific pricing)
   - Rate limit handling with exponential backoff retry logic
   - Comprehensive error classification (retryable vs non-retryable)
   - Model selection support (mistral-large, mistral-medium, mistral-small)

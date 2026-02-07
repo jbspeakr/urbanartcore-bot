@@ -259,8 +259,6 @@ func TestGenerateContent(t *testing.T) {
 				assert.Equal(t, "bluesky", content.Platform())
 				assert.Contains(t, content.Text(), "graffiti")
 				assert.Greater(t, len(content.Hashtags()), 0)
-				assert.Greater(t, content.TokenCount(), 0)
-				assert.GreaterOrEqual(t, content.Cost(), 0.0)
 			},
 		},
 		{
@@ -599,13 +597,12 @@ func TestClassifyError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := adapter.classifyError("test", tt.inputError, 100)
+			result := adapter.classifyError("test", tt.inputError)
 
 			var genErr ports.GeneratorError
 			require.True(t, errors.As(result, &genErr))
 
 			assert.Equal(t, tt.expectRetry, genErr.IsRetryable(), "retryable mismatch")
-			assert.Equal(t, 100, genErr.TokensUsed, "tokens used mismatch")
 
 			if tt.expectErrType != nil {
 				assert.ErrorIs(t, genErr.Err, tt.expectErrType)
@@ -712,59 +709,6 @@ func TestGetSupportedModels(t *testing.T) {
 	assert.Contains(t, models, "mistral-large-latest")
 	assert.Contains(t, models, "mistral-medium-latest")
 	assert.Contains(t, models, "mistral-small-latest")
-}
-
-// TestCalculateCost tests cost calculation for different models
-func TestCalculateCost(t *testing.T) {
-	config := createTestConfig()
-	adapter, err := NewMistralAdapter(config, &mockPromptManager{})
-	require.NoError(t, err)
-
-	tests := []struct {
-		name             string
-		model            string
-		promptTokens     int
-		completionTokens int
-		expectCostRange  [2]float64 // min, max
-	}{
-		{
-			name:             "mistral-large-latest",
-			model:            "mistral-large-latest",
-			promptTokens:     1000,
-			completionTokens: 500,
-			expectCostRange:  [2]float64{0.0, 0.1}, // Should be small cost
-		},
-		{
-			name:             "mistral-medium-latest",
-			model:            "mistral-medium-latest",
-			promptTokens:     1000,
-			completionTokens: 500,
-			expectCostRange:  [2]float64{0.0, 0.1},
-		},
-		{
-			name:             "mistral-small-latest",
-			model:            "mistral-small-latest",
-			promptTokens:     1000,
-			completionTokens: 500,
-			expectCostRange:  [2]float64{0.0, 0.05},
-		},
-		{
-			name:             "zero tokens",
-			model:            "mistral-large-latest",
-			promptTokens:     0,
-			completionTokens: 0,
-			expectCostRange:  [2]float64{0.0, 0.0},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cost := adapter.calculateCost(tt.model, tt.promptTokens, tt.completionTokens)
-
-			assert.GreaterOrEqual(t, cost, tt.expectCostRange[0])
-			assert.LessOrEqual(t, cost, tt.expectCostRange[1])
-		})
-	}
 }
 
 // TestRetryLogic tests exponential backoff retry behavior
@@ -931,12 +875,11 @@ func TestGenerateWithAllErrorTypes(t *testing.T) {
 
 	for _, tt := range errorTests {
 		t.Run(tt.name, func(t *testing.T) {
-			classified := adapter.classifyError("test", tt.err, 50)
+			classified := adapter.classifyError("test", tt.err)
 
 			var genErr ports.GeneratorError
 			require.True(t, errors.As(classified, &genErr))
 			assert.Equal(t, tt.retryable, genErr.IsRetryable())
-			assert.Equal(t, 50, genErr.TokensUsed)
 
 			if tt.errType != nil {
 				assert.ErrorIs(t, genErr.Err, tt.errType)
@@ -974,68 +917,6 @@ func TestContextCancellationDuringRetry(t *testing.T) {
 	hasContextErr := strings.Contains(err.Error(), "context") || strings.Contains(err.Error(), "deadline")
 	hasAPIErr := strings.Contains(err.Error(), "API key")
 	assert.True(t, hasContextErr || hasAPIErr, "Expected context or API error, got: %v", err)
-}
-
-// TestCalculateCostForDifferentModels tests cost calculation edge cases
-func TestCalculateCostForDifferentModels(t *testing.T) {
-	config := createTestConfig()
-	adapter, err := NewMistralAdapter(config, &mockPromptManager{})
-	require.NoError(t, err)
-
-	tests := []struct {
-		name             string
-		model            string
-		promptTokens     int
-		completionTokens int
-		expectNonZero    bool
-	}{
-		{
-			name:             "large model with tokens",
-			model:            "mistral-large-2402",
-			promptTokens:     1000,
-			completionTokens: 500,
-			expectNonZero:    true,
-		},
-		{
-			name:             "medium model",
-			model:            "mistral-medium-2312",
-			promptTokens:     500,
-			completionTokens: 250,
-			expectNonZero:    true,
-		},
-		{
-			name:             "small model",
-			model:            "mistral-small-2312",
-			promptTokens:     300,
-			completionTokens: 100,
-			expectNonZero:    true,
-		},
-		{
-			name:             "unknown model defaults to small",
-			model:            "unknown-model",
-			promptTokens:     1000,
-			completionTokens: 500,
-			expectNonZero:    true,
-		},
-		{
-			name:             "zero tokens zero cost",
-			model:            "mistral-large-latest",
-			promptTokens:     0,
-			completionTokens: 0,
-			expectNonZero:    false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cost := adapter.calculateCost(tt.model, tt.promptTokens, tt.completionTokens)
-			if tt.expectNonZero {
-				assert.Greater(t, cost, 0.0, "cost should be non-zero")
-			} else {
-				assert.Equal(t, 0.0, cost, "cost should be zero")
-			}
-		})
-	}
 }
 
 // TestGenerateForAllPlatformsSuccess tests successful multi-platform generation

@@ -11,12 +11,11 @@ import (
 
 // GeneratorError represents AI content generation errors.
 type GeneratorError struct {
-	Op         string            // Operation that caused the error
-	Model      string            // AI model used
-	Err        error             // Underlying error
-	Retryable  bool              // Whether this error can be retried
-	TokensUsed int               // Tokens consumed before error
-	Metadata   map[string]string // Additional error context
+	Op        string            // Operation that caused the error
+	Model     string            // AI model used
+	Err       error             // Underlying error
+	Retryable bool              // Whether this error can be retried
+	Metadata  map[string]string // Additional error context
 }
 
 func (e GeneratorError) Error() string {

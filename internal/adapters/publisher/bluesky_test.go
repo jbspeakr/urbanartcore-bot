@@ -606,8 +606,6 @@ func createValidContent(t *testing.T) *domain.GeneratedContent {
 		"bluesky",
 		[]string{"#UrbanArt", "#Graffiti"},
 		"test-prompt",
-		100,
-		0.001,
 	)
 	require.NoError(t, err)
 	return content
@@ -620,8 +618,6 @@ func createContentWithPlatform(t *testing.T, platform, text string) *domain.Gene
 		platform,
 		[]string{},
 		"test-prompt",
-		100,
-		0.001,
 	)
 	require.NoError(t, err)
 	return content
@@ -634,8 +630,6 @@ func createContentWithText(t *testing.T, text string) *domain.GeneratedContent {
 		"bluesky",
 		[]string{},
 		"test-prompt",
-		100,
-		0.001,
 	)
 	require.NoError(t, err)
 	return content

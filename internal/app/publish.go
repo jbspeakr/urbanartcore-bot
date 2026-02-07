@@ -174,8 +174,7 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 		generatedContent[platform] = content
 		slog.Default().Info("Content generated successfully",
 			slog.String("platform", platform),
-			slog.Int("characters", content.CharacterCount()),
-			slog.Int("tokens", content.TokenCount()))
+			slog.Int("characters", content.CharacterCount()))
 	}
 
 	// Check if we have any content to publish
@@ -218,8 +217,6 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 	slog.Default().Info("Publishing operation completed",
 		slog.Int("successCount", publishResult.SuccessCount()),
 		slog.Int("failureCount", publishResult.FailureCount()),
-		slog.Float64("totalCost", publishResult.TotalCost()),
-		slog.Int("totalTokens", publishResult.TotalTokens()),
 		slog.Duration("duration", publishResult.Duration()))
 
 	response := &PublishResponse{
@@ -409,7 +406,7 @@ func (ps *PublishService) createMockContent(platform string, post *domain.Post, 
 	if post == nil {
 		slog.Default().Warn("createMockContent called with nil post, using fallback")
 		mockText := fmt.Sprintf("🎉 Anniversary post for %s! #UrbanArt #Anniversary", dateKey)
-		content, _ := domain.NewGeneratedContent(mockText, platform, []string{"#UrbanArt", "#Anniversary"}, "mock-prompt-for-dry-run", 100, 0.01)
+		content, _ := domain.NewGeneratedContent(mockText, platform, []string{"#UrbanArt", "#Anniversary"}, "mock-prompt-for-dry-run")
 		return content
 	}
 
@@ -427,7 +424,7 @@ func (ps *PublishService) createMockContent(platform string, post *domain.Post, 
 	}
 
 	hashtags := []string{"#UrbanArt", "#Anniversary", "#StreetArt"}
-	content, _ := domain.NewGeneratedContent(mockText, platform, hashtags, "mock-prompt-for-dry-run", 100, 0.01)
+	content, _ := domain.NewGeneratedContent(mockText, platform, hashtags, "mock-prompt-for-dry-run")
 
 	return content
 }

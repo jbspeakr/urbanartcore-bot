@@ -151,24 +151,14 @@ func runPublishCommand(cmd *cobra.Command, args []string) error {
 						slog.String("platform", platform),
 						slog.Int("character_count", content.CharacterCount()),
 						slog.Int("character_limit", getCharacterLimit(platform)),
-						slog.Int("token_count", content.TokenCount()),
-						slog.Float64("estimated_cost_usd", content.Cost()),
 						slog.String("content_text", content.Text()))
 				}
 			}
 
 			// Summary for dry-run
-			if result.TotalCost() > 0 {
-				logger.Info("Dry-run summary",
-					slog.String("operation", "PublishCommand"),
-					slog.Float64("total_cost_usd", result.TotalCost()),
-					slog.Int("total_tokens", result.TotalTokens()),
-					slog.Duration("duration", result.Duration()))
-			} else {
-				logger.Info("Dry-run summary",
-					slog.String("operation", "PublishCommand"),
-					slog.Duration("duration", result.Duration()))
-			}
+			logger.Info("Dry-run summary",
+				slog.String("operation", "PublishCommand"),
+				slog.Duration("duration", result.Duration()))
 		} else {
 			// Live mode: log actual publishing results
 			post := result.Post()
@@ -231,7 +221,6 @@ func runPublishCommand(cmd *cobra.Command, args []string) error {
 				slog.Int("skipped", skippedCount),
 				slog.Int("total", totalCount),
 				slog.Int("exit_code", exitCode),
-				slog.Float64("total_cost_usd", result.TotalCost()),
 				slog.Duration("total_duration", result.Duration()))
 		}
 	}

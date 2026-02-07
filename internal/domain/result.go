@@ -13,8 +13,6 @@ var (
 	ErrInvalidPlatform    = errors.New("invalid platform name")
 	ErrEmptyGeneratedText = errors.New("generated text cannot be empty")
 	ErrTextTooLong        = errors.New("generated text exceeds platform limits")
-	ErrNegativeCost       = errors.New("cost cannot be negative")
-	ErrNegativeTokens     = errors.New("token count cannot be negative")
 )
 
 // Platform constants for social media publishing
@@ -49,12 +47,10 @@ type GeneratedContent struct {
 	metadata    map[string]string // Character count, engagement predictions, etc.
 	promptUsed  string            // Original prompt for debugging/optimization
 	generatedAt time.Time         // When content was generated
-	tokenCount  int               // Number of tokens used in generation
-	cost        float64           // Cost of generation in USD
 }
 
 // NewGeneratedContent creates a new GeneratedContent with validation.
-func NewGeneratedContent(text, platform string, hashtags []string, promptUsed string, tokenCount int, cost float64) (*GeneratedContent, error) {
+func NewGeneratedContent(text, platform string, hashtags []string, promptUsed string) (*GeneratedContent, error) {
 	const op = "NewGeneratedContent"
 
 	// Validate platform
@@ -72,16 +68,6 @@ func NewGeneratedContent(text, platform string, hashtags []string, promptUsed st
 	// Check platform-specific character limits
 	if err := validateTextLength(text, platform); err != nil {
 		return nil, DomainError{Op: op, Err: err}
-	}
-
-	// Validate token count
-	if tokenCount < 0 {
-		return nil, DomainError{Op: op, Err: fmt.Errorf("%w: got %d", ErrNegativeTokens, tokenCount)}
-	}
-
-	// Validate cost
-	if cost < 0 {
-		return nil, DomainError{Op: op, Err: fmt.Errorf("%w: got %f", ErrNegativeCost, cost)}
 	}
 
 	// Create metadata with basic metrics
@@ -112,8 +98,6 @@ func NewGeneratedContent(text, platform string, hashtags []string, promptUsed st
 		metadata:    metadata,
 		promptUsed:  strings.TrimSpace(promptUsed),
 		generatedAt: time.Now(),
-		tokenCount:  tokenCount,
-		cost:        cost,
 	}, nil
 }
 
@@ -165,22 +149,6 @@ func (gc *GeneratedContent) GeneratedAt() time.Time {
 		return time.Time{}
 	}
 	return gc.generatedAt
-}
-
-// TokenCount returns the number of tokens used in generation.
-func (gc *GeneratedContent) TokenCount() int {
-	if gc == nil {
-		return 0
-	}
-	return gc.tokenCount
-}
-
-// Cost returns the cost of generation in USD.
-func (gc *GeneratedContent) Cost() float64 {
-	if gc == nil {
-		return 0.0
-	}
-	return gc.cost
 }
 
 // CharacterCount returns the byte count of the generated text.
@@ -375,8 +343,6 @@ type PublishResult struct {
 	platformResults map[string]*PlatformResult // Results per platform
 	startTime       time.Time                  // When publishing started
 	endTime         time.Time                  // When publishing completed
-	totalCost       float64                    // Total AI generation cost
-	totalTokens     int                        // Total tokens used across all platforms
 	dryRun          bool                       // Whether this was a dry run
 }
 
@@ -419,13 +385,6 @@ func (pr *PublishResult) AddPlatformResult(result *PlatformResult) error {
 	}
 
 	pr.platformResults[result.Platform()] = result
-
-	// Update totals if content exists
-	if content := result.Content(); content != nil {
-		pr.totalCost += content.Cost()
-		pr.totalTokens += content.TokenCount()
-	}
-
 	return nil
 }
 
@@ -505,22 +464,6 @@ func (pr *PublishResult) FailureCount() int {
 	return count
 }
 
-// TotalCost returns the total AI generation cost across all platforms.
-func (pr *PublishResult) TotalCost() float64 {
-	if pr == nil {
-		return 0.0
-	}
-	return pr.totalCost
-}
-
-// TotalTokens returns the total tokens used across all platforms.
-func (pr *PublishResult) TotalTokens() int {
-	if pr == nil {
-		return 0
-	}
-	return pr.totalTokens
-}
-
 // Duration returns the total time taken for the publish operation.
 func (pr *PublishResult) Duration() time.Duration {
 	if pr == nil {
@@ -571,8 +514,8 @@ func (pr *PublishResult) String() string {
 		postURI = pr.post.URI()
 	}
 
-	return fmt.Sprintf("PublishResult{Post: %s, Status: %s, Platforms: %d, Cost: $%.4f}",
-		postURI, status, len(pr.platformResults), pr.totalCost)
+	return fmt.Sprintf("PublishResult{Post: %s, Status: %s, Platforms: %d}",
+		postURI, status, len(pr.platformResults))
 }
 
 // Helper functions
