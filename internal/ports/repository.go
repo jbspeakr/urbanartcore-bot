@@ -3,22 +3,17 @@ package ports
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"codeberg.org/brennenstuhl/uac-socializer/internal/domain"
 )
 
 // RepositoryError represents data access layer errors.
 type RepositoryError struct {
-	Op  string // Operation that caused the error
-	Err error  // Underlying error
+	Err error // Underlying error
 }
 
 func (e RepositoryError) Error() string {
-	if e.Op == "" {
-		return e.Err.Error()
-	}
-	return fmt.Sprintf("repository.%s: %v", e.Op, e.Err)
+	return e.Err.Error()
 }
 
 func (e RepositoryError) Unwrap() error {

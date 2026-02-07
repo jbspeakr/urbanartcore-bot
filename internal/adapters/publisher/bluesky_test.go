@@ -170,7 +170,6 @@ func TestBlueskyAdapter_ValidateContent(t *testing.T) {
 				var pubErr ports.PublisherError
 				assert.ErrorAs(t, err, &pubErr)
 				assert.Equal(t, "bluesky", pubErr.Platform)
-				assert.Equal(t, "ValidateContent", pubErr.Op)
 			} else {
 				require.NoError(t, err)
 			}
@@ -393,42 +392,36 @@ func TestClassifyError(t *testing.T) {
 func TestWrapPublishError(t *testing.T) {
 	tests := []struct {
 		name       string
-		op         string
 		err        error
 		retryable  bool
 		errorClass error
 	}{
 		{
 			name:       "authentication error - not retryable",
-			op:         "Publish",
 			err:        errors.New("authentication failed"),
 			retryable:  false,
 			errorClass: ports.ErrAuthenticationFailed,
 		},
 		{
 			name:       "rate limit error - retryable",
-			op:         "Publish",
 			err:        errors.New("rate limit exceeded"),
 			retryable:  true,
 			errorClass: ports.ErrRateLimitExceeded,
 		},
 		{
 			name:       "network timeout - retryable",
-			op:         "Publish",
 			err:        errors.New("timeout occurred"),
 			retryable:  true,
 			errorClass: ports.ErrNetworkTimeout,
 		},
 		{
 			name:       "content rejected - not retryable",
-			op:         "Publish",
 			err:        errors.New("content policy violation"),
 			retryable:  false,
 			errorClass: ports.ErrContentRejected,
 		},
 		{
 			name:       "generic error - retryable",
-			op:         "Publish",
 			err:        errors.New("unknown error"),
 			retryable:  true,
 			errorClass: nil, // Won't match specific error type
@@ -437,10 +430,9 @@ func TestWrapPublishError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := wrapPublishError(tt.op, tt.err)
+			result := wrapPublishError(tt.err)
 
 			assert.Equal(t, "bluesky", result.Platform)
-			assert.Equal(t, tt.op, result.Op)
 			assert.Equal(t, tt.retryable, result.Retryable)
 			assert.NotNil(t, result.Err)
 

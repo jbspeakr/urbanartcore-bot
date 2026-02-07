@@ -354,14 +354,6 @@ func TestGetMastodonConfig(t *testing.T) {
 
 func TestConfigError(t *testing.T) {
 	baseErr := assert.AnError
-	configErr := ConfigError{Op: "TestOperation", Err: baseErr}
-
-	assert.Equal(t, "config.TestOperation: assert.AnError general error for testing", configErr.Error())
-	assert.Equal(t, baseErr, configErr.Unwrap())
-}
-
-func TestConfigError_EmptyOp(t *testing.T) {
-	baseErr := assert.AnError
 	configErr := ConfigError{Err: baseErr}
 
 	assert.Equal(t, baseErr.Error(), configErr.Error())

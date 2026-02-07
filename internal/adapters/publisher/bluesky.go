@@ -64,12 +64,11 @@ type BlueskyAdapter struct {
 // It validates configuration and establishes an authenticated session.
 // Returns error if authentication fails or configuration is invalid.
 func NewBlueskyAdapter(handle, password string) (*BlueskyAdapter, error) {
-	const op = "NewBlueskyAdapter"
 
 	// Validate configuration
 	if handle == "" {
 		return nil, ports.PublisherError{
-			Op:        op,
+
 			Platform:  "bluesky",
 			Err:       fmt.Errorf("handle cannot be empty"),
 			Retryable: false,
@@ -77,7 +76,7 @@ func NewBlueskyAdapter(handle, password string) (*BlueskyAdapter, error) {
 	}
 	if password == "" {
 		return nil, ports.PublisherError{
-			Op:        op,
+
 			Platform:  "bluesky",
 			Err:       fmt.Errorf("password cannot be empty"),
 			Retryable: false,
@@ -107,7 +106,7 @@ func NewBlueskyAdapter(handle, password string) (*BlueskyAdapter, error) {
 
 	if err := adapter.authenticate(ctx); err != nil {
 		return nil, ports.PublisherError{
-			Op:        op,
+
 			Platform:  "bluesky",
 			Err:       fmt.Errorf("authentication failed: %w", err),
 			Retryable: false,
@@ -232,11 +231,10 @@ func (a *BlueskyAdapter) SupportsMedia() bool {
 // ValidateContent checks if content meets Bluesky-specific requirements.
 // Validates platform match, non-empty text, and byte count limit.
 func (a *BlueskyAdapter) ValidateContent(ctx context.Context, content *domain.GeneratedContent) error {
-	const op = "ValidateContent"
 
 	if a == nil {
 		return ports.PublisherError{
-			Op:        op,
+
 			Platform:  "bluesky",
 			Err:       errors.New("adapter is nil"),
 			Retryable: false,
@@ -245,7 +243,7 @@ func (a *BlueskyAdapter) ValidateContent(ctx context.Context, content *domain.Ge
 
 	if content == nil {
 		return ports.PublisherError{
-			Op:        op,
+
 			Platform:  "bluesky",
 			Err:       errors.New("content is nil"),
 			Retryable: false,
@@ -255,7 +253,7 @@ func (a *BlueskyAdapter) ValidateContent(ctx context.Context, content *domain.Ge
 	// Check platform match
 	if content.Platform() != "bluesky" {
 		return ports.PublisherError{
-			Op:       op,
+
 			Platform: "bluesky",
 			Err: fmt.Errorf("content platform mismatch: expected 'bluesky', got '%s'",
 				content.Platform()),
@@ -267,7 +265,7 @@ func (a *BlueskyAdapter) ValidateContent(ctx context.Context, content *domain.Ge
 	text := content.Text()
 	if text == "" {
 		return ports.PublisherError{
-			Op:        op,
+
 			Platform:  "bluesky",
 			Err:       errors.New("text cannot be empty"),
 			Retryable: false,
@@ -278,7 +276,7 @@ func (a *BlueskyAdapter) ValidateContent(ctx context.Context, content *domain.Ge
 	byteCount := CountTextBytes(text)
 	if byteCount > blueskyByteLimit {
 		return ports.PublisherError{
-			Op:       op,
+
 			Platform: "bluesky",
 			Err: fmt.Errorf("%w: %d bytes, limit is %d",
 				ports.ErrContentTooLong, byteCount, blueskyByteLimit),
@@ -292,11 +290,10 @@ func (a *BlueskyAdapter) ValidateContent(ctx context.Context, content *domain.Ge
 // TestConnection verifies connectivity to Bluesky and session validity.
 // Refreshes session if it's expiring soon.
 func (a *BlueskyAdapter) TestConnection(ctx context.Context) error {
-	const op = "TestConnection"
 
 	if a == nil {
 		return ports.PublisherError{
-			Op:        op,
+
 			Platform:  "bluesky",
 			Err:       errors.New("adapter is nil"),
 			Retryable: false,
@@ -310,7 +307,7 @@ func (a *BlueskyAdapter) TestConnection(ctx context.Context) error {
 	// Ensure session is valid (will refresh if needed)
 	if err := a.ensureValidSession(timeoutCtx); err != nil {
 		return ports.PublisherError{
-			Op:        op,
+
 			Platform:  "bluesky",
 			Err:       fmt.Errorf("session validation failed: %w", err),
 			Retryable: true,
@@ -326,12 +323,11 @@ func (a *BlueskyAdapter) TestConnection(ctx context.Context) error {
 // Publish sends content to Bluesky with facets and optional external embed.
 // Returns PlatformResult with success status and published post URL.
 func (a *BlueskyAdapter) Publish(ctx context.Context, content *domain.GeneratedContent) (*domain.PlatformResult, error) {
-	const op = "Publish"
 	startTime := time.Now()
 
 	if a == nil {
 		return nil, ports.PublisherError{
-			Op:        op,
+
 			Platform:  "bluesky",
 			Err:       errors.New("adapter is nil"),
 			Retryable: false,
@@ -340,7 +336,7 @@ func (a *BlueskyAdapter) Publish(ctx context.Context, content *domain.GeneratedC
 
 	if content == nil {
 		return nil, ports.PublisherError{
-			Op:        op,
+
 			Platform:  "bluesky",
 			Err:       errors.New("content is nil"),
 			Retryable: false,
@@ -358,7 +354,7 @@ func (a *BlueskyAdapter) Publish(ctx context.Context, content *domain.GeneratedC
 	if err := a.ensureValidSession(ctx); err != nil {
 		result, _ := domain.NewPlatformResult("bluesky", domain.StatusFailed, content)
 		wrappedErr := ports.PublisherError{
-			Op:        op,
+
 			Platform:  "bluesky",
 			Err:       fmt.Errorf("session validation failed: %w", err),
 			Retryable: true,
@@ -377,7 +373,7 @@ func (a *BlueskyAdapter) Publish(ctx context.Context, content *domain.GeneratedC
 	if err := ValidateFacets(text, facets); err != nil {
 		result, _ := domain.NewPlatformResult("bluesky", domain.StatusFailed, content)
 		wrappedErr := ports.PublisherError{
-			Op:        op,
+
 			Platform:  "bluesky",
 			Err:       fmt.Errorf("invalid facets: %w", err),
 			Retryable: false,
@@ -446,7 +442,7 @@ func (a *BlueskyAdapter) Publish(ctx context.Context, content *domain.GeneratedC
 	if err != nil {
 		result, _ := domain.NewPlatformResult("bluesky", domain.StatusFailed, content)
 		wrappedErr := ports.PublisherError{
-			Op:        op,
+
 			Platform:  "bluesky",
 			Err:       fmt.Errorf("failed to marshal post record: %w", err),
 			Retryable: false,
@@ -459,7 +455,7 @@ func (a *BlueskyAdapter) Publish(ctx context.Context, content *domain.GeneratedC
 	if err != nil {
 		result, _ := domain.NewPlatformResult("bluesky", domain.StatusFailed, content)
 		wrappedErr := ports.PublisherError{
-			Op:        op,
+
 			Platform:  "bluesky",
 			Err:       fmt.Errorf("failed to create request: %w", err),
 			Retryable: false,
@@ -475,7 +471,7 @@ func (a *BlueskyAdapter) Publish(ctx context.Context, content *domain.GeneratedC
 	if err != nil {
 		result, _ := domain.NewPlatformResult("bluesky", domain.StatusFailed, content)
 		wrappedErr := ports.PublisherError{
-			Op:        op,
+
 			Platform:  "bluesky",
 			Err:       fmt.Errorf("publish request failed: %w", err),
 			Retryable: true,
@@ -489,7 +485,7 @@ func (a *BlueskyAdapter) Publish(ctx context.Context, content *domain.GeneratedC
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		result, _ := domain.NewPlatformResult("bluesky", domain.StatusFailed, content)
 		wrappedErr := ports.PublisherError{
-			Op:        op,
+
 			Platform:  "bluesky",
 			Err:       fmt.Errorf("publish failed with status %d: %s", resp.StatusCode, string(bodyBytes)),
 			Retryable: resp.StatusCode >= 500,
@@ -505,7 +501,7 @@ func (a *BlueskyAdapter) Publish(ctx context.Context, content *domain.GeneratedC
 	if err := json.NewDecoder(resp.Body).Decode(&createResp); err != nil {
 		result, _ := domain.NewPlatformResult("bluesky", domain.StatusFailed, content)
 		wrappedErr := ports.PublisherError{
-			Op:        op,
+
 			Platform:  "bluesky",
 			Err:       fmt.Errorf("failed to decode publish response: %w", err),
 			Retryable: false,
@@ -522,7 +518,6 @@ func (a *BlueskyAdapter) Publish(ctx context.Context, content *domain.GeneratedC
 	result.SetSuccess(publishedURL, time.Since(startTime))
 
 	slog.Default().Info("Published to Bluesky",
-		slog.String("operation", op),
 		slog.String("platform", "bluesky"),
 		slog.String("uri", publishedURL),
 		slog.Int("facet_count", len(facets)),
@@ -943,7 +938,7 @@ func classifyError(err error) error {
 }
 
 // wrapPublishError wraps an error with PublisherError context.
-func wrapPublishError(op string, err error) ports.PublisherError {
+func wrapPublishError(err error) ports.PublisherError {
 	classified := classifyError(err)
 
 	// Check if error is one of the non-retryable types
@@ -953,7 +948,6 @@ func wrapPublishError(op string, err error) ports.PublisherError {
 		!errors.Is(classified, ports.ErrDuplicatePost)
 
 	return ports.PublisherError{
-		Op:        op,
 		Platform:  "bluesky",
 		Err:       classified,
 		Retryable: retryable,

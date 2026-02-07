@@ -11,7 +11,6 @@ import (
 
 // PublisherError represents social media platform publishing errors.
 type PublisherError struct {
-	Op        string            // Operation that caused the error
 	Platform  string            // Platform where error occurred
 	Err       error             // Underlying error
 	Retryable bool              // Whether this error can be retried
@@ -23,11 +22,7 @@ func (e PublisherError) Error() string {
 	if platform == "" {
 		platform = "unknown"
 	}
-
-	if e.Op == "" {
-		return fmt.Sprintf("publisher[%s]: %v", platform, e.Err)
-	}
-	return fmt.Sprintf("publisher[%s].%s: %v", platform, e.Op, e.Err)
+	return fmt.Sprintf("publisher[%s]: %v", platform, e.Err)
 }
 
 func (e PublisherError) Unwrap() error {

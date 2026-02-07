@@ -597,7 +597,7 @@ func TestClassifyError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := adapter.classifyError("test", tt.inputError)
+			result := adapter.classifyError(tt.inputError)
 
 			var genErr ports.GeneratorError
 			require.True(t, errors.As(result, &genErr))
@@ -839,7 +839,7 @@ func TestGenerateWithAllErrorTypes(t *testing.T) {
 
 	for _, tt := range errorTests {
 		t.Run(tt.name, func(t *testing.T) {
-			classified := adapter.classifyError("test", tt.err)
+			classified := adapter.classifyError(tt.err)
 
 			var genErr ports.GeneratorError
 			require.True(t, errors.As(classified, &genErr))

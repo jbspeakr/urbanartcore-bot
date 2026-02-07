@@ -41,11 +41,10 @@ var dateKeyRegex = regexp.MustCompile(`^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])
 // NewJSONFileRepository creates a new JSONFileRepository instance.
 // It loads and validates the JSON file during initialization.
 func NewJSONFileRepository(filePath string) (*JSONFileRepository, error) {
-	const op = "NewJSONFileRepository"
 
 	if filePath == "" {
 		return nil, ports.RepositoryError{
-			Op:  op,
+
 			Err: fmt.Errorf("file path cannot be empty"),
 		}
 	}
@@ -56,7 +55,7 @@ func NewJSONFileRepository(filePath string) (*JSONFileRepository, error) {
 
 	// Load the JSON file during initialization
 	if err := repo.loadData(); err != nil {
-		return nil, ports.RepositoryError{Op: op, Err: err}
+		return nil, ports.RepositoryError{Err: err}
 	}
 
 	slog.Default().Info("JSON file repository initialized",
@@ -156,13 +155,12 @@ func (r *JSONFileRepository) validateData(data postsData) error {
 // GetPostForDate retrieves a single post for a specific anniversary date.
 // If multiple posts exist for the date, one is randomly selected.
 func (r *JSONFileRepository) GetPostForDate(ctx context.Context, dateKey string) (*domain.Post, error) {
-	const op = "GetPostForDate"
 
 	// Validate date key format
 	dateKey = strings.TrimSpace(dateKey)
 	if !dateKeyRegex.MatchString(dateKey) {
 		return nil, ports.RepositoryError{
-			Op:  op,
+
 			Err: fmt.Errorf("%w: expected MM-DD format, got %q", ports.ErrInvalidDateFormat, dateKey),
 		}
 	}
@@ -174,7 +172,7 @@ func (r *JSONFileRepository) GetPostForDate(ctx context.Context, dateKey string)
 	// Check for context cancellation
 	select {
 	case <-ctx.Done():
-		return nil, ports.RepositoryError{Op: op, Err: ctx.Err()}
+		return nil, ports.RepositoryError{Err: ctx.Err()}
 	default:
 	}
 
@@ -182,7 +180,7 @@ func (r *JSONFileRepository) GetPostForDate(ctx context.Context, dateKey string)
 	rawPosts, exists := r.data[dateKey]
 	if !exists || len(rawPosts) == 0 {
 		return nil, ports.RepositoryError{
-			Op:  op,
+
 			Err: fmt.Errorf("%w: %s", ports.ErrDateNotFound, dateKey),
 		}
 	}
@@ -203,7 +201,7 @@ func (r *JSONFileRepository) GetPostForDate(ctx context.Context, dateKey string)
 	post, err := domain.NewPost(selectedRawPost.URI, selectedRawPost.Date)
 	if err != nil {
 		return nil, ports.RepositoryError{
-			Op:  op,
+
 			Err: fmt.Errorf("failed to create post at index %d for date %s: %w", selectedIndex, dateKey, err),
 		}
 	}
@@ -218,12 +216,11 @@ func (r *JSONFileRepository) GetPostForDate(ctx context.Context, dateKey string)
 
 // ListAvailableDates returns all MM-DD date keys that have associated posts.
 func (r *JSONFileRepository) ListAvailableDates(ctx context.Context) ([]string, error) {
-	const op = "ListAvailableDates"
 
 	// Check for context cancellation
 	select {
 	case <-ctx.Done():
-		return nil, ports.RepositoryError{Op: op, Err: ctx.Err()}
+		return nil, ports.RepositoryError{Err: ctx.Err()}
 	default:
 	}
 
@@ -267,12 +264,11 @@ func compareDateKeys(a, b string) bool {
 
 // GetPostCount returns the total number of posts across all dates.
 func (r *JSONFileRepository) GetPostCount(ctx context.Context) (int, error) {
-	const op = "GetPostCount"
 
 	// Check for context cancellation
 	select {
 	case <-ctx.Done():
-		return 0, ports.RepositoryError{Op: op, Err: ctx.Err()}
+		return 0, ports.RepositoryError{Err: ctx.Err()}
 	default:
 	}
 
@@ -290,12 +286,11 @@ func (r *JSONFileRepository) GetPostCount(ctx context.Context) (int, error) {
 
 // ValidateDataSource performs health checks on the underlying data source.
 func (r *JSONFileRepository) ValidateDataSource(ctx context.Context) error {
-	const op = "ValidateDataSource"
 
 	// Check for context cancellation
 	select {
 	case <-ctx.Done():
-		return ports.RepositoryError{Op: op, Err: ctx.Err()}
+		return ports.RepositoryError{Err: ctx.Err()}
 	default:
 	}
 
@@ -303,13 +298,13 @@ func (r *JSONFileRepository) ValidateDataSource(ctx context.Context) error {
 	fileInfo, err := os.Stat(r.filePath)
 	if os.IsNotExist(err) {
 		return ports.RepositoryError{
-			Op:  op,
+
 			Err: fmt.Errorf("%w: %s", ports.ErrDataSourceNotFound, r.filePath),
 		}
 	}
 	if err != nil {
 		return ports.RepositoryError{
-			Op:  op,
+
 			Err: fmt.Errorf("failed to access file %s: %w", r.filePath, err),
 		}
 	}
@@ -318,7 +313,7 @@ func (r *JSONFileRepository) ValidateDataSource(ctx context.Context) error {
 	file, err := os.Open(r.filePath)
 	if err != nil {
 		return ports.RepositoryError{
-			Op:  op,
+
 			Err: fmt.Errorf("failed to open file %s: %w", r.filePath, err),
 		}
 	}
@@ -331,7 +326,7 @@ func (r *JSONFileRepository) ValidateDataSource(ctx context.Context) error {
 	// Verify data integrity
 	if len(r.data) == 0 {
 		return ports.RepositoryError{
-			Op:  op,
+
 			Err: fmt.Errorf("%w: no data loaded", ports.ErrDataCorrupted),
 		}
 	}

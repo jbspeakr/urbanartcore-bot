@@ -15,15 +15,11 @@ import (
 
 // ApplicationError represents errors from the application layer.
 type ApplicationError struct {
-	Op  string // Operation that caused the error
-	Err error  // Underlying error
+	Err error // Underlying error
 }
 
 func (e ApplicationError) Error() string {
-	if e.Op == "" {
-		return e.Err.Error()
-	}
-	return fmt.Sprintf("app.%s: %v", e.Op, e.Err)
+	return e.Err.Error()
 }
 
 func (e ApplicationError) Unwrap() error {
@@ -84,21 +80,19 @@ func NewPublishService(
 // PublishAnniversaryPosts executes the complete publishing workflow.
 // It handles all 6 orchestration steps with proper error handling and context management.
 func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *PublishRequest) (*PublishResponse, error) {
-	const op = "PublishAnniversaryPosts"
-
 	// Step 1: Input Validation
 	if err := ps.validateRequest(req); err != nil {
-		return nil, ApplicationError{Op: op, Err: err}
+		return nil, ApplicationError{Err: err}
 	}
 
 	// Nil safety checks for service dependencies
 	// These checks happen after validation to allow testing of validation logic
 	// In production, these should never be nil due to container initialization
 	if ps.repository == nil {
-		return nil, ApplicationError{Op: op, Err: errors.New("repository is required but is nil")}
+		return nil, ApplicationError{Err: errors.New("repository is required but is nil")}
 	}
 	if ps.generator == nil {
-		return nil, ApplicationError{Op: op, Err: errors.New("generator is required but is nil")}
+		return nil, ApplicationError{Err: errors.New("generator is required but is nil")}
 	}
 
 	slog.Default().Info("Starting anniversary post publishing",
@@ -110,14 +104,14 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 	post, err := ps.repository.GetPostForDate(ctx, req.DateKey)
 	if err != nil {
 		if errors.Is(err, ports.ErrDateNotFound) {
-			return nil, ApplicationError{Op: op, Err: ErrNoPostsFound}
+			return nil, ApplicationError{Err: ErrNoPostsFound}
 		}
-		return nil, ApplicationError{Op: op, Err: fmt.Errorf("failed to retrieve post: %w", err)}
+		return nil, ApplicationError{Err: fmt.Errorf("failed to retrieve post: %w", err)}
 	}
 
 	// Nil safety check: ensure post is not nil
 	if post == nil {
-		return nil, ApplicationError{Op: op, Err: errors.New("repository returned nil post")}
+		return nil, ApplicationError{Err: errors.New("repository returned nil post")}
 	}
 
 	slog.Default().Info("Retrieved post for anniversary date",
@@ -127,11 +121,11 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 	// Step 3: Platform Resolution
 	platforms, err := ps.resolvePlatforms(req.Platforms)
 	if err != nil {
-		return nil, ApplicationError{Op: op, Err: err}
+		return nil, ApplicationError{Err: err}
 	}
 
 	if len(platforms) == 0 {
-		return nil, ApplicationError{Op: op, Err: ErrNoPlatforms}
+		return nil, ApplicationError{Err: ErrNoPlatforms}
 	}
 
 	slog.Default().Info("Resolved target platforms", slog.Any("platforms", platforms))
@@ -139,7 +133,7 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 	// Initialize result tracking
 	publishResult, err := domain.NewPublishResult(post, req.DryRun)
 	if err != nil {
-		return nil, ApplicationError{Op: op, Err: fmt.Errorf("failed to create publish result: %w", err)}
+		return nil, ApplicationError{Err: fmt.Errorf("failed to create publish result: %w", err)}
 	}
 
 	generatedContent := make(map[string]*domain.GeneratedContent)
@@ -149,7 +143,7 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 		select {
 		case <-ctx.Done():
 			slog.Default().Warn("Content generation cancelled by context")
-			return nil, ApplicationError{Op: op, Err: ErrContextCancelled}
+			return nil, ApplicationError{Err: ErrContextCancelled}
 		default:
 		}
 
@@ -179,7 +173,7 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 
 	// Check if we have any content to publish
 	if len(generatedContent) == 0 {
-		return nil, ApplicationError{Op: op, Err: errors.New("failed to generate content for any platform")}
+		return nil, ApplicationError{Err: errors.New("failed to generate content for any platform")}
 	}
 
 	// Step 5: Publishing Loop
@@ -187,7 +181,7 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 		select {
 		case <-ctx.Done():
 			slog.Default().Warn("Publishing cancelled by context")
-			return nil, ApplicationError{Op: op, Err: ErrContextCancelled}
+			return nil, ApplicationError{Err: ErrContextCancelled}
 		default:
 		}
 

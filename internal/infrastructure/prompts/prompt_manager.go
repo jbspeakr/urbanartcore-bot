@@ -49,11 +49,10 @@ type PromptManager struct {
 // NewPromptManager creates a new PromptManager and loads all templates.
 // It validates the directory exists and loads templates during initialization.
 func NewPromptManager(promptsDir string) (*PromptManager, error) {
-	const op = "NewPromptManager"
 
 	if promptsDir == "" {
 		return nil, PromptManagerError{
-			Op:  op,
+
 			Err: fmt.Errorf("prompts directory path cannot be empty"),
 		}
 	}
@@ -62,19 +61,19 @@ func NewPromptManager(promptsDir string) (*PromptManager, error) {
 	info, err := os.Stat(promptsDir)
 	if os.IsNotExist(err) {
 		return nil, PromptManagerError{
-			Op:  op,
+
 			Err: fmt.Errorf("prompts directory does not exist: %s", promptsDir),
 		}
 	}
 	if err != nil {
 		return nil, PromptManagerError{
-			Op:  op,
+
 			Err: fmt.Errorf("failed to access prompts directory %s: %w", promptsDir, err),
 		}
 	}
 	if !info.IsDir() {
 		return nil, PromptManagerError{
-			Op:  op,
+
 			Err: fmt.Errorf("prompts path is not a directory: %s", promptsDir),
 		}
 	}
@@ -86,7 +85,7 @@ func NewPromptManager(promptsDir string) (*PromptManager, error) {
 
 	// Load all templates
 	if err := pm.loadTemplates(); err != nil {
-		return nil, PromptManagerError{Op: op, Err: err}
+		return nil, PromptManagerError{Err: err}
 	}
 
 	slog.Default().Info("Prompt manager initialized",
@@ -136,11 +135,10 @@ func (pm *PromptManager) loadTemplates() error {
 
 // GetPrompt retrieves the prompt template for a specific platform.
 func (pm *PromptManager) GetPrompt(ctx context.Context, platform string) (string, error) {
-	const op = "GetPrompt"
 
 	if pm == nil {
 		return "", PromptManagerError{
-			Op:       op,
+
 			Platform: platform,
 			Err:      fmt.Errorf("prompt manager is nil"),
 		}
@@ -150,7 +148,7 @@ func (pm *PromptManager) GetPrompt(ctx context.Context, platform string) (string
 	platform = strings.ToLower(strings.TrimSpace(platform))
 	if !domain.IsValidPlatform(platform) {
 		return "", PromptManagerError{
-			Op:       op,
+
 			Platform: platform,
 			Err:      fmt.Errorf("%w: %q", domain.ErrInvalidPlatform, platform),
 		}
@@ -159,7 +157,7 @@ func (pm *PromptManager) GetPrompt(ctx context.Context, platform string) (string
 	// Check context cancellation
 	select {
 	case <-ctx.Done():
-		return "", PromptManagerError{Op: op, Platform: platform, Err: ctx.Err()}
+		return "", PromptManagerError{Platform: platform, Err: ctx.Err()}
 	default:
 	}
 
@@ -169,7 +167,7 @@ func (pm *PromptManager) GetPrompt(ctx context.Context, platform string) (string
 	template, exists := pm.templates[platform]
 	if !exists {
 		return "", PromptManagerError{
-			Op:       op,
+
 			Platform: platform,
 			Err:      fmt.Errorf("template not found for platform: %s", platform),
 		}
@@ -181,11 +179,10 @@ func (pm *PromptManager) GetPrompt(ctx context.Context, platform string) (string
 // RenderPrompt processes a template with variables from the generation request.
 // Returns the final prompt ready to send to the AI service.
 func (pm *PromptManager) RenderPrompt(ctx context.Context, platform string, req *ports.GenerationRequest) (string, error) {
-	const op = "RenderPrompt"
 
 	if pm == nil {
 		return "", PromptManagerError{
-			Op:       op,
+
 			Platform: platform,
 			Err:      fmt.Errorf("prompt manager is nil"),
 		}
@@ -193,7 +190,7 @@ func (pm *PromptManager) RenderPrompt(ctx context.Context, platform string, req 
 
 	if req == nil {
 		return "", PromptManagerError{
-			Op:       op,
+
 			Platform: platform,
 			Err:      fmt.Errorf("generation request cannot be nil"),
 		}
@@ -202,7 +199,7 @@ func (pm *PromptManager) RenderPrompt(ctx context.Context, platform string, req 
 	// Get base template
 	template, err := pm.GetPrompt(ctx, platform)
 	if err != nil {
-		return "", PromptManagerError{Op: op, Platform: platform, Err: err}
+		return "", PromptManagerError{Platform: platform, Err: err}
 	}
 
 	// Build variable map from request
@@ -273,11 +270,10 @@ func (pm *PromptManager) buildVariableMap(req *ports.GenerationRequest) map[stri
 
 // ValidateTemplate checks if a prompt template is syntactically correct.
 func (pm *PromptManager) ValidateTemplate(ctx context.Context, template string) error {
-	const op = "ValidateTemplate"
 
 	if pm == nil {
 		return PromptManagerError{
-			Op:  op,
+
 			Err: fmt.Errorf("prompt manager is nil"),
 		}
 	}
@@ -285,7 +281,7 @@ func (pm *PromptManager) ValidateTemplate(ctx context.Context, template string) 
 	// Check context cancellation
 	select {
 	case <-ctx.Done():
-		return PromptManagerError{Op: op, Err: ctx.Err()}
+		return PromptManagerError{Err: ctx.Err()}
 	default:
 	}
 
@@ -293,7 +289,7 @@ func (pm *PromptManager) ValidateTemplate(ctx context.Context, template string) 
 	template = strings.TrimSpace(template)
 	if template == "" {
 		return PromptManagerError{
-			Op:  op,
+
 			Err: fmt.Errorf("template cannot be empty"),
 		}
 	}
@@ -301,7 +297,7 @@ func (pm *PromptManager) ValidateTemplate(ctx context.Context, template string) 
 	// Check minimum length
 	if len(template) < 50 {
 		return PromptManagerError{
-			Op:  op,
+
 			Err: fmt.Errorf("template is too short (minimum 50 characters): got %d", len(template)),
 		}
 	}
@@ -320,11 +316,10 @@ func (pm *PromptManager) ValidateTemplate(ctx context.Context, template string) 
 
 // ListPrompts returns all available prompt templates by platform.
 func (pm *PromptManager) ListPrompts(ctx context.Context) (map[string]string, error) {
-	const op = "ListPrompts"
 
 	if pm == nil {
 		return nil, PromptManagerError{
-			Op:  op,
+
 			Err: fmt.Errorf("prompt manager is nil"),
 		}
 	}
@@ -332,7 +327,7 @@ func (pm *PromptManager) ListPrompts(ctx context.Context) (map[string]string, er
 	// Check context cancellation
 	select {
 	case <-ctx.Done():
-		return nil, PromptManagerError{Op: op, Err: ctx.Err()}
+		return nil, PromptManagerError{Err: ctx.Err()}
 	default:
 	}
 

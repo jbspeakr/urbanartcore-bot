@@ -11,7 +11,6 @@ import (
 
 // GeneratorError represents AI content generation errors.
 type GeneratorError struct {
-	Op        string            // Operation that caused the error
 	Model     string            // AI model used
 	Err       error             // Underlying error
 	Retryable bool              // Whether this error can be retried
@@ -23,11 +22,7 @@ func (e GeneratorError) Error() string {
 	if model == "" {
 		model = "unknown"
 	}
-
-	if e.Op == "" {
-		return fmt.Sprintf("generator[%s]: %v", model, e.Err)
-	}
-	return fmt.Sprintf("generator[%s].%s: %v", model, e.Op, e.Err)
+	return fmt.Sprintf("generator[%s]: %v", model, e.Err)
 }
 
 func (e GeneratorError) Unwrap() error {

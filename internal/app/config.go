@@ -40,15 +40,11 @@ type Config struct {
 
 // ConfigError represents configuration-related errors.
 type ConfigError struct {
-	Op  string // Operation that caused the error
-	Err error  // Underlying error
+	Err error // Underlying error
 }
 
 func (e ConfigError) Error() string {
-	if e.Op == "" {
-		return e.Err.Error()
-	}
-	return fmt.Sprintf("config.%s: %v", e.Op, e.Err)
+	return e.Err.Error()
 }
 
 func (e ConfigError) Unwrap() error {
@@ -66,8 +62,6 @@ var (
 // It sets defaults for optional fields and validates all configuration values.
 // Returns error only for configuration loading failures, not missing optional values.
 func LoadConfig() (*Config, error) {
-	const op = "LoadConfig"
-
 	v := viper.New()
 
 	// Configure Viper for environment variables
@@ -95,7 +89,7 @@ func LoadConfig() (*Config, error) {
 
 	for _, envVar := range envVars {
 		if err := v.BindEnv(envVar); err != nil {
-			return nil, ConfigError{Op: op, Err: fmt.Errorf("failed to bind env var %s: %w", envVar, err)}
+			return nil, ConfigError{Err: fmt.Errorf("failed to bind env var %s: %w", envVar, err)}
 		}
 	}
 
@@ -114,19 +108,19 @@ func LoadConfig() (*Config, error) {
 	if timeoutStr := v.GetString("ai_timeout"); timeoutStr != "" {
 		duration, err := time.ParseDuration(timeoutStr)
 		if err != nil {
-			return nil, ConfigError{Op: op, Err: fmt.Errorf("invalid ai_timeout format: %w", err)}
+			return nil, ConfigError{Err: fmt.Errorf("invalid ai_timeout format: %w", err)}
 		}
 		v.Set("ai_timeout", duration)
 	}
 
 	var config Config
 	if err := v.Unmarshal(&config); err != nil {
-		return nil, ConfigError{Op: op, Err: fmt.Errorf("failed to unmarshal config: %w", err)}
+		return nil, ConfigError{Err: fmt.Errorf("failed to unmarshal config: %w", err)}
 	}
 
 	// Validate configuration
 	if err := config.Validate(); err != nil {
-		return nil, ConfigError{Op: op, Err: err}
+		return nil, ConfigError{Err: err}
 	}
 
 	return &config, nil
@@ -136,19 +130,15 @@ func LoadConfig() (*Config, error) {
 // It checks for valid temperature ranges, and positive timeouts.
 // Returns detailed error messages indicating which field failed validation.
 func (c *Config) Validate() error {
-	const op = "Validate"
-
 	// Validate retry count bounds are properly configured
 	if c.MinRetryCount < 0 {
 		return ConfigError{
-			Op:  op,
 			Err: fmt.Errorf("min_retry_count must be non-negative (got: %d)", c.MinRetryCount),
 		}
 	}
 
 	if c.MaxRetryCount < c.MinRetryCount {
 		return ConfigError{
-			Op:  op,
 			Err: fmt.Errorf("max_retry_count (%d) must be >= min_retry_count (%d)", c.MaxRetryCount, c.MinRetryCount),
 		}
 	}
@@ -156,7 +146,6 @@ func (c *Config) Validate() error {
 	// Validate Mistral temperature (0.0 to 1.0)
 	if c.MistralTemperature < 0.0 || c.MistralTemperature > 1.0 {
 		return ConfigError{
-			Op:  op,
 			Err: fmt.Errorf("%w: mistral_temperature must be between 0.0 and 1.0 (got: %f)", ErrInvalidTemperature, c.MistralTemperature),
 		}
 	}
@@ -164,7 +153,6 @@ func (c *Config) Validate() error {
 	// Validate AI timeout is positive
 	if c.AITimeout <= 0 {
 		return ConfigError{
-			Op:  op,
 			Err: fmt.Errorf("%w: ai_timeout must be positive (got: %v)", ErrInvalidTimeout, c.AITimeout),
 		}
 	}
@@ -172,7 +160,6 @@ func (c *Config) Validate() error {
 	// Validate AI retry count bounds
 	if c.AIRetryCount < c.MinRetryCount || c.AIRetryCount > c.MaxRetryCount {
 		return ConfigError{
-			Op:  op,
 			Err: fmt.Errorf("ai_retry_count must be between %d and %d (got: %d)", c.MinRetryCount, c.MaxRetryCount, c.AIRetryCount),
 		}
 	}
@@ -180,7 +167,6 @@ func (c *Config) Validate() error {
 	// Validate Mistral max tokens is positive
 	if c.MistralMaxTokens <= 0 {
 		return ConfigError{
-			Op:  op,
 			Err: fmt.Errorf("mistral_max_tokens must be positive (got: %d)", c.MistralMaxTokens),
 		}
 	}

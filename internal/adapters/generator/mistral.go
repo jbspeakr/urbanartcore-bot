@@ -30,13 +30,12 @@ type MistralAdapter struct {
 // NewMistralAdapter creates a new MistralAdapter with the given configuration.
 // It validates the configuration and initializes the Mistral client.
 func NewMistralAdapter(config app.MistralConfig, promptMgr ports.PromptManager) (*MistralAdapter, error) {
-	const op = "NewMistralAdapter"
 	logger := slog.Default()
 
 	// Validate configuration
 	if config.APIKey == "" {
 		return nil, ports.GeneratorError{
-			Op:    op,
+
 			Model: config.Model,
 			Err:   ports.ErrAPIKeyInvalid,
 		}
@@ -44,7 +43,7 @@ func NewMistralAdapter(config app.MistralConfig, promptMgr ports.PromptManager) 
 
 	if config.Model == "" {
 		return nil, ports.GeneratorError{
-			Op:    op,
+
 			Model: "unknown",
 			Err:   errors.New("model cannot be empty"),
 		}
@@ -52,7 +51,7 @@ func NewMistralAdapter(config app.MistralConfig, promptMgr ports.PromptManager) 
 
 	if config.MaxTokens <= 0 {
 		return nil, ports.GeneratorError{
-			Op:    op,
+
 			Model: config.Model,
 			Err:   fmt.Errorf("max_tokens must be positive (got: %d)", config.MaxTokens),
 		}
@@ -60,7 +59,7 @@ func NewMistralAdapter(config app.MistralConfig, promptMgr ports.PromptManager) 
 
 	if config.Temperature < 0.0 || config.Temperature > 1.0 {
 		return nil, ports.GeneratorError{
-			Op:    op,
+
 			Model: config.Model,
 			Err:   fmt.Errorf("temperature must be between 0.0 and 1.0 (got: %f)", config.Temperature),
 		}
@@ -68,7 +67,7 @@ func NewMistralAdapter(config app.MistralConfig, promptMgr ports.PromptManager) 
 
 	if promptMgr == nil {
 		return nil, ports.GeneratorError{
-			Op:    op,
+
 			Model: config.Model,
 			Err:   errors.New("prompt manager cannot be nil"),
 		}
@@ -83,7 +82,6 @@ func NewMistralAdapter(config app.MistralConfig, promptMgr ports.PromptManager) 
 	)
 
 	logger.Info("Mistral adapter initialized",
-		slog.String("operation", op),
 		slog.String("model", config.Model),
 		slog.Int("max_tokens", config.MaxTokens),
 		slog.Float64("temperature", config.Temperature),
@@ -98,19 +96,17 @@ func NewMistralAdapter(config app.MistralConfig, promptMgr ports.PromptManager) 
 
 // GenerateContent creates platform-optimized social media content from anniversary posts.
 func (m *MistralAdapter) GenerateContent(ctx context.Context, req *ports.GenerationRequest) (*domain.GeneratedContent, error) {
-	const op = "GenerateContent"
 	logger := slog.Default()
 
 	if req == nil {
 		return nil, ports.GeneratorError{
-			Op:    op,
+
 			Model: m.config.Model,
 			Err:   errors.New("generation request cannot be nil"),
 		}
 	}
 
 	logger.Info("Generating content",
-		slog.String("operation", op),
 		slog.String("platform", req.Platform),
 		slog.String("date_key", req.DateKey),
 		slog.Int("post_count", len(req.Posts)),
@@ -120,7 +116,7 @@ func (m *MistralAdapter) GenerateContent(ctx context.Context, req *ports.Generat
 	prompt, err := m.promptMgr.RenderPrompt(ctx, req.Platform, req)
 	if err != nil {
 		return nil, ports.GeneratorError{
-			Op:        op,
+
 			Model:     m.config.Model,
 			Err:       fmt.Errorf("failed to render prompt: %w", err),
 			Retryable: false,
@@ -134,7 +130,6 @@ func (m *MistralAdapter) GenerateContent(ctx context.Context, req *ports.Generat
 	}
 
 	logger.Info("Content generated successfully",
-		slog.String("operation", op),
 		slog.String("platform", req.Platform))
 
 	return content, nil
@@ -142,12 +137,11 @@ func (m *MistralAdapter) GenerateContent(ctx context.Context, req *ports.Generat
 
 // GenerateForAllPlatforms creates content optimized for all supported platforms.
 func (m *MistralAdapter) GenerateForAllPlatforms(ctx context.Context, posts []*domain.Post, dateKey string) (map[string]*domain.GeneratedContent, error) {
-	const op = "GenerateForAllPlatforms"
 	logger := slog.Default()
 
 	if len(posts) == 0 {
 		return nil, ports.GeneratorError{
-			Op:    op,
+
 			Model: m.config.Model,
 			Err:   errors.New("posts cannot be empty"),
 		}
@@ -157,7 +151,6 @@ func (m *MistralAdapter) GenerateForAllPlatforms(ctx context.Context, posts []*d
 	results := make(map[string]*domain.GeneratedContent)
 
 	logger.Info("Generating content for all platforms",
-		slog.String("operation", op),
 		slog.String("date_key", dateKey),
 		slog.Int("post_count", len(posts)),
 		slog.Int("platform_count", len(platforms)))
@@ -167,11 +160,10 @@ func (m *MistralAdapter) GenerateForAllPlatforms(ctx context.Context, posts []*d
 		req, err := ports.NewGenerationRequest(posts, platform, dateKey)
 		if err != nil {
 			logger.Error("Failed to create generation request",
-				slog.String("operation", op),
 				slog.String("platform", platform),
 				slog.String("error", err.Error()))
 			return nil, ports.GeneratorError{
-				Op:        op,
+
 				Model:     m.config.Model,
 				Err:       fmt.Errorf("platform %s: %w", platform, err),
 				Retryable: false,
@@ -186,7 +178,6 @@ func (m *MistralAdapter) GenerateForAllPlatforms(ctx context.Context, posts []*d
 		content, err := m.GenerateContent(ctx, req)
 		if err != nil {
 			logger.Error("Failed to generate content for platform",
-				slog.String("operation", op),
 				slog.String("platform", platform),
 				slog.String("error", err.Error()))
 			return nil, err
@@ -196,7 +187,6 @@ func (m *MistralAdapter) GenerateForAllPlatforms(ctx context.Context, posts []*d
 	}
 
 	logger.Info("Content generated for all platforms",
-		slog.String("operation", op),
 		slog.Int("platforms", len(results)))
 
 	return results, nil
@@ -204,11 +194,10 @@ func (m *MistralAdapter) GenerateForAllPlatforms(ctx context.Context, posts []*d
 
 // ValidatePrompt checks if a prompt template is properly formatted and safe to use.
 func (m *MistralAdapter) ValidatePrompt(ctx context.Context, platform string, prompt string) error {
-	const op = "ValidatePrompt"
 
 	if !domain.IsValidPlatform(platform) {
 		return ports.GeneratorError{
-			Op:        op,
+
 			Model:     m.config.Model,
 			Err:       fmt.Errorf("invalid platform: %s", platform),
 			Retryable: false,
@@ -217,7 +206,7 @@ func (m *MistralAdapter) ValidatePrompt(ctx context.Context, platform string, pr
 
 	if strings.TrimSpace(prompt) == "" {
 		return ports.GeneratorError{
-			Op:        op,
+
 			Model:     m.config.Model,
 			Err:       errors.New("prompt cannot be empty"),
 			Retryable: false,
@@ -227,7 +216,7 @@ func (m *MistralAdapter) ValidatePrompt(ctx context.Context, platform string, pr
 	// Use the prompt manager's validation
 	if err := m.promptMgr.ValidateTemplate(ctx, prompt); err != nil {
 		return ports.GeneratorError{
-			Op:        op,
+
 			Model:     m.config.Model,
 			Err:       fmt.Errorf("prompt validation failed: %w", err),
 			Retryable: false,
@@ -239,11 +228,9 @@ func (m *MistralAdapter) ValidatePrompt(ctx context.Context, platform string, pr
 
 // TestConnection verifies connectivity to the AI service with current credentials.
 func (m *MistralAdapter) TestConnection(ctx context.Context) error {
-	const op = "TestConnection"
 	logger := slog.Default()
 
 	logger.Info("Testing Mistral API connection",
-		slog.String("operation", op),
 		slog.String("model", m.config.Model))
 
 	// Create a simple test message
@@ -264,16 +251,14 @@ func (m *MistralAdapter) TestConnection(ctx context.Context) error {
 	resp, err := m.client.Chat(m.config.Model, messages, params)
 	if err != nil {
 		logger.Error("Connection test failed",
-			slog.String("operation", op),
 			slog.String("error", err.Error()))
-		return m.classifyError(op, err)
+		return m.classifyError(err)
 	}
 
 	if resp == nil || len(resp.Choices) == 0 {
-		logger.Error("Connection test failed - no response",
-			slog.String("operation", op))
+		logger.Error("Connection test failed - no response")
 		return ports.GeneratorError{
-			Op:        op,
+
 			Model:     m.config.Model,
 			Err:       errors.New("empty response from service"),
 			Retryable: true,
@@ -281,14 +266,12 @@ func (m *MistralAdapter) TestConnection(ctx context.Context) error {
 	}
 
 	logger.Info("Connection test successful",
-		slog.String("operation", op),
 		slog.String("model", m.config.Model))
 	return nil
 }
 
 // generateWithRetry generates content with exponential backoff retry logic.
 func (m *MistralAdapter) generateWithRetry(ctx context.Context, prompt, platform string) (*domain.GeneratedContent, error) {
-	const op = "generateWithRetry"
 	logger := slog.Default()
 
 	var lastErr error
@@ -298,7 +281,7 @@ func (m *MistralAdapter) generateWithRetry(ctx context.Context, prompt, platform
 		select {
 		case <-ctx.Done():
 			return nil, ports.GeneratorError{
-				Op:        op,
+
 				Model:     m.config.Model,
 				Err:       ctx.Err(),
 				Retryable: false,
@@ -314,7 +297,6 @@ func (m *MistralAdapter) generateWithRetry(ctx context.Context, prompt, platform
 				maxBackoffDelay,
 			)
 			logger.Warn("Retrying content generation",
-				slog.String("operation", op),
 				slog.Int("attempt", attempt),
 				slog.Int("max_retries", m.config.RetryCount),
 				slog.Duration("delay", delay))
@@ -323,7 +305,7 @@ func (m *MistralAdapter) generateWithRetry(ctx context.Context, prompt, platform
 			case <-time.After(delay):
 			case <-ctx.Done():
 				return nil, ports.GeneratorError{
-					Op:        op,
+
 					Model:     m.config.Model,
 					Err:       ctx.Err(),
 					Retryable: false,
@@ -345,26 +327,23 @@ func (m *MistralAdapter) generateWithRetry(ctx context.Context, prompt, platform
 		if errors.As(err, &genErr) {
 			if !genErr.IsRetryable() {
 				logger.Error("Non-retryable error encountered",
-					slog.String("operation", op),
 					slog.String("error", err.Error()))
 				return nil, err
 			}
 		}
 
 		logger.Warn("Generation attempt failed",
-			slog.String("operation", op),
 			slog.Int("attempt", attempt),
 			slog.String("error", err.Error()))
 	}
 
 	// All retries exhausted
 	logger.Error("All retry attempts exhausted",
-		slog.String("operation", op),
 		slog.Int("attempts", m.config.RetryCount+1),
 		slog.String("error", lastErr.Error()))
 
 	return nil, ports.GeneratorError{
-		Op:        op,
+
 		Model:     m.config.Model,
 		Err:       fmt.Errorf("exhausted %d retries: %w", m.config.RetryCount, lastErr),
 		Retryable: false,
@@ -373,7 +352,6 @@ func (m *MistralAdapter) generateWithRetry(ctx context.Context, prompt, platform
 
 // generate performs a single content generation attempt.
 func (m *MistralAdapter) generate(prompt, platform string) (*domain.GeneratedContent, error) {
-	const op = "generate"
 
 	// Prepare messages for Mistral API
 	messages := []mistral.ChatMessage{
@@ -398,13 +376,13 @@ func (m *MistralAdapter) generate(prompt, platform string) (*domain.GeneratedCon
 	// Call Mistral API (client already has timeout configured)
 	resp, err := m.client.Chat(m.config.Model, messages, params)
 	if err != nil {
-		return nil, m.classifyError(op, err)
+		return nil, m.classifyError(err)
 	}
 
 	// Extract response
 	if len(resp.Choices) == 0 {
 		return nil, ports.GeneratorError{
-			Op:        op,
+
 			Model:     m.config.Model,
 			Err:       errors.New("no choices in response"),
 			Retryable: true,
@@ -424,7 +402,7 @@ func (m *MistralAdapter) generate(prompt, platform string) (*domain.GeneratedCon
 
 	if err := json.Unmarshal([]byte(content), &apiResponse); err != nil {
 		return nil, ports.GeneratorError{
-			Op:        op,
+
 			Model:     m.config.Model,
 			Err:       fmt.Errorf("failed to parse JSON response: %w", err),
 			Retryable: true, // AI might fix JSON on retry
@@ -434,7 +412,7 @@ func (m *MistralAdapter) generate(prompt, platform string) (*domain.GeneratedCon
 	// Validate response fields
 	if apiResponse.Text == "" {
 		return nil, ports.GeneratorError{
-			Op:        op,
+
 			Model:     m.config.Model,
 			Err:       errors.New("generated text is empty"),
 			Retryable: true,
@@ -450,7 +428,7 @@ func (m *MistralAdapter) generate(prompt, platform string) (*domain.GeneratedCon
 	)
 	if err != nil {
 		return nil, ports.GeneratorError{
-			Op:        op,
+
 			Model:     m.config.Model,
 			Err:       fmt.Errorf("content validation failed: %w", err),
 			Retryable: true, // AI might generate valid content on retry
@@ -461,7 +439,7 @@ func (m *MistralAdapter) generate(prompt, platform string) (*domain.GeneratedCon
 }
 
 // classifyError classifies API errors into retryable and non-retryable categories.
-func (m *MistralAdapter) classifyError(op string, err error) error {
+func (m *MistralAdapter) classifyError(err error) error {
 	if err == nil {
 		return nil
 	}
@@ -475,7 +453,7 @@ func (m *MistralAdapter) classifyError(op string, err error) error {
 		strings.Contains(errStrLower, "401") ||
 		strings.Contains(errStrLower, "403") {
 		return ports.GeneratorError{
-			Op:        op,
+
 			Model:     m.config.Model,
 			Err:       ports.ErrAPIKeyInvalid,
 			Retryable: false,
@@ -487,7 +465,7 @@ func (m *MistralAdapter) classifyError(op string, err error) error {
 		strings.Contains(errStrLower, "429") ||
 		strings.Contains(errStrLower, "too many requests") {
 		return ports.GeneratorError{
-			Op:        op,
+
 			Model:     m.config.Model,
 			Err:       errors.New("rate limit exceeded"),
 			Retryable: true,
@@ -502,7 +480,7 @@ func (m *MistralAdapter) classifyError(op string, err error) error {
 		strings.Contains(errStrLower, "internal server error") ||
 		strings.Contains(errStrLower, "service unavailable") {
 		return ports.GeneratorError{
-			Op:        op,
+
 			Model:     m.config.Model,
 			Err:       ports.ErrServiceUnavailable,
 			Retryable: true,
@@ -514,7 +492,7 @@ func (m *MistralAdapter) classifyError(op string, err error) error {
 		strings.Contains(errStrLower, "deadline exceeded") ||
 		errors.Is(err, context.DeadlineExceeded) {
 		return ports.GeneratorError{
-			Op:        op,
+
 			Model:     m.config.Model,
 			Err:       errors.New("request timeout"),
 			Retryable: true,
@@ -525,7 +503,7 @@ func (m *MistralAdapter) classifyError(op string, err error) error {
 	if strings.Contains(errStrLower, "content filtered") ||
 		strings.Contains(errStrLower, "safety") {
 		return ports.GeneratorError{
-			Op:        op,
+
 			Model:     m.config.Model,
 			Err:       ports.ErrContentFiltered,
 			Retryable: false,
@@ -536,7 +514,7 @@ func (m *MistralAdapter) classifyError(op string, err error) error {
 	if strings.Contains(errStrLower, "model not found") ||
 		strings.Contains(errStrLower, "invalid model") {
 		return ports.GeneratorError{
-			Op:        op,
+
 			Model:     m.config.Model,
 			Err:       ports.ErrModelNotFound,
 			Retryable: false,
@@ -547,7 +525,7 @@ func (m *MistralAdapter) classifyError(op string, err error) error {
 	if strings.Contains(errStrLower, "quota") ||
 		strings.Contains(errStrLower, "insufficient") {
 		return ports.GeneratorError{
-			Op:        op,
+
 			Model:     m.config.Model,
 			Err:       ports.ErrInsufficientQuota,
 			Retryable: false,
@@ -559,7 +537,7 @@ func (m *MistralAdapter) classifyError(op string, err error) error {
 		strings.Contains(errStrLower, "network") ||
 		strings.Contains(errStrLower, "dns") {
 		return ports.GeneratorError{
-			Op:        op,
+
 			Model:     m.config.Model,
 			Err:       fmt.Errorf("network error: %w", err),
 			Retryable: true,
@@ -568,7 +546,7 @@ func (m *MistralAdapter) classifyError(op string, err error) error {
 
 	// Default: treat as retryable with original error
 	return ports.GeneratorError{
-		Op:        op,
+
 		Model:     m.config.Model,
 		Err:       err,
 		Retryable: true,

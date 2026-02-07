@@ -35,7 +35,6 @@ func TestNewMastodonAdapter_EmptyServer(t *testing.T) {
 
 	var pubErr ports.PublisherError
 	require.True(t, errors.As(err, &pubErr))
-	assert.Equal(t, "NewMastodonAdapter", pubErr.Op)
 	assert.Equal(t, domain.PlatformMastodon, pubErr.Platform)
 	assert.False(t, pubErr.Retryable)
 	assert.Contains(t, err.Error(), "server URL cannot be empty")
@@ -50,7 +49,6 @@ func TestNewMastodonAdapter_InvalidServerURL(t *testing.T) {
 
 	var pubErr ports.PublisherError
 	require.True(t, errors.As(err, &pubErr))
-	assert.Equal(t, "NewMastodonAdapter", pubErr.Op)
 	assert.False(t, pubErr.Retryable)
 }
 
@@ -77,7 +75,6 @@ func TestNewMastodonAdapter_EmptyAccessToken(t *testing.T) {
 
 	var pubErr ports.PublisherError
 	require.True(t, errors.As(err, &pubErr))
-	assert.Equal(t, "NewMastodonAdapter", pubErr.Op)
 	assert.False(t, pubErr.Retryable)
 	assert.Contains(t, err.Error(), "access token cannot be empty")
 }
@@ -798,7 +795,6 @@ func TestMastodonAdapter_PublisherErrorWrapping(t *testing.T) {
 
 	var pubErr ports.PublisherError
 	assert.True(t, errors.As(err, &pubErr))
-	assert.Equal(t, "ValidateContent", pubErr.Op)
 	assert.Equal(t, domain.PlatformMastodon, pubErr.Platform)
 	assert.False(t, pubErr.Retryable)
 
@@ -807,13 +803,11 @@ func TestMastodonAdapter_PublisherErrorWrapping(t *testing.T) {
 	err = nilAdapter.TestConnection(context.Background())
 	assert.Error(t, err)
 	assert.True(t, errors.As(err, &pubErr))
-	assert.Equal(t, "TestConnection", pubErr.Op)
 
 	// Test Publish error wrapping
 	result, err := adapter.Publish(context.Background(), nil)
 	assert.Error(t, err)
 	assert.True(t, errors.As(err, &pubErr))
-	assert.Equal(t, "Publish", pubErr.Op)
 	assert.Equal(t, domain.PlatformMastodon, pubErr.Platform)
 	_ = result // May be nil
 }

@@ -428,12 +428,10 @@ func someFunction() {
     logger := slog.Default()
 
     logger.Info("Operation completed",
-        slog.String("operation", "MyFunction"),
         slog.Int("items_processed", 42))
 
     if err != nil {
         logger.Error("Operation failed",
-            slog.String("operation", "MyFunction"),
             slog.String("error", err.Error()))
         return err
     }
@@ -447,7 +445,6 @@ func someFunction() {
 ### Structured Field Convention
 
 **Command and Application Layer** (user-facing and orchestration):
-- Always include `"operation"` (string) - function/method name for traceability
 - Include context fields: `platform`, `date`, `status`, `uri`, `mode`
 - Include metrics: `character_count`, `token_count`, `estimated_cost_usd`, `duration`
 - For error-level logs: include `error` field with error message
@@ -488,13 +485,13 @@ No special action needed - sensitive fields are redacted automatically for every
 
 **Returning Errors from Functions**:
 - Always wrap errors with context using ApplicationError or fmt.Errorf
-- Include the operation name and relevant fields in the error message
+- Include relevant context in the error message
 - Return early from the function - let the caller decide whether to log
-- Pattern: `return nil, ApplicationError{Op: op, Err: err}`
+- Pattern: `return nil, ApplicationError{Err: err}`
 
 **Logging Errors**:
 - Log at Error level for critical operational failures (command layer)
-- Include structured error context: error message, operation, relevant fields
+- Include structured error context: error message and relevant fields
 - Pattern: `logger.Error("operation failed", slog.String("error", err.Error()))`
 - Don't log every error in every layer - apply selective logging based on layer
 
