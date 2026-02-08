@@ -245,6 +245,7 @@ func (m *MistralAdapter) TestConnection(ctx context.Context) error {
 		Temperature: 0.0,
 		MaxTokens:   10,
 		SafePrompt:  false,
+		TopP:        1.0,
 	}
 
 	// Make a test API call (client already has timeout configured)
@@ -370,6 +371,7 @@ func (m *MistralAdapter) generate(prompt, platform string) (*domain.GeneratedCon
 		Temperature:    m.config.Temperature,
 		MaxTokens:      m.config.MaxTokens,
 		SafePrompt:     false,
+		TopP:           1.0,
 		ResponseFormat: mistral.ResponseFormatJsonObject,
 	}
 

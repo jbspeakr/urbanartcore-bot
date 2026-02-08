@@ -65,7 +65,7 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	// Verify default values
 	assert.Equal(t, "./data/posts_by_date.json", config.DataPath)
 	assert.Equal(t, "./internal/infrastructure/prompts", config.PromptsPath)
-	assert.Equal(t, "mistral-large", config.MistralModel)
+	assert.Equal(t, "mistral-large-2512", config.MistralModel)
 	assert.Equal(t, 1000, config.MistralMaxTokens)
 	assert.Equal(t, 0.7, config.MistralTemperature)
 	assert.Equal(t, 3, config.AIRetryCount)

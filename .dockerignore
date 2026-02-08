@@ -1,0 +1,50 @@
+# Build artifacts
+bin/
+dist/
+*.test
+*.out
+main
+uac-socializer
+
+# Test files
+*_test.go
+testdata/
+coverage*.out
+
+# Documentation
+*.md
+notes/
+docs/
+
+# Git and CI/CD
+.git/
+.github/
+.forgejo/
+.githooks/
+.gitignore
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment and secrets
+.env
+.env.*
+*.key
+*.pem
+
+# Temporary files
+tmp/
+*.tmp
+*.log
+
+# Keep these (required at runtime)
+!data/posts_by_date.json
+!internal/infrastructure/prompts/

@@ -69,7 +69,18 @@ func LoadConfig() (*Config, error) {
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
 
-	// Bind all environment variables
+	// Set defaults BEFORE binding to avoid conflicts
+	v.SetDefault("data_path", "./data/posts_by_date.json")
+	v.SetDefault("prompts_path", "./internal/infrastructure/prompts")
+	v.SetDefault("mistral_model", "mistral-large-2512")
+	v.SetDefault("mistral_max_tokens", 1000)
+	v.SetDefault("mistral_temperature", 0.7)
+	v.SetDefault("ai_retry_count", 3)
+	v.SetDefault("ai_timeout", "30s")
+	v.SetDefault("max_retry_count", 10)
+	v.SetDefault("min_retry_count", 0)
+
+	// Bind all environment variables after setting defaults
 	envVars := []string{
 		"data_path",
 		"prompts_path",
@@ -92,17 +103,6 @@ func LoadConfig() (*Config, error) {
 			return nil, ConfigError{Err: fmt.Errorf("failed to bind env var %s: %w", envVar, err)}
 		}
 	}
-
-	// Set defaults
-	v.SetDefault("data_path", "./data/posts_by_date.json")
-	v.SetDefault("prompts_path", "./internal/infrastructure/prompts")
-	v.SetDefault("mistral_model", "mistral-large")
-	v.SetDefault("mistral_max_tokens", 1000)
-	v.SetDefault("mistral_temperature", 0.7)
-	v.SetDefault("ai_retry_count", 3)
-	v.SetDefault("ai_timeout", "30s")
-	v.SetDefault("max_retry_count", 10)
-	v.SetDefault("min_retry_count", 0)
 
 	// Parse duration string first before unmarshal to provide better error messages
 	if timeoutStr := v.GetString("ai_timeout"); timeoutStr != "" {

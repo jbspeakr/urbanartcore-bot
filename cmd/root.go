@@ -12,6 +12,20 @@ import (
 
 var cfgFile string
 
+// Version information (populated by main package)
+var (
+	Version   string
+	Commit    string
+	BuildDate string
+)
+
+// SetVersionInfo sets the version information from the main package.
+func SetVersionInfo(version, commit, buildDate string) {
+	Version = version
+	Commit = commit
+	BuildDate = buildDate
+}
+
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "uac-socializer",
