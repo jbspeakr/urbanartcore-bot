@@ -148,10 +148,6 @@ func (a *BlueskyAdapter) authenticate(ctx context.Context) error {
 
 	resp, err := a.httpClient.Do(req)
 	if err != nil {
-		// Check for timeout/network errors
-		if isNetworkError(err) {
-			return fmt.Errorf("%w: %v", ports.ErrNetworkTimeout, err)
-		}
 		return fmt.Errorf("session request failed: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
@@ -382,8 +378,47 @@ func (a *BlueskyAdapter) Publish(ctx context.Context, content *domain.GeneratedC
 	text := content.Text()
 	hashtags := content.Hashtags()
 
-	// Build facets for hashtags
+	// Strip URLs from text since we'll provide them via embed
+	text = stripURLsFromText(text)
+
+	// Append hashtags to text if any exist
+	// Hashtags must be in the text for facets to find and tag them
+	if len(hashtags) > 0 {
+		// Join hashtags with spaces and append to text
+		hashtagStr := strings.Join(hashtags, " ")
+		if text != "" {
+			text = text + " " + hashtagStr
+		} else {
+			text = hashtagStr
+		}
+
+		slog.Default().Info("Appended hashtags to text",
+			slog.Int("hashtag_count", len(hashtags)),
+			slog.String("final_text", text))
+
+		// Validate combined text doesn't exceed byte limit
+		byteCount := CountTextBytes(text)
+		if byteCount > blueskyByteLimit {
+			result, _ := domain.NewPlatformResult("bluesky", domain.StatusFailed, content)
+			wrappedErr := ports.PublisherError{
+
+				Platform: "bluesky",
+				Err: fmt.Errorf("%w: %d bytes with hashtags, limit is %d",
+					ports.ErrContentTooLong, byteCount, blueskyByteLimit),
+				Retryable: false,
+			}
+			result.SetFailure(wrappedErr, time.Since(startTime))
+			return result, wrappedErr
+		}
+	}
+
+	// Build facets for hashtags (now that they're in the text)
 	facets := BuildFacets(text, hashtags)
+
+	slog.Default().Info("Built facets for hashtags",
+		slog.Int("facet_count", len(facets)),
+		slog.String("hashtags", strings.Join(hashtags, ",")),
+		slog.String("text_with_tags", text))
 
 	// Validate facets
 	if err := ValidateFacets(text, facets); err != nil {
@@ -444,6 +479,21 @@ func (a *BlueskyAdapter) Publish(ctx context.Context, content *domain.GeneratedC
 	// Add embed if created
 	if embedData != nil {
 		postRecord["embed"] = embedData
+	}
+
+	// Log complete postRecord structure for debugging
+	logger := slog.Default()
+	logger.Info("Bluesky publish request validation",
+		slog.Bool("has_facets", len(facets) > 0),
+		slog.Int("facet_count", len(facets)),
+		slog.Bool("has_embed", embedData != nil),
+		slog.String("metadata_uri", uri))
+
+	// Debug log the complete embed structure if present
+	if embedData != nil {
+		embedJSON, _ := json.Marshal(embedData)
+		logger.Info("Bluesky embed structure",
+			slog.String("embed_json", string(embedJSON)))
 	}
 
 	// Create post via ATProto API
@@ -547,6 +597,8 @@ func (a *BlueskyAdapter) Publish(ctx context.Context, content *domain.GeneratedC
 // Fetches HTML to extract title, description, and thumbnail.
 // Returns nil if extraction fails (graceful degradation).
 func (a *BlueskyAdapter) buildExternalEmbedFromURI(ctx context.Context, uri string) (map[string]any, error) {
+	logger := slog.Default()
+
 	if a == nil || uri == "" {
 		return nil, errors.New("adapter is nil or URI is empty")
 	}
@@ -554,8 +606,16 @@ func (a *BlueskyAdapter) buildExternalEmbedFromURI(ctx context.Context, uri stri
 	// Extract link preview
 	preview, err := a.extractLinkPreview(ctx, uri)
 	if err != nil {
+		logger.Error("Failed to extract link preview",
+			slog.String("uri", uri),
+			slog.String("error", err.Error()))
 		return nil, fmt.Errorf("failed to extract link preview: %w", err)
 	}
+
+	logger.Info("Extracted link preview",
+		slog.String("uri", uri),
+		slog.String("title", preview.Title),
+		slog.String("thumb_url", preview.ThumbURL))
 
 	// Build external embed structure
 	externalData := map[string]any{
@@ -566,21 +626,34 @@ func (a *BlueskyAdapter) buildExternalEmbedFromURI(ctx context.Context, uri stri
 
 	// Download and encode thumbnail if available
 	if preview.ThumbURL != "" {
+		logger.Info("Attempting to download thumbnail",
+			slog.String("thumb_url", preview.ThumbURL))
+
 		thumbData, err := a.downloadAndEncodeThumbnail(ctx, preview.ThumbURL)
 		if err != nil {
 			// Log warning but proceed without thumbnail
-			slog.Default().Warn("Failed to download thumbnail, proceeding without it",
+			logger.Warn("Failed to download thumbnail, proceeding without it",
 				slog.String("thumb_url", preview.ThumbURL),
 				slog.String("error", err.Error()))
 		} else if thumbData != nil {
+			logger.Info("Successfully added thumbnail to embed")
 			externalData["thumb"] = thumbData
+		} else {
+			logger.Warn("Thumbnail download returned nil data")
 		}
+	} else {
+		logger.Info("No thumbnail URL found in preview")
 	}
 
 	embedData := map[string]any{
 		"$type":    "app.bsky.embed.external",
 		"external": externalData,
 	}
+
+	// Log final embed structure
+	embedJSON, _ := json.Marshal(embedData)
+	logger.Info("Built external embed",
+		slog.String("embed", string(embedJSON)))
 
 	return embedData, nil
 }
@@ -704,6 +777,9 @@ func (a *BlueskyAdapter) downloadAndEncodeThumbnail(ctx context.Context, thumbUR
 		return nil, errors.New("adapter is nil")
 	}
 
+	slog.Default().Info("Starting thumbnail download",
+		slog.String("url", thumbURL))
+
 	// Download image
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, thumbURL, nil)
 	if err != nil {
@@ -802,19 +878,33 @@ func (a *BlueskyAdapter) downloadAndEncodeThumbnail(ctx context.Context, thumbUR
 
 	blobData := buf.Bytes()
 
+	slog.Default().Info("Encoded image as JPEG blob",
+		slog.Int("blob_size", len(blobData)))
+
 	// Upload blob to Bluesky and get CID
 	cidReference, err := a.uploadBlobToBluesky(ctx, blobData)
 	if err != nil {
+		slog.Default().Error("Failed to upload blob",
+			slog.String("error", err.Error()))
 		return nil, fmt.Errorf("failed to upload blob: %w", err)
 	}
 
 	// Return blob reference with CID from ATProto
-	return map[string]any{
+	// Structure: {$type: "blob", mimeType: "...", ref: {$link: "cid"}, size: ...}
+	blobRef := map[string]any{
 		"$type":    "blob",
-		"link":     cidReference,
-		"size":     len(blobData),
 		"mimeType": "image/jpeg",
-	}, nil
+		"ref": map[string]any{
+			"$link": cidReference,
+		},
+		"size": len(blobData),
+	}
+
+	blobJSON, _ := json.Marshal(blobRef)
+	slog.Default().Info("Returning thumbnail blob",
+		slog.String("blob_json", string(blobJSON)))
+
+	return blobRef, nil
 }
 
 // uploadBlobToBluesky uploads binary data to Bluesky's blob store.
@@ -867,33 +957,100 @@ func (a *BlueskyAdapter) uploadBlobToBluesky(ctx context.Context, blobData []byt
 	}
 
 	// Parse response to extract CID
-	var uploadResp struct {
-		Blob struct {
-			Type     string `json:"$type"`
-			Link     string `json:"link"`
-			MimeType string `json:"mimeType"`
-			Size     int    `json:"size"`
-		} `json:"blob"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&uploadResp); err != nil {
+	// First, decode as generic map to see actual structure
+	var rawResp map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&rawResp); err != nil {
 		return "", fmt.Errorf("failed to decode upload response: %w", err)
 	}
 
-	// Validate CID is present
-	if uploadResp.Blob.Link == "" {
+	// Log the actual response structure
+	respJSON, _ := json.Marshal(rawResp)
+	slog.Default().Info("Blob upload response",
+		slog.String("response", string(respJSON)))
+
+	// Try to extract CID from various possible locations
+	var cid string
+
+	// Try: response.blob.ref.$link (ATProto spec format)
+	if blob, ok := rawResp["blob"].(map[string]any); ok {
+		if ref, ok := blob["ref"].(map[string]any); ok {
+			if link, ok := ref["$link"].(string); ok {
+				cid = link
+			}
+		}
+		// Fallback: Try response.blob.link
+		if cid == "" {
+			if link, ok := blob["link"].(string); ok {
+				cid = link
+			}
+		}
+	}
+
+	// Fallback: Try response.link (direct link field)
+	if cid == "" {
+		if link, ok := rawResp["link"].(string); ok {
+			cid = link
+		}
+	}
+
+	// Fallback: Try response.$link (CID link reference)
+	if cid == "" {
+		if link, ok := rawResp["$link"].(string); ok {
+			cid = link
+		}
+	}
+
+	if cid == "" {
+		slog.Default().Error("Unable to extract CID from upload response",
+			slog.String("response_keys", fmt.Sprintf("%v", getRespKeys(rawResp))))
 		return "", fmt.Errorf("upload response missing CID link")
 	}
 
 	slog.Default().Info("Blob uploaded to Bluesky",
-		slog.String("cid", uploadResp.Blob.Link),
-		slog.Int("size", uploadResp.Blob.Size),
-		slog.String("mime_type", uploadResp.Blob.MimeType))
+		slog.String("cid", cid))
 
-	return uploadResp.Blob.Link, nil
+	return cid, nil
 }
 
 // Helper functions
+
+// getRespKeys extracts and returns the keys from a response map for logging.
+func getRespKeys(resp map[string]any) []string {
+	keys := make([]string, 0, len(resp))
+	for k := range resp {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+// stripURLsFromText removes HTTP/HTTPS URLs from text.
+// Used when we have a rich embed to avoid duplicate URL display.
+func stripURLsFromText(text string) string {
+	// Remove URLs matching http:// or https://
+	// Pattern: https?://[^\s]+ matches URLs followed by whitespace or end of string
+	lines := strings.Split(text, "\n")
+	result := make([]string, 0, len(lines))
+
+	for _, line := range lines {
+		// Split line into words
+		words := strings.Fields(line)
+		filtered := make([]string, 0, len(words))
+
+		for _, word := range words {
+			// Skip words that are URLs
+			if !strings.HasPrefix(word, "http://") && !strings.HasPrefix(word, "https://") {
+				filtered = append(filtered, word)
+			}
+		}
+
+		// Reconstruct line without URLs
+		if len(filtered) > 0 {
+			result = append(result, strings.Join(filtered, " "))
+		}
+	}
+
+	return strings.TrimSpace(strings.Join(result, "\n"))
+}
 
 // extractRecordKey extracts the record key (post ID) from an ATProto URI.
 // Example: at://did:plc:abc123/app.bsky.feed.post/xyz456 -> xyz456

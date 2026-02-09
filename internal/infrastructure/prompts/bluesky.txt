@@ -11,7 +11,7 @@ INSTRUCTIONS:
 1. Read the blog post content at the URL
 2. Extract key themes and cultural significance
 3. Write a commemorative post under 250 characters
-4. Include the blog URL naturally in the text
+4. Do NOT include the blog URL in the text - it will be provided via rich link card embed
 5. Add 2-3 hashtags from: StreetArt, Graffiti, UrbanArt, GraffitiArt, PublicArt, ArtHistory, UrbanCulture
 
 TONE: Conversational, enthusiastic, community-focused. Celebrate the art. Spark discussion.
@@ -19,13 +19,13 @@ TONE: Conversational, enthusiastic, community-focused. Celebrate the art. Spark 
 BLUESKY NOTES:
 - Keep under 300 characters (strict limit)
 - Concise, punchy language works best
-- URL will be converted to rich link card automatically
+- Link will be displayed automatically via rich embed card with thumbnail
 
 OUTPUT: Return ONLY this JSON structure, nothing else:
-{"text":"post content with URL","hashtags":["StreetArt","Graffiti"]}
+{"text":"post content without URL","hashtags":["StreetArt","Graffiti"]}
 
 RULES:
 - Valid JSON only, no markdown or explanation
 - Max 300 characters in text field
 - Hashtags without # prefix
-- Must include full blog URL in text
+- Do NOT include the blog URL in text (it will be in the embed)

@@ -124,7 +124,7 @@ func (m *MistralAdapter) GenerateContent(ctx context.Context, req *ports.Generat
 	}
 
 	// Generate content with retry logic
-	content, err := m.generateWithRetry(ctx, prompt, req.Platform)
+	content, err := m.generateWithRetry(ctx, prompt, req)
 	if err != nil {
 		return nil, err // Error already wrapped by generateWithRetry
 	}
@@ -272,7 +272,7 @@ func (m *MistralAdapter) TestConnection(ctx context.Context) error {
 }
 
 // generateWithRetry generates content with exponential backoff retry logic.
-func (m *MistralAdapter) generateWithRetry(ctx context.Context, prompt, platform string) (*domain.GeneratedContent, error) {
+func (m *MistralAdapter) generateWithRetry(ctx context.Context, prompt string, req *ports.GenerationRequest) (*domain.GeneratedContent, error) {
 	logger := slog.Default()
 
 	var lastErr error
@@ -315,7 +315,7 @@ func (m *MistralAdapter) generateWithRetry(ctx context.Context, prompt, platform
 		}
 
 		// Attempt generation
-		content, err := m.generate(prompt, platform)
+		content, err := m.generate(prompt, req)
 
 		if err == nil {
 			return content, nil
@@ -352,7 +352,8 @@ func (m *MistralAdapter) generateWithRetry(ctx context.Context, prompt, platform
 }
 
 // generate performs a single content generation attempt.
-func (m *MistralAdapter) generate(prompt, platform string) (*domain.GeneratedContent, error) {
+func (m *MistralAdapter) generate(prompt string, req *ports.GenerationRequest) (*domain.GeneratedContent, error) {
+	platform := req.Platform
 
 	// Prepare messages for Mistral API
 	messages := []mistral.ChatMessage{
@@ -435,7 +436,22 @@ func (m *MistralAdapter) generate(prompt, platform string) (*domain.GeneratedCon
 		}
 	}
 
+	// Add URI from the generation request to metadata
+	uri := extractURIFromRequest(req)
+	if uri != "" {
+		generatedContent.AddMetadata("uri", uri)
+	}
+
 	return generatedContent, nil
+}
+
+// extractURIFromRequest extracts the URI from the generation request.
+// Returns the URI from the first post, or empty string if no posts.
+func extractURIFromRequest(req *ports.GenerationRequest) string {
+	if req == nil || len(req.Posts) == 0 {
+		return ""
+	}
+	return req.Posts[0].URI()
 }
 
 // classifyError classifies API errors into retryable and non-retryable categories.

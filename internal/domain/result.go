@@ -133,6 +133,18 @@ func (gc *GeneratedContent) Metadata() map[string]string {
 	return maps.Clone(gc.metadata)
 }
 
+// AddMetadata adds a key-value pair to the metadata map.
+// This allows adapters to enrich content with additional context.
+func (gc *GeneratedContent) AddMetadata(key, value string) {
+	if gc == nil {
+		return
+	}
+	if gc.metadata == nil {
+		gc.metadata = make(map[string]string)
+	}
+	gc.metadata[key] = value
+}
+
 // PromptUsed returns the original prompt used for generation.
 func (gc *GeneratedContent) PromptUsed() string {
 	if gc == nil {
