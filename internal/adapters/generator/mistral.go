@@ -396,10 +396,8 @@ func (m *MistralAdapter) generate(prompt, platform string) (*domain.GeneratedCon
 
 	// Parse JSON response
 	var apiResponse struct {
-		Text           string   `json:"text"`
-		Hashtags       []string `json:"hashtags"`
-		ByteCount      int      `json:"byte_count"`
-		CharacterCount int      `json:"character_count"`
+		Text     string   `json:"text"`
+		Hashtags []string `json:"hashtags"`
 	}
 
 	if err := json.Unmarshal([]byte(content), &apiResponse); err != nil {

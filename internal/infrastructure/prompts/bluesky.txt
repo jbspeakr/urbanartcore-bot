@@ -10,7 +10,7 @@ CONTEXT:
 INSTRUCTIONS:
 1. Read the blog post content at the URL
 2. Extract key themes and cultural significance
-3. Write a commemorative post under 300 characters
+3. Write a commemorative post under 250 characters
 4. Include the blog URL naturally in the text
 5. Add 2-3 hashtags from: StreetArt, Graffiti, UrbanArt, GraffitiArt, PublicArt, ArtHistory, UrbanCulture
 
@@ -22,7 +22,7 @@ BLUESKY NOTES:
 - URL will be converted to rich link card automatically
 
 OUTPUT: Return ONLY this JSON structure, nothing else:
-{"text":"post content with URL","hashtags":["StreetArt","Graffiti"],"metadata":{"uri":"{POST_URI}","character_count":280}}
+{"text":"post content with URL","hashtags":["StreetArt","Graffiti"]}
 
 RULES:
 - Valid JSON only, no markdown or explanation
