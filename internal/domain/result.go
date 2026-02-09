@@ -3,7 +3,6 @@ package domain
 import (
 	"errors"
 	"fmt"
-	"maps"
 	"strings"
 	"time"
 )
@@ -41,16 +40,22 @@ const (
 // GeneratedContent represents AI-generated content with platform-specific optimization.
 // It encapsulates the output from content generation services like Mistral AI.
 type GeneratedContent struct {
-	text        string            // Generated post text
-	platform    string            // Target platform (bluesky, mastodon)
-	hashtags    []string          // Platform-appropriate hashtags
-	metadata    map[string]string // Character count, engagement predictions, etc.
-	promptUsed  string            // Original prompt for debugging/optimization
-	generatedAt time.Time         // When content was generated
+	text        string    // Generated post text
+	platform    string    // Target platform (bluesky, mastodon)
+	hashtags    []string  // Platform-appropriate hashtags
+	uri         string    // Source blog post URI (required for embeds/attribution)
+	promptUsed  string    // Original prompt for debugging/optimization
+	generatedAt time.Time // When content was generated
 }
 
 // NewGeneratedContent creates a new GeneratedContent with validation.
-func NewGeneratedContent(text, platform string, hashtags []string, promptUsed string) (*GeneratedContent, error) {
+func NewGeneratedContent(text, platform string, hashtags []string, promptUsed, uri string) (*GeneratedContent, error) {
+	// Validate URI
+	uri = strings.TrimSpace(uri)
+	if uri == "" {
+		return nil, DomainError{Err: errors.New("uri cannot be empty - all content must have a source")}
+	}
+
 	// Validate platform
 	platform = strings.ToLower(strings.TrimSpace(platform))
 	if !IsValidPlatform(platform) {
@@ -66,14 +71,6 @@ func NewGeneratedContent(text, platform string, hashtags []string, promptUsed st
 	// Check platform-specific character limits
 	if err := validateTextLength(text, platform); err != nil {
 		return nil, DomainError{Err: err}
-	}
-
-	// Create metadata with basic metrics
-	// Note: character_count is platform-specific (bytes for Bluesky, runes for Mastodon)
-	metadata := map[string]string{
-		"character_count": fmt.Sprintf("%d", countTextLength(text, platform)),
-		"hashtag_count":   fmt.Sprintf("%d", len(hashtags)),
-		"platform_limit":  fmt.Sprintf("%d", getPlatformLimit(platform)),
 	}
 
 	// Clean and validate hashtags
@@ -93,7 +90,7 @@ func NewGeneratedContent(text, platform string, hashtags []string, promptUsed st
 		text:        text,
 		platform:    platform,
 		hashtags:    cleanHashtags,
-		metadata:    metadata,
+		uri:         uri,
 		promptUsed:  strings.TrimSpace(promptUsed),
 		generatedAt: time.Now(),
 	}, nil
@@ -125,24 +122,12 @@ func (gc *GeneratedContent) Hashtags() []string {
 	return hashtags
 }
 
-// Metadata returns a copy of the metadata map.
-func (gc *GeneratedContent) Metadata() map[string]string {
+// URI returns the source blog post URL for embeds/attribution.
+func (gc *GeneratedContent) URI() string {
 	if gc == nil {
-		return map[string]string{}
+		return ""
 	}
-	return maps.Clone(gc.metadata)
-}
-
-// AddMetadata adds a key-value pair to the metadata map.
-// This allows adapters to enrich content with additional context.
-func (gc *GeneratedContent) AddMetadata(key, value string) {
-	if gc == nil {
-		return
-	}
-	if gc.metadata == nil {
-		gc.metadata = make(map[string]string)
-	}
-	gc.metadata[key] = value
+	return gc.uri
 }
 
 // PromptUsed returns the original prompt used for generation.
@@ -162,8 +147,7 @@ func (gc *GeneratedContent) GeneratedAt() time.Time {
 }
 
 // CharacterCount returns the byte count of the generated text.
-// For platform-aware counting, use Metadata() to access the "character_count" field
-// or IsWithinLimit() to check if content fits the platform's character limit.
+// For platform-aware counting, use IsWithinLimit() to check if content fits the platform's character limit.
 func (gc *GeneratedContent) CharacterCount() int {
 	if gc == nil {
 		return 0

@@ -420,12 +420,16 @@ func (m *MistralAdapter) generate(prompt string, req *ports.GenerationRequest) (
 		}
 	}
 
-	// Create domain object with validation
+	// Extract URI from request before creating content
+	uri := extractURIFromRequest(req)
+
+	// Create domain object with validation (including required URI)
 	generatedContent, err := domain.NewGeneratedContent(
 		apiResponse.Text,
 		platform,
 		apiResponse.Hashtags,
 		prompt,
+		uri,
 	)
 	if err != nil {
 		return nil, ports.GeneratorError{
@@ -434,12 +438,6 @@ func (m *MistralAdapter) generate(prompt string, req *ports.GenerationRequest) (
 			Err:       fmt.Errorf("content validation failed: %w", err),
 			Retryable: true, // AI might generate valid content on retry
 		}
-	}
-
-	// Add URI from the generation request to metadata
-	uri := extractURIFromRequest(req)
-	if uri != "" {
-		generatedContent.AddMetadata("uri", uri)
 	}
 
 	return generatedContent, nil

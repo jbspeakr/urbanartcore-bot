@@ -51,6 +51,7 @@ func TestNewMastodonAdapter_ValidConfig(t *testing.T) {
 		domain.PlatformMastodon,
 		[]string{"#test", "#mastodon"},
 		"test-prompt",
+		"https://www.example.com/test",
 	)
 	require.NoError(t, err)
 
@@ -237,6 +238,7 @@ func TestMastodonAdapter_ValidateContent(t *testing.T) {
 		domain.PlatformMastodon,
 		[]string{"#test", "#mastodon"},
 		"test-prompt",
+		"https://www.example.com/test",
 	)
 	require.NoError(t, err)
 
@@ -250,6 +252,7 @@ func TestMastodonAdapter_ValidateContent(t *testing.T) {
 		domain.PlatformMastodon,
 		[]string{},
 		"test-prompt",
+		"https://www.example.com/test",
 	)
 	// This will fail domain validation, so create manually for adapter test
 	_ = tooLongContent
@@ -260,6 +263,7 @@ func TestMastodonAdapter_ValidateContent(t *testing.T) {
 		domain.PlatformBluesky,
 		[]string{},
 		"test-prompt",
+		"https://www.example.com/test",
 	)
 	require.NoError(t, err)
 
@@ -351,6 +355,7 @@ func TestMastodonAdapter_ValidateContent_EmptyText(t *testing.T) {
 		domain.PlatformMastodon,
 		[]string{},
 		"test-prompt",
+		"https://www.example.com/test",
 	)
 
 	// Domain validation should catch empty text
@@ -377,6 +382,7 @@ func TestMastodonAdapter_ValidateContent_UnicodeCharacters(t *testing.T) {
 		domain.PlatformMastodon,
 		[]string{"#art"},
 		"test-prompt",
+		"https://www.example.com/test",
 	)
 	require.NoError(t, err)
 
@@ -457,6 +463,7 @@ func TestMastodonAdapter_Publish(t *testing.T) {
 		domain.PlatformMastodon,
 		[]string{"#test"},
 		"test-prompt",
+		"https://www.example.com/test",
 	)
 	require.NoError(t, err)
 
@@ -531,6 +538,7 @@ func TestFormatTootContent(t *testing.T) {
 					domain.PlatformMastodon,
 					[]string{},
 					"test-prompt",
+					"https://www.example.com/test",
 				)
 				return c
 			}(),
@@ -544,6 +552,7 @@ func TestFormatTootContent(t *testing.T) {
 					domain.PlatformMastodon,
 					[]string{"#test", "#mastodon"},
 					"test-prompt",
+					"https://www.example.com/test",
 				)
 				return c
 			}(),
@@ -557,6 +566,7 @@ func TestFormatTootContent(t *testing.T) {
 					domain.PlatformMastodon,
 					[]string{"#greetings"},
 					"test-prompt",
+					"https://www.example.com/test",
 				)
 				return c
 			}(),
@@ -927,6 +937,7 @@ func TestMastodonAdapter_ValidateContent_WithHashtags(t *testing.T) {
 				domain.PlatformMastodon,
 				tt.hashtags,
 				"test-prompt",
+				"https://www.example.com/test",
 			)
 			require.NoError(t, err)
 
@@ -1042,6 +1053,7 @@ func TestMastodonAdapter_Publish_Success(t *testing.T) {
 		domain.PlatformMastodon,
 		[]string{"#test"},
 		"test-prompt",
+		"https://www.example.com/test",
 	)
 	require.NoError(t, err)
 
@@ -1083,6 +1095,7 @@ func TestMastodonAdapter_Publish_WithHashtags(t *testing.T) {
 		domain.PlatformMastodon,
 		[]string{"#StreetArt", "#Graffiti", "#UrbanArt"},
 		"test-prompt",
+		"https://www.example.com/test",
 	)
 	require.NoError(t, err)
 
@@ -1121,6 +1134,7 @@ func TestMastodonAdapter_Publish_InvalidToken(t *testing.T) {
 		domain.PlatformMastodon,
 		[]string{},
 		"test-prompt",
+		"https://www.example.com/test",
 	)
 	require.NoError(t, err)
 
@@ -1157,6 +1171,7 @@ func TestMastodonAdapter_Publish_RateLimitRetry(t *testing.T) {
 		domain.PlatformMastodon,
 		[]string{},
 		"test-prompt",
+		"https://www.example.com/test",
 	)
 	require.NoError(t, err)
 
@@ -1216,6 +1231,7 @@ func TestMastodonAdapter_Publish_SuccessfulPublishResult(t *testing.T) {
 		domain.PlatformMastodon,
 		[]string{"#test"},
 		"test-prompt",
+		"https://www.example.com/test",
 	)
 	require.NoError(t, err)
 
@@ -1266,6 +1282,7 @@ func TestMastodonAdapter_Publish_SuccessfulWithEmojis(t *testing.T) {
 		domain.PlatformMastodon,
 		[]string{"#UrbanArt", "#Graffiti"},
 		"test-prompt",
+		"https://www.example.com/test",
 	)
 	require.NoError(t, err)
 

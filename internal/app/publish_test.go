@@ -130,7 +130,8 @@ func createTestPost(uri, dateStr string) *domain.Post {
 }
 
 func createTestGeneratedContent(text, platform string) *domain.GeneratedContent {
-	content, err := domain.NewGeneratedContent(text, platform, []string{"#test"}, "test-prompt")
+	content, err := domain.NewGeneratedContent(text, platform, []string{"#test"}, "test-prompt",
+		"https://www.example.com/test")
 	if err != nil {
 		panic(err)
 	}

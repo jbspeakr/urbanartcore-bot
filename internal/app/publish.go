@@ -400,7 +400,7 @@ func (ps *PublishService) createMockContent(platform string, post *domain.Post, 
 	if post == nil {
 		slog.Default().Warn("createMockContent called with nil post, using fallback")
 		mockText := fmt.Sprintf("🎉 Anniversary post for %s! #UrbanArt #Anniversary", dateKey)
-		content, _ := domain.NewGeneratedContent(mockText, platform, []string{"#UrbanArt", "#Anniversary"}, "mock-prompt-for-dry-run")
+		content, _ := domain.NewGeneratedContent(mockText, platform, []string{"#UrbanArt", "#Anniversary"}, "mock-prompt-for-dry-run", "https://www.example.com/test")
 		return content
 	}
 
@@ -418,7 +418,7 @@ func (ps *PublishService) createMockContent(platform string, post *domain.Post, 
 	}
 
 	hashtags := []string{"#UrbanArt", "#Anniversary", "#StreetArt"}
-	content, _ := domain.NewGeneratedContent(mockText, platform, hashtags, "mock-prompt-for-dry-run")
+	content, _ := domain.NewGeneratedContent(mockText, platform, hashtags, "mock-prompt-for-dry-run", post.URI())
 
 	return content
 }

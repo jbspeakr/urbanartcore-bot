@@ -433,20 +433,16 @@ func (a *BlueskyAdapter) Publish(ctx context.Context, content *domain.GeneratedC
 		return result, wrappedErr
 	}
 
-	// Build external embed if URI is in metadata
+	// Build external embed from URI (guaranteed to exist as required field)
 	var embedData map[string]any
-	metadata := content.Metadata()
-	uri := metadata["uri"]
-	if uri != "" {
-		// Extract link preview (graceful degradation if it fails)
-		linkEmbed, err := a.buildExternalEmbedFromURI(ctx, uri)
-		if err != nil {
-			slog.Default().Warn("Failed to build external embed, proceeding without it",
-				slog.String("uri", uri),
-				slog.String("error", err.Error()))
-		} else if linkEmbed != nil {
-			embedData = linkEmbed
-		}
+	uri := content.URI()
+	linkEmbed, err := a.buildExternalEmbedFromURI(ctx, uri)
+	if err != nil {
+		slog.Default().Warn("Failed to build external embed, proceeding without it",
+			slog.String("uri", uri),
+			slog.String("error", err.Error()))
+	} else if linkEmbed != nil {
+		embedData = linkEmbed
 	}
 
 	// Read session DID
@@ -487,7 +483,7 @@ func (a *BlueskyAdapter) Publish(ctx context.Context, content *domain.GeneratedC
 		slog.Bool("has_facets", len(facets) > 0),
 		slog.Int("facet_count", len(facets)),
 		slog.Bool("has_embed", embedData != nil),
-		slog.String("metadata_uri", uri))
+		slog.String("uri", uri))
 
 	// Debug log the complete embed structure if present
 	if embedData != nil {

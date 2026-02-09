@@ -605,6 +605,7 @@ func createValidContent(t *testing.T) *domain.GeneratedContent {
 		"bluesky",
 		[]string{"#UrbanArt", "#Graffiti"},
 		"test-prompt",
+		"https://www.example.com/test",
 	)
 	require.NoError(t, err)
 	return content
@@ -617,6 +618,7 @@ func createContentWithPlatform(t *testing.T, platform, text string) *domain.Gene
 		platform,
 		[]string{},
 		"test-prompt",
+		"https://www.example.com/test",
 	)
 	require.NoError(t, err)
 	return content
@@ -629,6 +631,7 @@ func createContentWithText(t *testing.T, text string) *domain.GeneratedContent {
 		"bluesky",
 		[]string{},
 		"test-prompt",
+		"https://www.example.com/test",
 	)
 	require.NoError(t, err)
 	return content
@@ -1581,6 +1584,7 @@ func TestBlueskyAdapter_Publish_SuccessfulWithPlainText(t *testing.T) {
 		"bluesky",
 		[]string{},
 		"test-prompt",
+		"https://www.example.com/test",
 	)
 	require.NoError(t, err)
 
@@ -1974,6 +1978,7 @@ func TestBlueskyAdapter_Publish_ExtractsURIFromMetadata(t *testing.T) {
 				"bluesky",
 				[]string{"#UrbanArt"},
 				"test-prompt",
+				"https://www.example.com/test",
 			)
 			require.NoError(t, err)
 
@@ -2130,6 +2135,7 @@ func TestBlueskyAdapter_Publish_CompleteEmbedFlow(t *testing.T) {
 		"bluesky",
 		[]string{"#UrbanArt"},
 		"test-prompt",
+		"https://www.example.com/test",
 	)
 	require.NoError(t, err)
 
@@ -2247,6 +2253,7 @@ func TestBlueskyAdapter_Publish_EdgeCases_EmptyMetadata(t *testing.T) {
 				"bluesky",
 				[]string{},
 				"test-prompt",
+				"https://www.example.com/test",
 			)
 			require.NoError(t, err)
 
@@ -2372,10 +2379,6 @@ func TestBlobStructure_ATProtoFormat(t *testing.T) {
 }
 
 // TestDownloadAndEncodeThumbnail_BlobStructureFormat tests that actual blob upload returns correct format
-// CRITICAL BUG IDENTIFIED: This test reveals that the current implementation wraps the CID in an object
-// {"link": {"$link": "cid"}} but ATProto actually expects {"link": "cid"} (plain string).
-// This is causing embeds to fail silently on Bluesky.
-// TODO: Fix in bluesky.go line 828-832 to use plain string CID, not nested object.
 func TestDownloadAndEncodeThumbnail_BlobStructureFormat(t *testing.T) {
 	ctx := context.Background()
 

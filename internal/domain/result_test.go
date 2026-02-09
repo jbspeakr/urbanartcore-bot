@@ -19,6 +19,7 @@ func TestNewGeneratedContent_ValidInput(t *testing.T) {
 		PlatformBluesky,
 		hashtags,
 		prompt,
+		"https://www.example.com/test",
 	)
 
 	require.NoError(t, err)
@@ -27,17 +28,12 @@ func TestNewGeneratedContent_ValidInput(t *testing.T) {
 	assert.Equal(t, PlatformBluesky, content.Platform())
 	assert.Equal(t, []string{"#StreetArt", "#Graffiti", "#UrbanArt"}, content.Hashtags())
 	assert.Equal(t, prompt, content.PromptUsed())
+	assert.Equal(t, "https://www.example.com/test", content.URI())
 	assert.True(t, content.IsWithinLimit())
-
-	// Check metadata
-	metadata := content.Metadata()
-	assert.Equal(t, "40", metadata["character_count"]) // "Check out this amazing street art piece!" is 40 chars
-	assert.Equal(t, "3", metadata["hashtag_count"])
-	assert.Equal(t, "300", metadata["platform_limit"])
 }
 
 func TestNewGeneratedContent_InvalidPlatform(t *testing.T) {
-	content, err := NewGeneratedContent("Text", "invalid", []string{}, "")
+	content, err := NewGeneratedContent("Text", "invalid", []string{}, "", "https://www.example.com/test")
 
 	assert.Nil(t, content)
 	assert.Error(t, err)
@@ -45,7 +41,7 @@ func TestNewGeneratedContent_InvalidPlatform(t *testing.T) {
 }
 
 func TestNewGeneratedContent_EmptyText(t *testing.T) {
-	content, err := NewGeneratedContent("", PlatformBluesky, []string{}, "")
+	content, err := NewGeneratedContent("", PlatformBluesky, []string{}, "", "https://www.example.com/test")
 
 	assert.Nil(t, content)
 	assert.Error(t, err)
@@ -56,11 +52,29 @@ func TestNewGeneratedContent_TextTooLong(t *testing.T) {
 	// Create text longer than Bluesky limit
 	longText := strings.Repeat("A", BlueskyCharacterLimit+1)
 
-	content, err := NewGeneratedContent(longText, PlatformBluesky, []string{}, "")
+	content, err := NewGeneratedContent(longText, PlatformBluesky, []string{}, "", "https://www.example.com/test")
 
 	assert.Nil(t, content)
 	assert.Error(t, err)
 	assert.True(t, errors.Is(err, ErrTextTooLong))
+}
+
+func TestNewGeneratedContent_EmptyURI(t *testing.T) {
+	content, err := NewGeneratedContent("Valid text", PlatformBluesky, []string{}, "", "")
+
+	assert.Nil(t, content)
+	assert.Error(t, err)
+	var domainErr DomainError
+	assert.True(t, errors.As(err, &domainErr))
+	assert.Contains(t, err.Error(), "uri cannot be empty")
+}
+
+func TestGeneratedContent_URI(t *testing.T) {
+	testURI := "https://www.urbanartcore.com/test-post/"
+	content, err := NewGeneratedContent("Text", PlatformBluesky, []string{}, "", testURI)
+
+	require.NoError(t, err)
+	assert.Equal(t, testURI, content.URI())
 }
 
 func TestNewGeneratedContent_HashtagsFormatting(t *testing.T) {
@@ -72,7 +86,7 @@ func TestNewGeneratedContent_HashtagsFormatting(t *testing.T) {
 		"  ",           // Whitespace only
 	}
 
-	content, err := NewGeneratedContent("Text", PlatformBluesky, hashtags, "")
+	content, err := NewGeneratedContent("Text", PlatformBluesky, hashtags, "", "https://www.example.com/test")
 
 	require.NoError(t, err)
 	expected := []string{"#StreetArt", "#Graffiti", "#UrbanArt"}
@@ -94,7 +108,7 @@ func TestGeneratedContent_IsWithinLimit(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.platform, func(t *testing.T) {
 			text := strings.Repeat("A", tt.textLen)
-			content, err := NewGeneratedContent(text, tt.platform, []string{}, "")
+			content, err := NewGeneratedContent(text, tt.platform, []string{}, "", "https://www.example.com/test")
 
 			if tt.expected {
 				require.NoError(t, err)
@@ -107,14 +121,14 @@ func TestGeneratedContent_IsWithinLimit(t *testing.T) {
 }
 
 func TestGeneratedContent_CharacterCount(t *testing.T) {
-	content, err := NewGeneratedContent("Hello, World!", PlatformBluesky, []string{}, "")
+	content, err := NewGeneratedContent("Hello, World!", PlatformBluesky, []string{}, "", "https://www.example.com/test")
 	require.NoError(t, err)
 
 	assert.Equal(t, 13, content.CharacterCount())
 }
 
 func TestNewPlatformResult_ValidInput(t *testing.T) {
-	content, err := NewGeneratedContent("Text", PlatformBluesky, []string{}, "")
+	content, err := NewGeneratedContent("Text", PlatformBluesky, []string{}, "", "https://www.example.com/test")
 	require.NoError(t, err)
 
 	result, err := NewPlatformResult(PlatformBluesky, StatusSuccess, content)
@@ -253,7 +267,7 @@ func TestPublishResult_AddPlatformResult(t *testing.T) {
 	require.NoError(t, err)
 
 	// Add platform result with content
-	content, err := NewGeneratedContent("Text", PlatformBluesky, []string{}, "")
+	content, err := NewGeneratedContent("Text", PlatformBluesky, []string{}, "", "https://www.example.com/test")
 	require.NoError(t, err)
 
 	platformResult, err := NewPlatformResult(PlatformBluesky, StatusSuccess, content)
@@ -447,7 +461,7 @@ func TestGeneratedContent_EmojiBluesky(t *testing.T) {
 	// Bluesky uses byte count, so 600 > 300 → should FAIL
 	emoji := strings.Repeat("🎨", 150)
 
-	content, err := NewGeneratedContent(emoji, PlatformBluesky, []string{}, "")
+	content, err := NewGeneratedContent(emoji, PlatformBluesky, []string{}, "", "https://www.example.com/test")
 
 	assert.Nil(t, content)
 	assert.Error(t, err)
@@ -463,15 +477,11 @@ func TestGeneratedContent_EmojiMastodon(t *testing.T) {
 	// Mastodon uses rune count, so 250 ≤ 500 → should PASS
 	emoji := strings.Repeat("🎨", 250)
 
-	content, err := NewGeneratedContent(emoji, PlatformMastodon, []string{}, "")
+	content, err := NewGeneratedContent(emoji, PlatformMastodon, []string{}, "", "https://www.example.com/test")
 
 	require.NoError(t, err)
 	assert.NotNil(t, content)
 	assert.True(t, content.IsWithinLimit())
-
-	// Verify metadata shows rune count
-	metadata := content.Metadata()
-	assert.Equal(t, "250", metadata["character_count"]) // Rune count for Mastodon
 }
 
 func TestGeneratedContent_MastodonEmojiLimit(t *testing.T) {
@@ -480,7 +490,7 @@ func TestGeneratedContent_MastodonEmojiLimit(t *testing.T) {
 	// Mastodon uses rune count, so 501 > 500 → should FAIL
 	emoji := strings.Repeat("🎨", 501)
 
-	content, err := NewGeneratedContent(emoji, PlatformMastodon, []string{}, "")
+	content, err := NewGeneratedContent(emoji, PlatformMastodon, []string{}, "", "https://www.example.com/test")
 
 	assert.Nil(t, content)
 	assert.Error(t, err)
@@ -496,7 +506,7 @@ func TestGeneratedContent_MastodonPlainTextLimit(t *testing.T) {
 	// Mastodon uses rune count, so 501 > 500 → should FAIL
 	text := strings.Repeat("A", 501)
 
-	content, err := NewGeneratedContent(text, PlatformMastodon, []string{}, "")
+	content, err := NewGeneratedContent(text, PlatformMastodon, []string{}, "", "https://www.example.com/test")
 
 	assert.Nil(t, content)
 	assert.Error(t, err)
@@ -509,7 +519,7 @@ func TestGeneratedContent_BlueskayPlainTextLimit(t *testing.T) {
 	// Bluesky uses byte count, so 300 ≤ 300 → should PASS
 	text := strings.Repeat("A", 300)
 
-	content, err := NewGeneratedContent(text, PlatformBluesky, []string{}, "")
+	content, err := NewGeneratedContent(text, PlatformBluesky, []string{}, "", "https://www.example.com/test")
 
 	require.NoError(t, err)
 	assert.NotNil(t, content)
