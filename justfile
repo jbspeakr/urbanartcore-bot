@@ -69,10 +69,10 @@ push-image: check
 
     # Authenticate with registry
     echo "Authenticating with registry ${SCW_REGISTRY}..."
-    echo "$SCW_SECRET_KEY" | docker login -u nologin --password-stdin "${SCW_REGISTRY}"
+    echo "$SCW_SECRET_KEY" | podman login -u nologin --password-stdin "${SCW_REGISTRY}"
 
-    # Build Docker image
-    docker build \
+    # Build container image
+    podman build \
       --build-arg VERSION=latest \
       --build-arg COMMIT="${COMMIT}" \
       --build-arg BUILD_TIME="${BUILD_TIME}" \
@@ -80,7 +80,7 @@ push-image: check
       .
 
     # Push to registry
-    docker push "${IMAGE_TAG}"
+    podman push "${IMAGE_TAG}"
     echo "✓ Successfully pushed ${IMAGE_TAG}"
 
 # Build and test locally (no Docker)
