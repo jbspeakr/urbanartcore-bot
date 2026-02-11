@@ -93,50 +93,38 @@ build-local:
     go build -o bin/uac-socializer ./main.go
     ./bin/uac-socializer --help
 
+# Helper: Export .env vars with TF_VAR_ prefix for OpenTofu
+export_tofu_vars := "while IFS='=' read -r key value; do [[ \"$key\" =~ ^# ]] && continue; [[ -z \"$key\" ]] && continue; export \"TF_VAR_${key}=${value}\"; done < .env"
+
 # OpenTofu: Initialize working directory
 tofu-init:
     #!/bin/bash
-    set -e
-    set -a
-    source .env
-    set +a
+    {{export_tofu_vars}}
     cd tofu && tofu init
 
 # OpenTofu: Validate configuration
 tofu-validate:
     #!/bin/bash
-    set -e
-    set -a
-    source .env
-    set +a
+    {{export_tofu_vars}}
     cd tofu && tofu validate
 
 # OpenTofu: Plan changes
 tofu-plan:
     #!/bin/bash
-    set -e
-    set -a
-    source .env
-    set +a
+    {{export_tofu_vars}}
     cd tofu && tofu plan
 
 # OpenTofu: Apply configuration
 tofu-apply:
     #!/bin/bash
-    set -e
-    set -a
-    source .env
-    set +a
+    {{export_tofu_vars}}
     cd tofu && tofu apply
 
 # OpenTofu: Destroy infrastructure (careful!)
 tofu-destroy:
     #!/bin/bash
-    set -e
     echo "⚠️  WARNING: This will destroy all Scaleway resources!"
-    set -a
-    source .env
-    set +a
+    {{export_tofu_vars}}
     cd tofu && tofu destroy
 
 # Complete deployment workflow: build, push, and deploy with OpenTofu

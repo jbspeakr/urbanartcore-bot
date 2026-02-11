@@ -7,7 +7,7 @@ resource "scaleway_secret" "mistral_api_key" {
   region      = var.region
   protected   = true
 
-  tags = local.common_tags
+  tags = [for k, v in local.common_tags : "${k}:${v}"]
 
   lifecycle {
     prevent_destroy = true
@@ -25,7 +25,7 @@ resource "scaleway_secret" "bluesky_password" {
   region      = var.region
   protected   = true
 
-  tags = local.common_tags
+  tags = [for k, v in local.common_tags : "${k}:${v}"]
 
   lifecycle {
     prevent_destroy = true
@@ -43,7 +43,7 @@ resource "scaleway_secret" "mastodon_access_token" {
   region      = var.region
   protected   = true
 
-  tags = local.common_tags
+  tags = [for k, v in local.common_tags : "${k}:${v}"]
 
   lifecycle {
     prevent_destroy = true

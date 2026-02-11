@@ -165,11 +165,11 @@ variable "UAC_MASTODON_ACCESS_TOKEN" {
 
 # Application Configuration Variables (Non-sensitive)
 variable "UAC_BLUESKY_HANDLE" {
-  description = "Bluesky account handle (e.g., user.bsky.social)"
+  description = "Bluesky account handle (e.g., user.bsky.social or custom.domain)"
   type        = string
   validation {
-    condition     = can(regex("^[a-z0-9.-]+\\.bsky\\.social$", var.UAC_BLUESKY_HANDLE))
-    error_message = "UAC_BLUESKY_HANDLE must be a valid Bluesky handle"
+    condition     = can(regex("^[a-z0-9.-]+$", var.UAC_BLUESKY_HANDLE))
+    error_message = "UAC_BLUESKY_HANDLE must be a valid Bluesky handle (domain format)"
   }
 }
 
