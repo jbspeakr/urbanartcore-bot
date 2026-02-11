@@ -1,0 +1,57 @@
+# Scaleway Configuration
+# Get these values from your Scaleway Console
+# https://console.scaleway.com/organization/settings
+project_id = "40fdbe6e-de14-4ccd-8e97-ea4f06438bc8"
+region     = "fr-par"
+zone       = "fr-par-1"
+
+# Application Configuration
+app_name  = "uac-socializer"
+image_uri = "rg.fr-par.scw.cloud/brennenstuhl/uac-socializer"
+image_tag = "latest"
+
+# Job Resource Configuration
+# Default: 1 vCPU (1000 mVCPU), 512 MiB RAM, 10 minute timeout
+cpu_limit    = 1000
+memory_limit = 512
+timeout      = "10m"
+
+# Job Execution Command
+# Use: ["publish", "--dry-run"] to test without publishing
+# Use: ["publish"] for production
+job_command = ["publish"]
+
+# Cron Configuration
+# Default: Daily at midnight UTC (recommended)
+# Use https://crontab.guru to generate custom schedules
+cron_schedule = "55 11 * * *"
+cron_timezone = "UTC"
+
+# Sensitive Credentials (from .env or CI/CD secrets)
+# IMPORTANT: Never commit actual secrets to version control!
+mistral_api_key       = "secret-xxxxxxxxxxxxxxxxxxxx"
+bluesky_password      = "secret-xxxxxxxxxxxxxxxxxxxx"
+mastodon_access_token = "secret-xxxxxxxxxxxxxxxxxxxx"
+
+# Platform Configuration
+bluesky_handle  = "handle.bsky.social"
+mastodon_server = "https://mastodon.art"
+
+# AI Configuration (optional, uses defaults if not specified)
+mistral_model      = "mistral-large-2512"
+mistral_max_tokens = 1024
+mistral_temperature = 0.7
+
+# Retry and Timeout Configuration
+ai_retry_count = 3
+ai_timeout     = "30s"
+
+# Environment (always production)
+environment = "production"
+
+# Common Tags
+common_tags = {
+  opentofu = "true"
+  project  = "uac-socializer"
+  stage    = "production"
+}

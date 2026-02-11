@@ -11,6 +11,11 @@ version:
     echo "  Commit:  ${COMMIT}"
     echo "  Built:   ${BUILD_TIME}"
 
+# Run all tests
+test:
+    @echo "Running tests..."
+    go test ./...
+
 # Run golangci-lint if available
 lint:
     @echo "Running linter..."
@@ -33,8 +38,8 @@ vet:
     @echo "Running go vet..."
     go vet ./...
 
-# Quality gate: run tests and linting
-check: fmt vet lint
+# Quality gate: formatting, linting, then tests
+check: fmt vet lint test
     @echo "All checks passed!"
 
 # Build and push to registry (REQUIRES tests to pass first)
@@ -87,3 +92,53 @@ push-image: check
 build-local:
     go build -o bin/uac-socializer ./main.go
     ./bin/uac-socializer --help
+
+# OpenTofu: Initialize working directory
+tofu-init:
+    #!/bin/bash
+    set -e
+    set -a
+    source .env
+    set +a
+    cd tofu && tofu init
+
+# OpenTofu: Validate configuration
+tofu-validate:
+    #!/bin/bash
+    set -e
+    set -a
+    source .env
+    set +a
+    cd tofu && tofu validate
+
+# OpenTofu: Plan changes
+tofu-plan:
+    #!/bin/bash
+    set -e
+    set -a
+    source .env
+    set +a
+    cd tofu && tofu plan
+
+# OpenTofu: Apply configuration
+tofu-apply:
+    #!/bin/bash
+    set -e
+    set -a
+    source .env
+    set +a
+    cd tofu && tofu apply
+
+# OpenTofu: Destroy infrastructure (careful!)
+tofu-destroy:
+    #!/bin/bash
+    set -e
+    echo "⚠️  WARNING: This will destroy all Scaleway resources!"
+    set -a
+    source .env
+    set +a
+    cd tofu && tofu destroy
+
+# Complete deployment workflow: build, push, and deploy with OpenTofu
+deploy: check push-image tofu-apply
+    @echo "✓ Deployment complete"

@@ -1,0 +1,34 @@
+# OpenTofu state files (sensitive, never commit)
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+
+# OpenTofu cache and lock files
+.terraform/
+.terraform/**/*
+.tofu/
+.tofu/**/*
+
+# Variable files with actual values (never commit)
+*.tfvars
+!*.tfvars.example
+
+# IDE and editor files
+.idea/
+*.swp
+*.swo
+*~
+.vscode/
+*.backup
+
+# Logs
+crash.log
+crash.*.log
+
+# OpenTofu and RC files
+.terraformrc
+terraform.rc
+tfplan.out
+
+# macOS
+.DS_Store
