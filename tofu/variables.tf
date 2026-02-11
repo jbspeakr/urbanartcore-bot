@@ -115,7 +115,7 @@ variable "job_command" {
 variable "cron_schedule" {
   description = "Cron schedule for job execution (always UTC)"
   type        = string
-  default     = "0 0 * * *"
+  default     = "55 11 * * *"
   validation {
     condition     = can(regex("^(\\*|([0-9]|1[0-9]|2[0-9]|3[0-9]|4[0-9]|5[0-9])|\\*\\/([0-9]|1[0-9]|2[0-9]|3[0-9]|4[0-9]|5[0-9])) (\\*|([0-9]|1[0-9]|2[0-3])|\\*\\/([0-9]|1[0-9]|2[0-3])) (\\*|([1-9]|1[0-9]|2[0-9]|3[0-1])|\\*\\/([1-9]|1[0-9]|2[0-9]|3[0-1])) (\\*|([1-9]|1[0-2])|\\*\\/([1-9]|1[0-2])) (\\*|([0-6])|\\*\\/([0-6]))$", var.cron_schedule))
     error_message = "cron_schedule must be a valid 5-field cron expression"

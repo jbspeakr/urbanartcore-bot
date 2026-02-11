@@ -100,22 +100,6 @@ Sensitive credentials stored in Scaleway Secret Manager:
 
 Marked with `protected = true` to prevent accidental deletion.
 
-### Scheduling
-
-Default: Daily at midnight UTC
-
-Change via `.env` variable (if added to tofu configuration):
-```bash
-# Cron format: minute hour day-of-month month day-of-week
-# Examples:
-0 0 * * *      # Daily at midnight UTC
-0 8 * * *      # Daily at 8 AM UTC
-0 6,18 * * *   # Twice daily (6 AM, 6 PM UTC)
-0 */4 * * *    # Every 4 hours
-```
-
-Use https://crontab.guru to validate schedules.
-
 ## Files Reference
 
 | File | Purpose |
