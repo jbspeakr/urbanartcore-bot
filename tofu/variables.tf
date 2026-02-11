@@ -91,6 +91,16 @@ variable "memory_limit" {
   }
 }
 
+variable "local_storage_capacity" {
+  description = "Local storage capacity in MiB (default 1000 = 1 GB)"
+  type        = number
+  default     = 1000
+  validation {
+    condition     = var.local_storage_capacity > 0 && var.local_storage_capacity <= 20000
+    error_message = "local_storage_capacity must be greater than 0 and at most 20000 MiB"
+  }
+}
+
 variable "timeout" {
   description = "Job timeout in Go duration format (e.g., 10m, 300s)"
   type        = string
