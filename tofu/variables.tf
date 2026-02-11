@@ -102,9 +102,9 @@ variable "timeout" {
 }
 
 variable "job_command" {
-  description = "Job command as list (e.g., [\"publish\"] or [\"publish\", \"--dry-run\"])"
+  description = "Job command as list (e.g., [\"/uac-socializer\", \"publish\"])"
   type        = list(string)
-  default     = ["publish"]
+  default     = ["/uac-socializer", "publish"]
   validation {
     condition     = length(var.job_command) > 0
     error_message = "job_command must contain at least one element"
