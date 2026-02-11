@@ -32,6 +32,11 @@ RUN chmod +x uac-socializer && ./uac-socializer --help
 # Final stage
 FROM scratch
 
+# Re-declare build arguments for use in this stage
+ARG VERSION=dev
+ARG COMMIT=unknown
+ARG BUILD_TIME=unknown
+
 # Copy CA certificates for HTTPS
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
@@ -53,9 +58,9 @@ ENV TZ=UTC
 # OCI labels
 LABEL org.opencontainers.image.title="UAC Socializer"
 LABEL org.opencontainers.image.description="Automated social media publishing for Urban Art Core anniversaries"
-LABEL org.opencontainers.image.authors="Brennen Stuhl"
-LABEL org.opencontainers.image.url="https://forgejo.b7l.de/b7l/uac-socializer-v2"
-LABEL org.opencontainers.image.source="https://forgejo.b7l.de/b7l/uac-socializer-v2"
+LABEL org.opencontainers.image.authors="Jan Brennenstuhl"
+LABEL org.opencontainers.image.url="rg.fr-par.scw.cloud/brennenstuhl/uac-socializer"
+LABEL org.opencontainers.image.source="https://codeberg.org/brennenstuhl/uac-socializer"
 LABEL org.opencontainers.image.version="${VERSION}"
 LABEL org.opencontainers.image.revision="${COMMIT}"
 LABEL org.opencontainers.image.created="${BUILD_TIME}"

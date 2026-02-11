@@ -69,6 +69,7 @@ push-image: check
     IMAGE_TAG="${SCW_REGISTRY}/${SCW_IMAGE_NAME}:latest"
 
     echo "Building and pushing to ${IMAGE_TAG}"
+    echo "  Version: latest"
     echo "  Commit:  ${COMMIT}"
     echo "  Built:   ${BUILD_TIME}"
 
@@ -77,6 +78,7 @@ push-image: check
     echo "$SCW_SECRET_KEY" | podman login -u nologin --password-stdin "${SCW_REGISTRY}"
 
     # Build container image
+    echo "Running: podman build --build-arg VERSION=latest --build-arg COMMIT=${COMMIT} --build-arg BUILD_TIME=${BUILD_TIME} -t ${IMAGE_TAG} ."
     podman build \
       --build-arg VERSION=latest \
       --build-arg COMMIT="${COMMIT}" \
@@ -93,38 +95,45 @@ build-local:
     go build -o bin/uac-socializer ./main.go
     ./bin/uac-socializer --help
 
-# Helper: Export .env vars with TF_VAR_ prefix for OpenTofu
-export_tofu_vars := "while IFS='=' read -r key value; do [[ \"$key\" =~ ^# ]] && continue; [[ -z \"$key\" ]] && continue; export \"TF_VAR_${key}=${value}\"; done < .env"
-
 # OpenTofu: Initialize working directory
 tofu-init:
     #!/bin/bash
-    {{export_tofu_vars}}
+    # Export .env variables: both raw (for Scaleway SDK) and TF_VAR_ prefixed (for OpenTofu)
+    export $(grep -v '^#' .env | xargs)
+    while IFS='=' read -r key value; do [[ "$key" =~ ^# ]] && continue; [[ -z "$key" ]] && continue; export "TF_VAR_${key}=${value}"; done < .env
     cd tofu && tofu init
 
 # OpenTofu: Validate configuration
 tofu-validate:
     #!/bin/bash
-    {{export_tofu_vars}}
+    # Export .env variables: both raw (for Scaleway SDK) and TF_VAR_ prefixed (for OpenTofu)
+    export $(grep -v '^#' .env | xargs)
+    while IFS='=' read -r key value; do [[ "$key" =~ ^# ]] && continue; [[ -z "$key" ]] && continue; export "TF_VAR_${key}=${value}"; done < .env
     cd tofu && tofu validate
 
 # OpenTofu: Plan changes
 tofu-plan:
     #!/bin/bash
-    {{export_tofu_vars}}
+    # Export .env variables: both raw (for Scaleway SDK) and TF_VAR_ prefixed (for OpenTofu)
+    export $(grep -v '^#' .env | xargs)
+    while IFS='=' read -r key value; do [[ "$key" =~ ^# ]] && continue; [[ -z "$key" ]] && continue; export "TF_VAR_${key}=${value}"; done < .env
     cd tofu && tofu plan
 
 # OpenTofu: Apply configuration
 tofu-apply:
     #!/bin/bash
-    {{export_tofu_vars}}
+    # Export .env variables: both raw (for Scaleway SDK) and TF_VAR_ prefixed (for OpenTofu)
+    export $(grep -v '^#' .env | xargs)
+    while IFS='=' read -r key value; do [[ "$key" =~ ^# ]] && continue; [[ -z "$key" ]] && continue; export "TF_VAR_${key}=${value}"; done < .env
     cd tofu && tofu apply
 
 # OpenTofu: Destroy infrastructure (careful!)
 tofu-destroy:
     #!/bin/bash
     echo "⚠️  WARNING: This will destroy all Scaleway resources!"
-    {{export_tofu_vars}}
+    # Export .env variables: both raw (for Scaleway SDK) and TF_VAR_ prefixed (for OpenTofu)
+    export $(grep -v '^#' .env | xargs)
+    while IFS='=' read -r key value; do [[ "$key" =~ ^# ]] && continue; [[ -z "$key" ]] && continue; export "TF_VAR_${key}=${value}"; done < .env
     cd tofu && tofu destroy
 
 # Complete deployment workflow: build, push, and deploy with OpenTofu
