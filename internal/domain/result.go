@@ -1,6 +1,8 @@
 package domain
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
@@ -21,9 +23,11 @@ const (
 	PlatformAll      = "all"
 )
 
-// Platform-specific content limits
+// Platform-specific content limits, in the units each platform counts:
+// grapheme clusters for Bluesky, characters with URLs as 23 for Mastodon.
+// Bluesky additionally caps the byte length at BlueskyByteLimit.
 const (
-	BlueskyCharacterLimit  = 300
+	BlueskyCharacterLimit  = BlueskyGraphemeLimit
 	MastodonCharacterLimit = 500
 )
 
@@ -68,11 +72,6 @@ func NewGeneratedContent(text, platform string, hashtags []string, promptUsed, u
 		return nil, DomainError{Err: ErrEmptyGeneratedText}
 	}
 
-	// Check platform-specific character limits
-	if err := validateTextLength(text, platform); err != nil {
-		return nil, DomainError{Err: err}
-	}
-
 	// Clean and validate hashtags
 	cleanHashtags := make([]string, 0, len(hashtags))
 	for _, tag := range hashtags {
@@ -84,6 +83,12 @@ func NewGeneratedContent(text, platform string, hashtags []string, promptUsed, u
 			}
 			cleanHashtags = append(cleanHashtags, tag)
 		}
+	}
+
+	// Check platform-specific limits on the text as it will be posted,
+	// with hashtags appended and, on Bluesky, URLs removed
+	if err := validateTextLength(RenderText(text, platform, cleanHashtags), platform); err != nil {
+		return nil, DomainError{Err: err}
 	}
 
 	return &GeneratedContent{
@@ -146,24 +151,43 @@ func (gc *GeneratedContent) GeneratedAt() time.Time {
 	return gc.generatedAt
 }
 
-// CharacterCount returns the byte count of the generated text.
-// For platform-aware counting, use IsWithinLimit() to check if content fits the platform's character limit.
+// RenderedText returns the text as it will be posted on the platform,
+// with hashtags appended and, on Bluesky, URLs removed.
+func (gc *GeneratedContent) RenderedText() string {
+	if gc == nil {
+		return ""
+	}
+	return RenderText(gc.text, gc.platform, gc.hashtags)
+}
+
+// CharacterCount returns the length of the rendered text as the platform counts it:
+// grapheme clusters for Bluesky, characters with URLs as 23 for Mastodon.
 func (gc *GeneratedContent) CharacterCount() int {
 	if gc == nil {
 		return 0
 	}
-	return len(gc.text)
+	return countTextLength(gc.RenderedText(), gc.platform)
 }
 
-// IsWithinLimit checks if the content fits within the platform's character limit.
-// Uses platform-specific counting: bytes for Bluesky, runes for Mastodon.
+// IsWithinLimit checks if the rendered content fits within the platform's limits.
 func (gc *GeneratedContent) IsWithinLimit() bool {
 	if gc == nil {
 		return false
 	}
-	limit := getPlatformLimit(gc.platform)
-	currentLength := countTextLength(gc.text, gc.platform)
-	return currentLength <= limit
+	return validateTextLength(gc.RenderedText(), gc.platform) == nil
+}
+
+// IdempotencyKey returns a stable key for publishing this content on its
+// platform on the day it was generated. A rerun on the same day for the same
+// post yields the same key, so platforms that honour idempotency keys drop
+// the duplicate.
+func (gc *GeneratedContent) IdempotencyKey() string {
+	if gc == nil {
+		return ""
+	}
+	raw := gc.generatedAt.UTC().Format(time.DateOnly) + "/" + gc.uri + "/" + gc.platform
+	sum := sha256.Sum256([]byte(raw))
+	return hex.EncodeToString(sum[:])
 }
 
 // PlatformResult represents the outcome of publishing to a specific platform.
@@ -521,39 +545,39 @@ func IsValidPlatform(platform string) bool {
 	}
 }
 
-// countTextLength returns the length based on platform spec.
-// Bluesky uses byte count (UTF-8), Mastodon uses rune count (characters).
+// countTextLength returns the length of text as the platform counts it.
+// Bluesky counts grapheme clusters, Mastodon counts characters with every
+// URL as MastodonURLLength.
 func countTextLength(text, platform string) int {
 	switch strings.ToLower(platform) {
 	case PlatformBluesky:
-		return len(text) // UTF-8 bytes
+		return CountGraphemes(text)
 	case PlatformMastodon:
-		return len([]rune(text)) // Character count
+		return CountMastodonCharacters(text)
 	default:
-		return len(text)
+		return len([]rune(text))
 	}
 }
 
-// validateTextLength checks if text fits within platform character limits.
-// For Bluesky: counts UTF-8 bytes
-// For Mastodon: counts runes (characters)
+// validateTextLength checks if text fits within platform limits.
+// For Bluesky: 300 grapheme clusters and 3,000 UTF-8 bytes
+// For Mastodon: 500 characters, URLs counted as 23
 func validateTextLength(text, platform string) error {
 	limit := getPlatformLimit(platform)
 	currentLength := countTextLength(text, platform)
 
 	if currentLength > limit {
-		var unit string
-		switch strings.ToLower(platform) {
-		case PlatformBluesky:
-			unit = "bytes"
-		case PlatformMastodon:
-			unit = "characters"
-		default:
-			unit = "characters"
+		unit := "characters"
+		if strings.ToLower(platform) == PlatformBluesky {
+			unit = "graphemes"
 		}
-
 		return fmt.Errorf("%w: %d %s, limit is %d for %s", ErrTextTooLong, currentLength, unit, limit, platform)
 	}
+
+	if strings.ToLower(platform) == PlatformBluesky && len(text) > BlueskyByteLimit {
+		return fmt.Errorf("%w: %d bytes, limit is %d for %s", ErrTextTooLong, len(text), BlueskyByteLimit, platform)
+	}
+
 	return nil
 }
 

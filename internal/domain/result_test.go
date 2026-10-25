@@ -456,25 +456,125 @@ func TestValidateTextLength(t *testing.T) {
 }
 
 func TestGeneratedContent_EmojiBluesky(t *testing.T) {
-	// Test case: Bluesky with emoji
-	// 150 emoji characters = 150 runes ≈ 600 UTF-8 bytes
-	// Bluesky uses byte count, so 600 > 300 → should FAIL
-	emoji := strings.Repeat("🎨", 150)
+	// Bluesky counts grapheme clusters, not bytes:
+	// 300 emoji are 300 graphemes and 1,200 bytes, which is a valid post
+	emoji := strings.Repeat("🎨", BlueskyGraphemeLimit)
+
+	content, err := NewGeneratedContent(emoji, PlatformBluesky, []string{}, "", "https://www.example.com/test")
+
+	require.NoError(t, err)
+	assert.True(t, content.IsWithinLimit())
+	assert.Equal(t, BlueskyGraphemeLimit, content.CharacterCount())
+}
+
+func TestGeneratedContent_BlueskyMultiByteAtLimit(t *testing.T) {
+	// 300 graphemes mixing accented letters, CJK and a combining sequence
+	text := strings.Repeat("é", 100) + strings.Repeat("街", 100) + strings.Repeat("e\u0301", 100)
+	require.Equal(t, 300, CountGraphemes(text))
+	require.Greater(t, len(text), 300)
+
+	content, err := NewGeneratedContent(text, PlatformBluesky, []string{}, "", "https://www.example.com/test")
+
+	require.NoError(t, err)
+	assert.True(t, content.IsWithinLimit())
+}
+
+func TestGeneratedContent_BlueskyOverGraphemeLimit(t *testing.T) {
+	emoji := strings.Repeat("🎨", BlueskyGraphemeLimit+1)
 
 	content, err := NewGeneratedContent(emoji, PlatformBluesky, []string{}, "", "https://www.example.com/test")
 
 	assert.Nil(t, content)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.True(t, errors.Is(err, ErrTextTooLong))
+	assert.Contains(t, err.Error(), "graphemes")
+}
 
-	// Verify error message mentions bytes
+func TestGeneratedContent_BlueskyOverByteLimit(t *testing.T) {
+	// A family emoji is one grapheme of 25 bytes: 150 of them stay under
+	// 300 graphemes but exceed 3,000 bytes
+	family := "👨\u200d👩\u200d👧\u200d👦"
+	text := strings.Repeat(family, 150)
+	require.Equal(t, 150, CountGraphemes(text))
+	require.Greater(t, len(text), BlueskyByteLimit)
+
+	content, err := NewGeneratedContent(text, PlatformBluesky, []string{}, "", "https://www.example.com/test")
+
+	assert.Nil(t, content)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrTextTooLong))
 	assert.Contains(t, err.Error(), "bytes")
+}
+
+func TestGeneratedContent_BlueskyLimitIncludesHashtags(t *testing.T) {
+	// 290 graphemes of text fit, but not with " #StreetArt #Graffiti" appended
+	text := strings.Repeat("A", 290)
+
+	content, err := NewGeneratedContent(text, PlatformBluesky, []string{"StreetArt", "Graffiti"}, "", "https://www.example.com/test")
+
+	assert.Nil(t, content)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrTextTooLong))
+}
+
+func TestGeneratedContent_BlueskyLimitIgnoresStrippedURL(t *testing.T) {
+	// The URL is removed before posting, so it does not count against the limit
+	text := strings.Repeat("A", 290) + " https://www.urbanartcore.com/a-very-long-post-slug-that-would-not-fit/"
+
+	content, err := NewGeneratedContent(text, PlatformBluesky, []string{}, "", "https://www.example.com/test")
+
+	require.NoError(t, err)
+	assert.Equal(t, 290, content.CharacterCount())
+}
+
+func TestGeneratedContent_MastodonURLCountsAs23(t *testing.T) {
+	url := "https://www.urbanartcore.com/" + strings.Repeat("x", 100) + "/"
+	text := strings.Repeat("A", 450) + " " + url
+
+	content, err := NewGeneratedContent(text, PlatformMastodon, []string{}, "", "https://www.example.com/test")
+
+	require.NoError(t, err)
+	assert.Equal(t, 450+1+MastodonURLLength, content.CharacterCount())
+}
+
+func TestGeneratedContent_MastodonLimitIncludesHashtags(t *testing.T) {
+	text := strings.Repeat("A", 490)
+
+	content, err := NewGeneratedContent(text, PlatformMastodon, []string{"StreetArt", "Graffiti"}, "", "https://www.example.com/test")
+
+	assert.Nil(t, content)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrTextTooLong))
+}
+
+func TestGeneratedContent_RenderedText(t *testing.T) {
+	bsky, err := NewGeneratedContent("Text https://example.com/post", PlatformBluesky, []string{"StreetArt"}, "", "https://example.com/post")
+	require.NoError(t, err)
+	assert.Equal(t, "Text #StreetArt", bsky.RenderedText())
+
+	masto, err := NewGeneratedContent("Text https://example.com/post", PlatformMastodon, []string{"StreetArt"}, "", "https://example.com/post")
+	require.NoError(t, err)
+	assert.Equal(t, "Text https://example.com/post\n\n#StreetArt", masto.RenderedText())
+}
+
+func TestGeneratedContent_IdempotencyKey(t *testing.T) {
+	a, err := NewGeneratedContent("Text one", PlatformMastodon, nil, "", "https://example.com/post")
+	require.NoError(t, err)
+	b, err := NewGeneratedContent("A different text", PlatformMastodon, nil, "", "https://example.com/post")
+	require.NoError(t, err)
+	c, err := NewGeneratedContent("Text one", PlatformMastodon, nil, "", "https://example.com/other")
+	require.NoError(t, err)
+
+	assert.Len(t, a.IdempotencyKey(), 64)
+	assert.Equal(t, a.IdempotencyKey(), b.IdempotencyKey(), "same post, platform and day must give the same key")
+	assert.NotEqual(t, a.IdempotencyKey(), c.IdempotencyKey())
+	assert.Empty(t, (*GeneratedContent)(nil).IdempotencyKey())
 }
 
 func TestGeneratedContent_EmojiMastodon(t *testing.T) {
 	// Test case: Mastodon with emoji
-	// 250 emoji characters = 250 runes ≈ 1000 UTF-8 bytes
-	// Mastodon uses rune count, so 250 ≤ 500 → should PASS
+	// 250 emoji characters = 250 graphemes ≈ 1000 UTF-8 bytes
+	// Mastodon counts characters, so 250 ≤ 500 → should PASS
 	emoji := strings.Repeat("🎨", 250)
 
 	content, err := NewGeneratedContent(emoji, PlatformMastodon, []string{}, "", "https://www.example.com/test")
@@ -486,8 +586,7 @@ func TestGeneratedContent_EmojiMastodon(t *testing.T) {
 
 func TestGeneratedContent_MastodonEmojiLimit(t *testing.T) {
 	// Test case: Mastodon with emoji over limit
-	// 501 emoji characters = 501 runes
-	// Mastodon uses rune count, so 501 > 500 → should FAIL
+	// 501 emoji characters → 501 > 500 → should FAIL
 	emoji := strings.Repeat("🎨", 501)
 
 	content, err := NewGeneratedContent(emoji, PlatformMastodon, []string{}, "", "https://www.example.com/test")
@@ -502,8 +601,7 @@ func TestGeneratedContent_MastodonEmojiLimit(t *testing.T) {
 
 func TestGeneratedContent_MastodonPlainTextLimit(t *testing.T) {
 	// Test case: Mastodon with plain text over limit
-	// 501 ASCII characters = 501 runes
-	// Mastodon uses rune count, so 501 > 500 → should FAIL
+	// 501 ASCII characters → 501 > 500 → should FAIL
 	text := strings.Repeat("A", 501)
 
 	content, err := NewGeneratedContent(text, PlatformMastodon, []string{}, "", "https://www.example.com/test")
@@ -513,10 +611,9 @@ func TestGeneratedContent_MastodonPlainTextLimit(t *testing.T) {
 	assert.True(t, errors.Is(err, ErrTextTooLong))
 }
 
-func TestGeneratedContent_BlueskayPlainTextLimit(t *testing.T) {
+func TestGeneratedContent_BlueskyPlainTextLimit(t *testing.T) {
 	// Test case: Bluesky with plain text at limit
-	// 300 ASCII characters = 300 bytes
-	// Bluesky uses byte count, so 300 ≤ 300 → should PASS
+	// 300 ASCII characters = 300 graphemes → should PASS
 	text := strings.Repeat("A", 300)
 
 	content, err := NewGeneratedContent(text, PlatformBluesky, []string{}, "", "https://www.example.com/test")
