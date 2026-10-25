@@ -67,6 +67,23 @@ func mockMistralServer(handler http.HandlerFunc) *httptest.Server {
 	return httptest.NewServer(handler)
 }
 
+// unauthorizedEndpoint is the URL of a local server that rejects every request
+// like the real Mistral API does for an invalid key, so no test reaches the network.
+var unauthorizedEndpoint string
+
+func TestMain(m *testing.M) {
+	server := mockMistralServer(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"message":"Unauthorized"}`))
+	})
+	unauthorizedEndpoint = server.URL
+
+	code := m.Run()
+	server.Close()
+	os.Exit(code)
+}
+
 // createTestConfig creates a test configuration with sensible defaults
 func createTestConfig() app.MistralConfig {
 	return app.MistralConfig{
@@ -76,6 +93,7 @@ func createTestConfig() app.MistralConfig {
 		Temperature: 0.7,
 		RetryCount:  2,
 		Timeout:     30 * time.Second,
+		Endpoint:    unauthorizedEndpoint,
 	}
 }
 
@@ -463,12 +481,14 @@ func TestGenerateContent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Note: The actual Mistral client uses the real endpoint, not our mock server
-			// Without mocking the HTTP transport layer, these tests will hit the real API
-			// and fail with authentication errors. This is expected behavior.
-			// The structural tests verify error handling, validation, and logic flow.
-
 			config := createTestConfig()
+			// Each case checks a single response; retry behaviour is covered elsewhere
+			config.RetryCount = 0
+			if server := tt.setupServer(t); server != nil {
+				defer server.Close()
+				config.Endpoint = server.URL
+			}
+
 			promptMgr := tt.setupPromptMgr()
 			adapter, err := NewMistralAdapter(config, promptMgr)
 			require.NoError(t, err)
@@ -476,28 +496,17 @@ func TestGenerateContent(t *testing.T) {
 			req := tt.setupRequest()
 			ctx := context.Background()
 
-			// Attempt generation - will fail without real API or HTTP transport mock
 			content, err := adapter.GenerateContent(ctx, req)
 
 			if tt.expectError {
 				require.Error(t, err)
-				if tt.errorContains != "" {
-					// Check if error matches expected OR is API auth error (expected in tests)
-					containsExpected := strings.Contains(err.Error(), tt.errorContains)
-					containsAuthError := strings.Contains(err.Error(), "API key")
-					assert.True(t, containsExpected || containsAuthError,
-						"Expected error to contain '%s' or be auth error, got: %v", tt.errorContains, err)
-				}
-			} else {
-				// For success cases, we expect API auth errors in test environment
-				if err != nil {
-					t.Logf("Generation error (expected without real API key): %v", err)
-					// Verify it's an auth error
-					assert.Contains(t, err.Error(), "API key")
-				}
-				if content != nil && tt.validateResult != nil {
-					tt.validateResult(t, content)
-				}
+				assert.Contains(t, err.Error(), tt.errorContains)
+				return
+			}
+
+			require.NoError(t, err)
+			if tt.validateResult != nil {
+				tt.validateResult(t, content)
 			}
 		})
 	}
