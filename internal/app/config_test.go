@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -100,6 +101,24 @@ func TestValidateConfig_Success(t *testing.T) {
 
 	err := config.Validate()
 	assert.NoError(t, err)
+}
+
+func TestValidateConfig_UnpinnedModel(t *testing.T) {
+	config := &Config{
+		MistralModel:       "mistral-large-latest",
+		MistralTemperature: 0.7,
+		AITimeout:          30 * time.Second,
+		AIRetryCount:       3,
+		MistralMaxTokens:   1000,
+		MaxRetryCount:      10,
+	}
+
+	err := config.Validate()
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrUnpinnedModel))
+
+	config.MistralModel = "mistral-large-2512"
+	assert.NoError(t, config.Validate())
 }
 
 func TestValidateConfig_InvalidTemperature(t *testing.T) {

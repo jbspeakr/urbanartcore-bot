@@ -9,8 +9,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"codeberg.org/brennenstuhl/uac-socializer/internal/app"
-	"codeberg.org/brennenstuhl/uac-socializer/internal/infrastructure/prompts"
+	"github.com/jbspeakr/urbanartcore-bot/internal/adapters/generator"
+	"github.com/jbspeakr/urbanartcore-bot/internal/app"
+	"github.com/jbspeakr/urbanartcore-bot/internal/infrastructure/prompts"
 )
 
 // healthCmd represents the health command
@@ -24,6 +25,7 @@ This command checks:
   - Configuration loading from environment variables
   - Data file existence and readability
   - Prompt template files existence and validity
+  - Mistral model availability (when UAC_MISTRAL_API_KEY is set)
 
 Exit codes:
   0 - All health checks passed
@@ -171,6 +173,29 @@ func runHealthCheck(cmd *cobra.Command, args []string) error {
 					}
 				}
 			}
+		}
+	}
+
+	// Check 4: Mistral model availability
+	if config != nil && config.MistralAPIKey != "" {
+		logger.Info("Health check: Mistral model")
+		pm, err := prompts.NewPromptManager(config.PromptsPath)
+		if err != nil {
+			logger.Error("Mistral model check skipped",
+				slog.String("error", err.Error()))
+			allChecksPass = false
+		} else if gen, err := generator.NewMistralAdapter(config.GetMistralConfig(), pm); err != nil {
+			logger.Error("Mistral model check failed",
+				slog.String("error", err.Error()))
+			allChecksPass = false
+		} else if err := gen.TestConnection(ctx); err != nil {
+			logger.Error("Mistral model check failed",
+				slog.String("model", config.MistralModel),
+				slog.String("error", err.Error()))
+			allChecksPass = false
+		} else {
+			logger.Info("Mistral model check passed",
+				slog.String("model", config.MistralModel))
 		}
 	}
 

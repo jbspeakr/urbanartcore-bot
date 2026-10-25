@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"codeberg.org/brennenstuhl/uac-socializer/internal/domain"
-	"codeberg.org/brennenstuhl/uac-socializer/internal/ports"
+	"github.com/jbspeakr/urbanartcore-bot/internal/domain"
+	"github.com/jbspeakr/urbanartcore-bot/internal/ports"
 )
 
 // MastodonAdapter implements the SocialPublisher interface for Mastodon-compatible instances.
@@ -185,13 +185,14 @@ func (a *MastodonAdapter) ValidateContent(ctx context.Context, content *domain.G
 		}
 	}
 
-	// Validate character count (use rune count for Mastodon)
-	runeCount := len([]rune(text))
-	if runeCount > domain.MastodonCharacterLimit {
+	// Validate character count of the status as it will be posted, with
+	// hashtags appended and URLs counted as 23 characters
+	charCount := domain.CountMastodonCharacters(formatTootContent(content))
+	if charCount > domain.MastodonCharacterLimit {
 		return ports.PublisherError{
 
 			Platform:  domain.PlatformMastodon,
-			Err:       fmt.Errorf("%w: %d characters, limit is %d", ports.ErrContentTooLong, runeCount, domain.MastodonCharacterLimit),
+			Err:       fmt.Errorf("%w: %d characters, limit is %d", ports.ErrContentTooLong, charCount, domain.MastodonCharacterLimit),
 			Retryable: false,
 		}
 	}
@@ -379,6 +380,7 @@ func (a *MastodonAdapter) Publish(ctx context.Context, content *domain.Generated
 	postData := map[string]string{
 		"status":     tootText,
 		"visibility": "public",
+		"language":   domain.ContentLanguage,
 	}
 
 	body, err := json.Marshal(postData)
@@ -408,6 +410,9 @@ func (a *MastodonAdapter) Publish(ctx context.Context, content *domain.Generated
 
 	req.Header.Set("Authorization", "Bearer "+a.accessToken)
 	req.Header.Set("Content-Type", "application/json")
+	// Mastodon keeps the key for an hour and returns the original status for
+	// a repeated request, so a job retry or a manual rerun does not double-post
+	req.Header.Set("Idempotency-Key", content.IdempotencyKey())
 
 	resp, err := a.httpClient.Do(req)
 	if err != nil {
@@ -520,19 +525,7 @@ func formatTootContent(content *domain.GeneratedContent) string {
 	if content == nil {
 		return ""
 	}
-
-	text := content.Text()
-	hashtags := content.Hashtags()
-
-	if len(hashtags) == 0 {
-		return text
-	}
-
-	// Join hashtags with spaces
-	hashtagStr := strings.Join(hashtags, " ")
-
-	// Combine text and hashtags with double newline
-	return text + "\n\n" + hashtagStr
+	return content.RenderedText()
 }
 
 // isAuthError checks if an error is an authentication error (401, 403).

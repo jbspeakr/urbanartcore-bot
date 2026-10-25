@@ -18,16 +18,16 @@ import (
 	"github.com/disintegration/imaging"
 	"golang.org/x/net/html"
 
-	"codeberg.org/brennenstuhl/uac-socializer/internal/domain"
-	"codeberg.org/brennenstuhl/uac-socializer/internal/ports"
+	"github.com/jbspeakr/urbanartcore-bot/internal/domain"
+	"github.com/jbspeakr/urbanartcore-bot/internal/ports"
 )
 
 const (
 	// ATProto API endpoints
 	blueskyPDSHost = "https://bsky.social"
 
-	// Character and byte limits
-	blueskyByteLimit = 300
+	// Text limit in grapheme clusters; the byte limit is domain.BlueskyByteLimit
+	blueskyGraphemeLimit = domain.BlueskyGraphemeLimit
 
 	// HTTP client timeouts
 	connectionTestTimeout = 10 * time.Second
@@ -222,10 +222,10 @@ func (a *BlueskyAdapter) Platform() string {
 	return "bluesky"
 }
 
-// GetCharacterLimit returns the byte limit for Bluesky posts.
-// Note: Bluesky uses byte count, not character/rune count.
+// GetCharacterLimit returns the grapheme limit for Bluesky posts.
+// Bluesky also caps posts at domain.BlueskyByteLimit bytes.
 func (a *BlueskyAdapter) GetCharacterLimit() int {
-	return blueskyByteLimit
+	return blueskyGraphemeLimit
 }
 
 // SupportsHashtags returns whether Bluesky supports hashtag functionality.
@@ -239,7 +239,8 @@ func (a *BlueskyAdapter) SupportsMedia() bool {
 }
 
 // ValidateContent checks if content meets Bluesky-specific requirements.
-// Validates platform match, non-empty text, and byte count limit.
+// Validates platform match, non-empty text, and the grapheme and byte limits
+// of the final text, with hashtags appended and URLs removed.
 func (a *BlueskyAdapter) ValidateContent(ctx context.Context, content *domain.GeneratedContent) error {
 
 	if a == nil {
@@ -282,14 +283,12 @@ func (a *BlueskyAdapter) ValidateContent(ctx context.Context, content *domain.Ge
 		}
 	}
 
-	// Check byte count (UTF-8 bytes, not runes)
-	byteCount := CountTextBytes(text)
-	if byteCount > blueskyByteLimit {
+	// Check limits on the text as it will be posted
+	if err := checkBlueskyLimits(content.RenderedText()); err != nil {
 		return ports.PublisherError{
 
-			Platform: "bluesky",
-			Err: fmt.Errorf("%w: %d bytes, limit is %d",
-				ports.ErrContentTooLong, byteCount, blueskyByteLimit),
+			Platform:  "bluesky",
+			Err:       err,
 			Retryable: false,
 		}
 	}
@@ -375,42 +374,11 @@ func (a *BlueskyAdapter) Publish(ctx context.Context, content *domain.GeneratedC
 		return result, wrappedErr
 	}
 
-	text := content.Text()
+	// Final text: URLs removed (the link travels in the embed) and hashtags
+	// appended, so facets can find and tag them. ValidateContent has already
+	// checked its limits.
 	hashtags := content.Hashtags()
-
-	// Strip URLs from text since we'll provide them via embed
-	text = stripURLsFromText(text)
-
-	// Append hashtags to text if any exist
-	// Hashtags must be in the text for facets to find and tag them
-	if len(hashtags) > 0 {
-		// Join hashtags with spaces and append to text
-		hashtagStr := strings.Join(hashtags, " ")
-		if text != "" {
-			text = text + " " + hashtagStr
-		} else {
-			text = hashtagStr
-		}
-
-		slog.Default().Info("Appended hashtags to text",
-			slog.Int("hashtag_count", len(hashtags)),
-			slog.String("final_text", text))
-
-		// Validate combined text doesn't exceed byte limit
-		byteCount := CountTextBytes(text)
-		if byteCount > blueskyByteLimit {
-			result, _ := domain.NewPlatformResult("bluesky", domain.StatusFailed, content)
-			wrappedErr := ports.PublisherError{
-
-				Platform: "bluesky",
-				Err: fmt.Errorf("%w: %d bytes with hashtags, limit is %d",
-					ports.ErrContentTooLong, byteCount, blueskyByteLimit),
-				Retryable: false,
-			}
-			result.SetFailure(wrappedErr, time.Since(startTime))
-			return result, wrappedErr
-		}
-	}
+	text := content.RenderedText()
 
 	// Build facets for hashtags (now that they're in the text)
 	facets := BuildFacets(text, hashtags)
@@ -454,6 +422,7 @@ func (a *BlueskyAdapter) Publish(ctx context.Context, content *domain.GeneratedC
 	postRecord := map[string]any{
 		"$type":     "app.bsky.feed.post",
 		"text":      text,
+		"langs":     []string{domain.ContentLanguage},
 		"createdAt": time.Now().Format(time.RFC3339Nano),
 	}
 
@@ -1019,33 +988,17 @@ func getRespKeys(resp map[string]any) []string {
 	return keys
 }
 
-// stripURLsFromText removes HTTP/HTTPS URLs from text.
-// Used when we have a rich embed to avoid duplicate URL display.
-func stripURLsFromText(text string) string {
-	// Remove URLs matching http:// or https://
-	// Pattern: https?://[^\s]+ matches URLs followed by whitespace or end of string
-	lines := strings.Split(text, "\n")
-	result := make([]string, 0, len(lines))
-
-	for _, line := range lines {
-		// Split line into words
-		words := strings.Fields(line)
-		filtered := make([]string, 0, len(words))
-
-		for _, word := range words {
-			// Skip words that are URLs
-			if !strings.HasPrefix(word, "http://") && !strings.HasPrefix(word, "https://") {
-				filtered = append(filtered, word)
-			}
-		}
-
-		// Reconstruct line without URLs
-		if len(filtered) > 0 {
-			result = append(result, strings.Join(filtered, " "))
-		}
+// checkBlueskyLimits checks text against the Bluesky grapheme and byte limits.
+func checkBlueskyLimits(text string) error {
+	if graphemes := domain.CountGraphemes(text); graphemes > blueskyGraphemeLimit {
+		return fmt.Errorf("%w: %d graphemes, limit is %d",
+			ports.ErrContentTooLong, graphemes, blueskyGraphemeLimit)
 	}
-
-	return strings.TrimSpace(strings.Join(result, "\n"))
+	if byteCount := CountTextBytes(text); byteCount > domain.BlueskyByteLimit {
+		return fmt.Errorf("%w: %d bytes, limit is %d",
+			ports.ErrContentTooLong, byteCount, domain.BlueskyByteLimit)
+	}
+	return nil
 }
 
 // extractRecordKey extracts the record key (post ID) from an ATProto URI.

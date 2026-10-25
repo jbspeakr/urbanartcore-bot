@@ -56,6 +56,7 @@ var (
 	ErrInvalidTemperature   = errors.New("invalid temperature")
 	ErrInvalidTimeout       = errors.New("invalid timeout")
 	ErrMissingRequiredField = errors.New("missing required field")
+	ErrUnpinnedModel        = errors.New("unpinned model")
 )
 
 // LoadConfig loads configuration from environment variables using Viper.
@@ -161,6 +162,14 @@ func (c *Config) Validate() error {
 	if c.AIRetryCount < c.MinRetryCount || c.AIRetryCount > c.MaxRetryCount {
 		return ConfigError{
 			Err: fmt.Errorf("ai_retry_count must be between %d and %d (got: %d)", c.MinRetryCount, c.MaxRetryCount, c.AIRetryCount),
+		}
+	}
+
+	// Require a pinned, dated model: a "-latest" alias changes underneath the
+	// bot without notice, while a dated model fails the startup check when retired
+	if strings.HasSuffix(strings.ToLower(strings.TrimSpace(c.MistralModel)), "-latest") {
+		return ConfigError{
+			Err: fmt.Errorf("%w: mistral_model must be a dated identifier such as mistral-large-2512, not an alias (got: %s)", ErrUnpinnedModel, c.MistralModel),
 		}
 	}
 

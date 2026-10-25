@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	adapterrepository "codeberg.org/brennenstuhl/uac-socializer/internal/adapters/repository"
-	"codeberg.org/brennenstuhl/uac-socializer/internal/app"
-	"codeberg.org/brennenstuhl/uac-socializer/internal/domain"
+	adapterrepository "github.com/jbspeakr/urbanartcore-bot/internal/adapters/repository"
+	"github.com/jbspeakr/urbanartcore-bot/internal/app"
+	"github.com/jbspeakr/urbanartcore-bot/internal/domain"
 )
 
 // createTestConfig creates a test configuration for use in container tests.

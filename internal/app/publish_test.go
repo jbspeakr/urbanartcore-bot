@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"codeberg.org/brennenstuhl/uac-socializer/internal/domain"
-	"codeberg.org/brennenstuhl/uac-socializer/internal/ports"
+	"github.com/jbspeakr/urbanartcore-bot/internal/domain"
+	"github.com/jbspeakr/urbanartcore-bot/internal/ports"
 )
 
 // Mock implementations for testing
@@ -371,13 +371,16 @@ func TestPublishAnniversaryPosts_NoPostsFound(t *testing.T) {
 
 	response, err := service.PublishAnniversaryPosts(ctx, req)
 
-	// Assertions
-	require.Error(t, err)
-	assert.Nil(t, response)
-	assert.Contains(t, err.Error(), "no posts found")
+	// Assertions: a date without posts is a rest day, not an error
+	require.NoError(t, err)
+	require.NotNil(t, response)
+	assert.True(t, response.RestDay)
+	assert.Nil(t, response.Result)
+	assert.NoError(t, response.Error)
 
-	// Verify mocks
+	// Verify mocks: nothing was generated or published
 	repo.AssertExpectations(t)
+	gen.AssertNotCalled(t, "GenerateContent", mock.Anything, mock.Anything)
 }
 
 func TestPublishAnniversaryPosts_InvalidDateValidation(t *testing.T) {

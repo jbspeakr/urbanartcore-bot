@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"codeberg.org/brennenstuhl/uac-socializer/internal/domain"
-	"codeberg.org/brennenstuhl/uac-socializer/internal/ports"
+	"github.com/jbspeakr/urbanartcore-bot/internal/domain"
+	"github.com/jbspeakr/urbanartcore-bot/internal/ports"
 )
 
 // createTestPromptDir creates a temporary directory with test prompt templates
@@ -721,4 +721,41 @@ func TestVariableSubstitution_EdgeCases(t *testing.T) {
 		assert.Contains(t, strings.ToLower(varsMast["PLATFORM_CONSTRAINTS"]), "character")
 		assert.Contains(t, strings.ToLower(varsMast["TONE"]), "thoughtful")
 	})
+}
+
+// TestSlugWords tests turning a post URL into the words of its slug
+func TestSlugWords(t *testing.T) {
+	tests := map[string]string{
+		"https://www.urbanartcore.com/graffiti-meets-thalys-in-paris/": "graffiti meets thalys in paris",
+		"https://www.urbanartcore.com/banksy_revealed":                 "banksy revealed",
+		"https://www.urbanartcore.com/2011/09/roa-in-london.html":      "roa in london",
+		"not a url": "not a url",
+	}
+	for uri, want := range tests {
+		assert.Equal(t, want, slugWords(uri), uri)
+	}
+}
+
+// TestRealTemplatesAreHonest checks the shipped prompts no longer claim the
+// model can read the post, and that every variable they use is filled.
+func TestRealTemplatesAreHonest(t *testing.T) {
+	pm, err := NewPromptManager("../prompts")
+	require.NoError(t, err)
+
+	post, err := domain.NewPost("https://www.urbanartcore.com/graffiti-meets-thalys-in-paris/", "2009-09-14")
+	require.NoError(t, err)
+
+	for _, platform := range []string{domain.PlatformBluesky, domain.PlatformMastodon} {
+		req, err := ports.NewGenerationRequest([]*domain.Post{post}, platform, "09-14")
+		require.NoError(t, err)
+
+		rendered, err := pm.RenderPrompt(context.Background(), platform, req)
+		require.NoError(t, err)
+
+		assert.NotContains(t, strings.ToLower(rendered), "read the blog post", platform)
+		assert.Contains(t, rendered, "You cannot open the URL", platform)
+		assert.Contains(t, rendered, `"graffiti meets thalys in paris"`, platform)
+		assert.Contains(t, rendered, "September 2009", platform)
+		assert.Empty(t, templateVarPattern.FindAllString(rendered, -1), platform)
+	}
 }

@@ -11,11 +11,9 @@ import (
 	"strings"
 	"time"
 
-	mistral "github.com/gage-technologies/mistral-go"
-
-	"codeberg.org/brennenstuhl/uac-socializer/internal/app"
-	"codeberg.org/brennenstuhl/uac-socializer/internal/domain"
-	"codeberg.org/brennenstuhl/uac-socializer/internal/ports"
+	"github.com/jbspeakr/urbanartcore-bot/internal/app"
+	"github.com/jbspeakr/urbanartcore-bot/internal/domain"
+	"github.com/jbspeakr/urbanartcore-bot/internal/ports"
 )
 
 // MistralAdapter implements the ContentGenerator interface using Mistral AI.
@@ -23,7 +21,7 @@ import (
 // retry logic, and comprehensive error handling.
 type MistralAdapter struct {
 	config    app.MistralConfig
-	client    *mistral.MistralClient
+	client    *mistralClient
 	promptMgr ports.PromptManager
 }
 
@@ -73,18 +71,8 @@ func NewMistralAdapter(config app.MistralConfig, promptMgr ports.PromptManager) 
 		}
 	}
 
-	endpoint := config.Endpoint
-	if endpoint == "" {
-		endpoint = mistral.Endpoint
-	}
-
-	// Create Mistral client with custom timeout
-	client := mistral.NewMistralClient(
-		config.APIKey,
-		endpoint,
-		0, // We handle retries ourselves for better control
-		config.Timeout,
-	)
+	// One HTTP request per call; generateWithRetry owns the retry policy
+	client := newMistralClient(config.APIKey, config.Endpoint, config.Timeout)
 
 	logger.Info("Mistral adapter initialized",
 		slog.String("model", config.Model),
@@ -231,47 +219,38 @@ func (m *MistralAdapter) ValidatePrompt(ctx context.Context, platform string, pr
 	return nil
 }
 
-// TestConnection verifies connectivity to the AI service with current credentials.
+// TestConnection verifies the API key works and the configured model is
+// still served. Mistral retires models on a schedule, so a pinned model can
+// disappear; this check lets a run stop before it posts nothing or worse.
 func (m *MistralAdapter) TestConnection(ctx context.Context) error {
 	logger := slog.Default()
 
-	logger.Info("Testing Mistral API connection",
+	logger.Info("Verifying Mistral model availability",
 		slog.String("model", m.config.Model))
 
-	// Create a simple test message
-	messages := []mistral.ChatMessage{
-		{
-			Role:    mistral.RoleUser,
-			Content: "Reply with 'OK' if you can read this.",
-		},
-	}
-
-	params := &mistral.ChatRequestParams{
-		Temperature: 0.0,
-		MaxTokens:   10,
-		SafePrompt:  false,
-		TopP:        1.0,
-	}
-
-	// Make a test API call (client already has timeout configured)
-	resp, err := m.client.Chat(m.config.Model, messages, params)
+	card, err := m.client.getModel(ctx, m.config.Model)
 	if err != nil {
-		logger.Error("Connection test failed",
+		logger.Error("Model availability check failed",
+			slog.String("model", m.config.Model),
 			slog.String("error", err.Error()))
 		return m.classifyError(err)
 	}
 
-	if resp == nil || len(resp.Choices) == 0 {
-		logger.Error("Connection test failed - no response")
-		return ports.GeneratorError{
-
-			Model:     m.config.Model,
-			Err:       errors.New("empty response from service"),
-			Retryable: true,
+	if card.Deprecation != "" {
+		deprecation, parseErr := time.Parse(time.RFC3339, card.Deprecation)
+		if parseErr == nil && !deprecation.After(time.Now()) {
+			return ports.GeneratorError{
+				Model:     m.config.Model,
+				Err:       fmt.Errorf("%w: deprecated since %s", ports.ErrModelNotFound, card.Deprecation),
+				Retryable: false,
+			}
 		}
+		logger.Warn("Configured Mistral model is scheduled for retirement",
+			slog.String("model", m.config.Model),
+			slog.String("deprecation", card.Deprecation))
 	}
 
-	logger.Info("Connection test successful",
+	logger.Info("Mistral model available",
 		slog.String("model", m.config.Model))
 	return nil
 }
@@ -320,7 +299,7 @@ func (m *MistralAdapter) generateWithRetry(ctx context.Context, prompt string, r
 		}
 
 		// Attempt generation
-		content, err := m.generate(prompt, req)
+		content, err := m.generate(ctx, prompt, req)
 
 		if err == nil {
 			return content, nil
@@ -356,33 +335,55 @@ func (m *MistralAdapter) generateWithRetry(ctx context.Context, prompt string, r
 	}
 }
 
+// systemPrompt sets the voice shared by all platforms.
+const systemPrompt = "You write social media posts for the Urban Art Core archive, a street art and graffiti blog published from 2009 to 2012. " +
+	"The archive speaks in the third person, in the past tense, plainly and specifically. " +
+	"You never invent facts, never ask the reader questions, and never use exclamation marks or emoji. " +
+	"Respond with a JSON object that matches the given schema."
+
+// draftSchema is the JSON schema the API enforces on every response.
+var draftSchema = &responseFormat{
+	Type: "json_schema",
+	JSONSchema: &jsonSchema{
+		Name:   "social_post",
+		Strict: true,
+		Schema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"text": map[string]any{
+					"type":        "string",
+					"description": "The post text, without hashtags",
+				},
+				"hashtags": map[string]any{
+					"type":        "array",
+					"description": "Hashtags without the # prefix",
+					"items":       map[string]any{"type": "string"},
+				},
+			},
+			"required":             []string{"text", "hashtags"},
+			"additionalProperties": false,
+		},
+	},
+}
+
 // generate performs a single content generation attempt.
-func (m *MistralAdapter) generate(prompt string, req *ports.GenerationRequest) (*domain.GeneratedContent, error) {
+func (m *MistralAdapter) generate(ctx context.Context, prompt string, req *ports.GenerationRequest) (*domain.GeneratedContent, error) {
 	platform := req.Platform
 
-	// Prepare messages for Mistral API
-	messages := []mistral.ChatMessage{
-		{
-			Role:    mistral.RoleSystem,
-			Content: "You are a content creator for Urban Art Core, specializing in creating engaging social media posts about street art and graffiti culture. Your responses must be valid JSON only.",
+	chatReq := &chatRequest{
+		Model: m.config.Model,
+		Messages: []chatMessage{
+			{Role: roleSystem, Content: systemPrompt},
+			{Role: roleUser, Content: prompt},
 		},
-		{
-			Role:    mistral.RoleUser,
-			Content: prompt,
-		},
-	}
-
-	// Configure generation parameters
-	params := &mistral.ChatRequestParams{
 		Temperature:    m.config.Temperature,
+		TopP:           1.0,
 		MaxTokens:      m.config.MaxTokens,
 		SafePrompt:     false,
-		TopP:           1.0,
-		ResponseFormat: mistral.ResponseFormatJsonObject,
+		ResponseFormat: draftSchema,
 	}
 
-	// Call Mistral API (client already has timeout configured)
-	resp, err := m.client.Chat(m.config.Model, messages, params)
+	resp, err := m.client.chat(ctx, chatReq)
 	if err != nil {
 		return nil, m.classifyError(err)
 	}

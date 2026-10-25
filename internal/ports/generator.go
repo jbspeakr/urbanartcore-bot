@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"codeberg.org/brennenstuhl/uac-socializer/internal/domain"
+	"github.com/jbspeakr/urbanartcore-bot/internal/domain"
 )
 
 // GeneratorError represents AI content generation errors.
