@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -238,8 +239,10 @@ func (pm *PromptManager) buildVariableMap(req *ports.GenerationRequest) map[stri
 		years := time.Now().Year() - post.Date().Year()
 		vars["ANNIVERSARY_YEARS"] = fmt.Sprintf("%d", years)
 
-		// Add post URI
+		// Add post URI and the words of its slug, the only hint of the
+		// post's subject the model gets until the bot reads the post itself
 		vars["POST_URI"] = post.URI()
+		vars["POST_SLUG"] = slugWords(post.URI())
 	}
 
 	// Add platform-specific constraints
@@ -258,6 +261,7 @@ func (pm *PromptManager) buildVariableMap(req *ports.GenerationRequest) map[stri
 	vars["DATE_KEY"] = req.DateKey
 	if len(req.Posts) > 0 {
 		vars["ORIGINAL_DATE"] = req.Posts[0].Date().Format("January 2, 2006")
+		vars["ORIGINAL_MONTH_YEAR"] = req.Posts[0].Date().Format("January 2006")
 	}
 
 	// Add any custom context from request
@@ -266,6 +270,22 @@ func (pm *PromptManager) buildVariableMap(req *ports.GenerationRequest) map[stri
 	}
 
 	return vars
+}
+
+// slugWords turns the last path segment of a post URL into plain words,
+// for example "https://www.urbanartcore.com/banksy-in-new-york/" into
+// "banksy in new york".
+func slugWords(uri string) string {
+	path := uri
+	if parsed, err := url.Parse(uri); err == nil {
+		path = parsed.Path
+	}
+	segments := strings.Split(strings.Trim(path, "/"), "/")
+	slug := segments[len(segments)-1]
+	slug = strings.TrimSuffix(slug, ".html")
+	return strings.Join(strings.FieldsFunc(slug, func(r rune) bool {
+		return r == '-' || r == '_'
+	}), " ")
 }
 
 // ValidateTemplate checks if a prompt template is syntactically correct.
