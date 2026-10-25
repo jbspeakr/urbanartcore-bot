@@ -729,7 +729,7 @@ func TestSlugWords(t *testing.T) {
 		"https://www.urbanartcore.com/graffiti-meets-thalys-in-paris/": "graffiti meets thalys in paris",
 		"https://www.urbanartcore.com/banksy_revealed":                 "banksy revealed",
 		"https://www.urbanartcore.com/2011/09/roa-in-london.html":      "roa in london",
-		"not a url":                                                    "not a url",
+		"not a url": "not a url",
 	}
 	for uri, want := range tests {
 		assert.Equal(t, want, slugWords(uri), uri)
