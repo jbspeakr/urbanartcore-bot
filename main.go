@@ -3,7 +3,7 @@ Copyright © 2026 NAME HERE <EMAIL ADDRESS>
 */
 package main
 
-import "codeberg.org/brennenstuhl/uac-socializer/cmd"
+import "github.com/jbspeakr/urbanartcore-bot/cmd"
 
 // Version information (set via ldflags during build)
 var (

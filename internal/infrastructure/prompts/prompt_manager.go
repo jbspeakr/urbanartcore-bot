@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"codeberg.org/brennenstuhl/uac-socializer/internal/domain"
-	"codeberg.org/brennenstuhl/uac-socializer/internal/ports"
+	"github.com/jbspeakr/urbanartcore-bot/internal/domain"
+	"github.com/jbspeakr/urbanartcore-bot/internal/ports"
 )
 
 // PromptManagerError represents errors from the prompt manager.

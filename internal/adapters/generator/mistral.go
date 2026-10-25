@@ -13,9 +13,9 @@ import (
 
 	mistral "github.com/gage-technologies/mistral-go"
 
-	"codeberg.org/brennenstuhl/uac-socializer/internal/app"
-	"codeberg.org/brennenstuhl/uac-socializer/internal/domain"
-	"codeberg.org/brennenstuhl/uac-socializer/internal/ports"
+	"github.com/jbspeakr/urbanartcore-bot/internal/app"
+	"github.com/jbspeakr/urbanartcore-bot/internal/domain"
+	"github.com/jbspeakr/urbanartcore-bot/internal/ports"
 )
 
 // MistralAdapter implements the ContentGenerator interface using Mistral AI.

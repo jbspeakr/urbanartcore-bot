@@ -6,13 +6,13 @@ import (
 	"log/slog"
 	"strings"
 
-	"codeberg.org/brennenstuhl/uac-socializer/internal/adapters/generator"
-	"codeberg.org/brennenstuhl/uac-socializer/internal/adapters/publisher"
-	"codeberg.org/brennenstuhl/uac-socializer/internal/adapters/repository"
-	"codeberg.org/brennenstuhl/uac-socializer/internal/app"
-	"codeberg.org/brennenstuhl/uac-socializer/internal/domain"
-	"codeberg.org/brennenstuhl/uac-socializer/internal/infrastructure/prompts"
-	"codeberg.org/brennenstuhl/uac-socializer/internal/ports"
+	"github.com/jbspeakr/urbanartcore-bot/internal/adapters/generator"
+	"github.com/jbspeakr/urbanartcore-bot/internal/adapters/publisher"
+	"github.com/jbspeakr/urbanartcore-bot/internal/adapters/repository"
+	"github.com/jbspeakr/urbanartcore-bot/internal/app"
+	"github.com/jbspeakr/urbanartcore-bot/internal/domain"
+	"github.com/jbspeakr/urbanartcore-bot/internal/infrastructure/prompts"
+	"github.com/jbspeakr/urbanartcore-bot/internal/ports"
 )
 
 // Container holds all application dependencies.

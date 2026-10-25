@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"codeberg.org/brennenstuhl/uac-socializer/internal/domain"
+	"github.com/jbspeakr/urbanartcore-bot/internal/domain"
 )
 
 // PublisherError represents social media platform publishing errors.

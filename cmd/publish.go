@@ -11,9 +11,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"codeberg.org/brennenstuhl/uac-socializer/internal/app"
-	"codeberg.org/brennenstuhl/uac-socializer/internal/domain"
-	"codeberg.org/brennenstuhl/uac-socializer/internal/infrastructure"
+	"github.com/jbspeakr/urbanartcore-bot/internal/app"
+	"github.com/jbspeakr/urbanartcore-bot/internal/domain"
+	"github.com/jbspeakr/urbanartcore-bot/internal/infrastructure"
 )
 
 // publishCmd represents the publish command

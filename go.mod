@@ -1,4 +1,4 @@
-module codeberg.org/brennenstuhl/uac-socializer
+module github.com/jbspeakr/urbanartcore-bot
 
 go 1.25.6
 

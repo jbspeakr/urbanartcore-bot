@@ -18,8 +18,8 @@ import (
 	"github.com/disintegration/imaging"
 	"golang.org/x/net/html"
 
-	"codeberg.org/brennenstuhl/uac-socializer/internal/domain"
-	"codeberg.org/brennenstuhl/uac-socializer/internal/ports"
+	"github.com/jbspeakr/urbanartcore-bot/internal/domain"
+	"github.com/jbspeakr/urbanartcore-bot/internal/ports"
 )
 
 const (

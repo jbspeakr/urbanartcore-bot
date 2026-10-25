@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"codeberg.org/brennenstuhl/uac-socializer/internal/domain"
+	"github.com/jbspeakr/urbanartcore-bot/internal/domain"
 )
 
 // RepositoryError represents data access layer errors.

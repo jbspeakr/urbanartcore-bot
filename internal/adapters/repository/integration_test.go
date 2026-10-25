@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"codeberg.org/brennenstuhl/uac-socializer/internal/infrastructure"
+	"github.com/jbspeakr/urbanartcore-bot/internal/infrastructure"
 )
 
 // TestJSONFileRepository_RealData tests the repository with the actual posts_by_date.json file.

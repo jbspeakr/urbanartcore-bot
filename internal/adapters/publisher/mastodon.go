@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"codeberg.org/brennenstuhl/uac-socializer/internal/domain"
-	"codeberg.org/brennenstuhl/uac-socializer/internal/ports"
+	"github.com/jbspeakr/urbanartcore-bot/internal/domain"
+	"github.com/jbspeakr/urbanartcore-bot/internal/ports"
 )
 
 // MastodonAdapter implements the SocialPublisher interface for Mastodon-compatible instances.

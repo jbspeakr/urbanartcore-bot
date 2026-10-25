@@ -3,7 +3,7 @@ package repository
 import (
 	"testing"
 
-	"codeberg.org/brennenstuhl/uac-socializer/internal/ports"
+	"github.com/jbspeakr/urbanartcore-bot/internal/ports"
 )
 
 // TestJSONFileRepository_ImplementsInterfaces verifies that JSONFileRepository

@@ -9,8 +9,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"codeberg.org/brennenstuhl/uac-socializer/internal/app"
-	"codeberg.org/brennenstuhl/uac-socializer/internal/infrastructure/prompts"
+	"github.com/jbspeakr/urbanartcore-bot/internal/app"
+	"github.com/jbspeakr/urbanartcore-bot/internal/infrastructure/prompts"
 )
 
 // healthCmd represents the health command
