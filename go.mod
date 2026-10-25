@@ -4,7 +4,6 @@ go 1.25.6
 
 require (
 	github.com/disintegration/imaging v1.6.2
-	github.com/gage-technologies/mistral-go v1.1.0
 	github.com/rivo/uniseg v0.4.7
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0

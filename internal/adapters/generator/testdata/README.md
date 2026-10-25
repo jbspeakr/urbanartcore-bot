@@ -8,7 +8,7 @@ This directory contains mock API response files used for testing the Mistral ada
 Mock AI-generated content for Bluesky platform.
 - **Format**: JSON with `text`, `hashtags`, and `byte_count` fields
 - **Purpose**: Simulates successful content generation for Bluesky
-- **Constraints**: Text is within 300-byte UTF-8 limit
+- **Constraints**: Text is within the 300-grapheme limit
 
 ### mastodon_response.json
 Mock AI-generated content for Mastodon platform.

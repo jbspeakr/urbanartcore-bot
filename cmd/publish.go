@@ -108,7 +108,12 @@ func runPublishCommand(cmd *cobra.Command, args []string) error {
 		slog.Bool("dry_run", dryRun),
 	)
 
-	// 5. Service Execution
+	// 5. Model check: refuse to run when the configured model is no longer served
+	if err := container.GetContentGenerator().TestConnection(ctx); err != nil {
+		return fmt.Errorf("content generator unavailable: %w", err)
+	}
+
+	// 6. Service Execution
 	publishService := container.GetPublishService()
 
 	publishServiceReq := &app.PublishRequest{
@@ -123,7 +128,7 @@ func runPublishCommand(cmd *cobra.Command, args []string) error {
 		logger.Error("Publishing error", slog.String("error", err.Error()))
 	}
 
-	// 6. Output Formatting & Display Results
+	// 7. Output Formatting & Display Results
 	if response != nil && response.Result != nil {
 		result := response.Result
 		if dryRun {
@@ -216,7 +221,7 @@ func runPublishCommand(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// 7. Exit Codes
+	// 8. Exit Codes
 	if response != nil && response.Error != nil {
 		return response.Error
 	}
