@@ -988,11 +988,6 @@ func getRespKeys(resp map[string]any) []string {
 	return keys
 }
 
-// stripURLsFromText removes URLs from text; see domain.StripURLs.
-func stripURLsFromText(text string) string {
-	return domain.StripURLs(text)
-}
-
 // checkBlueskyLimits checks text against the Bluesky grapheme and byte limits.
 func checkBlueskyLimits(text string) error {
 	if graphemes := domain.CountGraphemes(text); graphemes > blueskyGraphemeLimit {

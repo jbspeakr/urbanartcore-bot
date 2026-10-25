@@ -128,6 +128,14 @@ func runPublishCommand(cmd *cobra.Command, args []string) error {
 		logger.Error("Publishing error", slog.String("error", err.Error()))
 	}
 
+	// A date without posts is a rest day: nothing is posted and the run succeeds
+	if response != nil && response.RestDay {
+		logger.Info("Rest day",
+			slog.String("date", publishRequest.Date),
+			slog.Bool("dry_run", dryRun))
+		return nil
+	}
+
 	// 7. Output Formatting & Display Results
 	if response != nil && response.Result != nil {
 		result := response.Result

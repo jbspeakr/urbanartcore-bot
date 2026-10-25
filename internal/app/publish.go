@@ -29,7 +29,6 @@ func (e ApplicationError) Unwrap() error {
 // Common application errors
 var (
 	ErrInvalidDateKey   = errors.New("invalid date key format")
-	ErrNoPostsFound     = errors.New("no posts found for the specified date")
 	ErrNoPlatforms      = errors.New("no platforms available for publishing")
 	ErrContextCancelled = errors.New("operation was cancelled")
 	ErrCriticalFailure  = errors.New("critical failure stopped operation")
@@ -48,6 +47,7 @@ type PublishResponse struct {
 	Result    *domain.PublishResult               // Aggregated publishing results
 	Generated map[string]*domain.GeneratedContent // Generated content per platform
 	Error     error                               // Any critical errors that occurred
+	RestDay   bool                                // No post for the date: nothing was generated or published
 }
 
 // PublishService orchestrates the complete publishing workflow for anniversary posts.
@@ -104,7 +104,11 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 	post, err := ps.repository.GetPostForDate(ctx, req.DateKey)
 	if err != nil {
 		if errors.Is(err, ports.ErrDateNotFound) {
-			return nil, ApplicationError{Err: ErrNoPostsFound}
+			// 26 calendar days have no anniversary post. That is a rest day,
+			// not a failure: post nothing and exit cleanly.
+			slog.Default().Info("Rest day: no post for this date, nothing to publish",
+				slog.String("dateKey", req.DateKey))
+			return &PublishResponse{RestDay: true}, nil
 		}
 		return nil, ApplicationError{Err: fmt.Errorf("failed to retrieve post: %w", err)}
 	}
