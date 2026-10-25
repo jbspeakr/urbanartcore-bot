@@ -230,6 +230,7 @@ type MistralConfig struct {
 	Temperature float64
 	RetryCount  int
 	Timeout     time.Duration
+	Endpoint    string // Optional API base URL; defaults to the public Mistral API
 }
 
 // BlueskyConfig contains Bluesky-specific configuration.

@@ -73,10 +73,15 @@ func NewMistralAdapter(config app.MistralConfig, promptMgr ports.PromptManager) 
 		}
 	}
 
+	endpoint := config.Endpoint
+	if endpoint == "" {
+		endpoint = mistral.Endpoint
+	}
+
 	// Create Mistral client with custom timeout
 	client := mistral.NewMistralClient(
 		config.APIKey,
-		mistral.Endpoint,
+		endpoint,
 		0, // We handle retries ourselves for better control
 		config.Timeout,
 	)
