@@ -25,6 +25,14 @@ locals {
     UAC_AI_MIN_RETRY_DELAY     = "1s"
   }
 
+  # Secret Manager secrets exposed to the job, by environment variable
+  secret_env = {
+    UAC_MISTRAL_API_KEY       = trimprefix(scaleway_secret.mistral_api_key.id, "${var.region}/")
+    UAC_BLUESKY_PASSWORD      = trimprefix(scaleway_secret.bluesky_password.id, "${var.region}/")
+    UAC_MASTODON_ACCESS_TOKEN = trimprefix(scaleway_secret.mastodon_access_token.id, "${var.region}/")
+    UAC_LEDGER_SECRET_KEY     = trimprefix(scaleway_secret.ledger_secret_key.id, "${var.region}/")
+  }
+
   # Common tags for all resources
   common_tags = merge(
     var.common_tags,
