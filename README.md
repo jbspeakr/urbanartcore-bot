@@ -4,7 +4,7 @@ Automated daily blog post publisher that generates platform-optimized content vi
 
 ## What Is This?
 
-UAC Socializer reads anniversary blog posts from a data file, uses Mistral AI to generate platform-specific content, and publishes to social media on a daily schedule. It's deployed as a serverless job on Scaleway and runs automatically every day at midnight UTC.
+UAC Socializer reads anniversary blog posts from the urbanartcore.com JSON catalogue, uses Mistral AI to generate platform-specific content, and publishes to social media on a daily schedule. It's deployed as a serverless job on Scaleway and runs automatically every day at midnight UTC.
 
 - ✅ Production-ready, fully tested
 - 🤖 AI-powered content generation (Mistral)

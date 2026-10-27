@@ -2,22 +2,26 @@ package app_test
 
 import (
 	"context"
-	"path/filepath"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jbspeakr/urbanartcore-bot/internal/adapters/repository"
+	"github.com/jbspeakr/urbanartcore-bot/internal/adapters/site"
 	"github.com/jbspeakr/urbanartcore-bot/internal/app"
 	"github.com/jbspeakr/urbanartcore-bot/internal/ports"
 )
 
-// TestRestDays_RealData runs the publish service against the shipped data
-// file on the calendar days that have no anniversary post. Each must end as
-// a rest day without touching the generator or any publisher.
-func TestRestDays_RealData(t *testing.T) {
-	repo, err := repository.NewJSONFileRepository(filepath.Join("..", "..", "data", "posts_by_date.json"))
+// TestRestDays_Snapshot runs the publish service against the built-in
+// catalogue snapshot on calendar days that have no anniversary post. Each
+// must end as a rest day without touching the generator or any publisher.
+func TestRestDays_Snapshot(t *testing.T) {
+	// The site is down, so the client falls back to the snapshot
+	down := httptest.NewServer(http.NotFoundHandler())
+	defer down.Close()
+	repo, err := site.NewClient(down.URL)
 	require.NoError(t, err)
 
 	// nil generator and publishers: any call into them would panic

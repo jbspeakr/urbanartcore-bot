@@ -354,13 +354,8 @@ var draftSchema = &responseFormat{
 					"type":        "string",
 					"description": "The post text, without hashtags",
 				},
-				"hashtags": map[string]any{
-					"type":        "array",
-					"description": "Hashtags without the # prefix",
-					"items":       map[string]any{"type": "string"},
-				},
 			},
-			"required":             []string{"text", "hashtags"},
+			"required":             []string{"text"},
 			"additionalProperties": false,
 		},
 	},
@@ -403,8 +398,7 @@ func (m *MistralAdapter) generate(ctx context.Context, prompt string, req *ports
 
 	// Parse JSON response
 	var apiResponse struct {
-		Text     string   `json:"text"`
-		Hashtags []string `json:"hashtags"`
+		Text string `json:"text"`
 	}
 
 	if err := json.Unmarshal([]byte(content), &apiResponse); err != nil {
@@ -429,11 +423,12 @@ func (m *MistralAdapter) generate(ctx context.Context, prompt string, req *ports
 	// Extract URI from request before creating content
 	uri := extractURIFromRequest(req)
 
-	// Create domain object with validation (including required URI)
+	// Create domain object with validation (including required URI). The
+	// hashtags come from the post's tags, never from the model.
 	generatedContent, err := domain.NewGeneratedContent(
 		apiResponse.Text,
 		platform,
-		apiResponse.Hashtags,
+		hashtagsFromRequest(req),
 		prompt,
 		uri,
 	)
@@ -456,6 +451,14 @@ func extractURIFromRequest(req *ports.GenerationRequest) string {
 		return ""
 	}
 	return req.Posts[0].URI()
+}
+
+// hashtagsFromRequest derives the hashtags from the first post's tags.
+func hashtagsFromRequest(req *ports.GenerationRequest) []string {
+	if req == nil || len(req.Posts) == 0 {
+		return nil
+	}
+	return req.Posts[0].Hashtags()
 }
 
 // classifyError classifies API errors into retryable and non-retryable categories.

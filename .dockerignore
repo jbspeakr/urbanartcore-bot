@@ -46,5 +46,4 @@ tmp/
 *.log
 
 # Keep these (required at runtime)
-!data/posts_by_date.json
 !internal/infrastructure/prompts/

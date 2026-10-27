@@ -238,12 +238,14 @@ variable "ai_timeout" {
   }
 }
 
-# Optional: Data paths (usually fixed in container)
-variable "data_path" {
-  description = "Path to posts JSON file in container"
+# Optional: the archive the bot reads its posts from
+variable "site_base_url" {
+  description = "Base URL of the site whose index.json and post JSON the bot reads"
   type        = string
-  default     = "/data/posts_by_date.json"
+  default     = "https://www.urbanartcore.com"
 }
+
+# Optional: Data paths (usually fixed in container)
 
 variable "prompts_path" {
   description = "Path to prompt templates in container"

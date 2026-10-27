@@ -767,22 +767,38 @@ func TestRealTemplatesPromoteTheContent(t *testing.T) {
 
 	post, err := domain.NewPost("https://www.urbanartcore.com/bomb-it-israel/", "2010-10-27")
 	require.NoError(t, err)
+	post = post.WithArticle(domain.Article{
+		Title:       "Bomb It: Israel",
+		Description: "A clip from the Bomb It documentary.",
+		Section:     "Graffiti",
+		Body:        "Jon Reiss filmed writers in Tel Aviv.\n\nThey painted the wall.",
+		Tags: domain.Tags{
+			Artists: []string{"Jon Reiss"},
+			Places:  []string{"Tel Aviv", "Jerusalem"},
+			Formats: []string{"Documentary"},
+		},
+		Credit: "Ian Cox",
+	})
 
 	for _, platform := range []string{domain.PlatformBluesky, domain.PlatformMastodon} {
 		req, err := ports.NewGenerationRequest([]*domain.Post{post}, platform, "10-27")
 		require.NoError(t, err)
-		req.WithContext("post_title", "Bomb It: Israel")
-		req.WithContext("post_description", "A clip from the Bomb It documentary.")
-		req.WithContext("post_excerpt", "")
 
 		rendered, err := pm.RenderPrompt(context.Background(), platform, req)
 		require.NoError(t, err)
 
-		assert.Contains(t, rendered, "Title: Bomb It: Israel", platform)
-		assert.Contains(t, rendered, "Teaser: A clip from the Bomb It documentary.", platform)
-		assert.NotContains(t, rendered, "Opening text:", platform)
+		assert.Contains(t, rendered, "Title: Bomb It: Israel\nSection: Graffiti\nArtists: Jon Reiss\nPlaces: Tel Aviv, Jerusalem\nFormats: Documentary\n", platform)
+		assert.Contains(t, rendered, "Teaser: A clip from the Bomb It documentary.\nPhoto credit: Ian Cox\n", platform)
+		assert.Contains(t, rendered, "Text:\nJon Reiss filmed writers in Tel Aviv.\n\nThey painted the wall.\n", platform)
+		assert.NotContains(t, rendered, "Events:", platform, "empty tag kinds are left out")
 		assert.NotContains(t, rendered, "could not be read", platform)
 		assert.Contains(t, rendered, `no "Urban Art Core published"`, platform)
 		assert.Empty(t, templateVarPattern.FindAllString(rendered, -1), platform)
 	}
+}
+
+func TestTruncateWords(t *testing.T) {
+	assert.Equal(t, "", truncateWords("  ", 3))
+	assert.Equal(t, "one two three", truncateWords("one two three", 3))
+	assert.Equal(t, "one two\n\nthree …", truncateWords("one two\n\nthree four five", 3))
 }

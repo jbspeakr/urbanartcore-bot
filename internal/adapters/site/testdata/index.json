@@ -1,0 +1,44 @@
+[
+  {
+    "bodyIndex": "/search/bodies-2012.json",
+    "date": "2012-08-28",
+    "permalink": "https://www.urbanartcore.com/etam-crew-exhibition-in-vienna/",
+    "summary": "After releasing their Urban Art Guide Vienna, Inoperable Gallery shows ETAM Crew.",
+    "title": "ETAM Crew Exhibition in Vienna",
+    "topics": [
+      {"entity": "artist", "label": "Sainer", "url": "/sainer/", "value": "sainer"},
+      {"entity": "artist", "label": "ETAM", "url": "/etam/", "value": "etam"},
+      {"entity": "place", "label": "Europe", "url": "/europe/", "value": "europe"},
+      {"entity": "format", "label": "Exhibition", "url": "/exhibition/", "value": "exhibition"}
+    ],
+    "types": [{"label": "Street Art", "url": "/street-art/", "value": "street-art"}],
+    "year": "2012"
+  },
+  {
+    "date": "2011-09-14",
+    "permalink": "https://www.urbanartcore.com/banksy-revealed/",
+    "summary": "An original Banksy mural was revealed in Berlin.",
+    "title": "Banksy Revealed!",
+    "topics": [
+      {"entity": "artist", "label": "Banksy", "url": "/banksy/", "value": "banksy"},
+      {"entity": "place", "label": "Berlin", "url": "/berlin/", "value": "berlin"},
+      {"entity": "topic", "label": "Art Restoration", "url": "/art-restoration/", "value": "art-restoration"}
+    ],
+    "types": [{"label": "Street Art", "url": "/street-art/", "value": "street-art"}],
+    "year": "2011"
+  },
+  {
+    "date": "2010-09-14",
+    "permalink": "https://www.urbanartcore.com/biggest-marker-worldwide/",
+    "summary": "",
+    "title": "Biggest Marker Worldwide",
+    "topics": [],
+    "types": [{"label": "Graffiti", "url": "/graffiti/", "value": "graffiti"}],
+    "year": "2010"
+  },
+  {
+    "date": "not a date",
+    "permalink": "https://www.urbanartcore.com/broken/",
+    "title": "Broken entry"
+  }
+]

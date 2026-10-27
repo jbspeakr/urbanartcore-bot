@@ -1,19 +1,15 @@
 package ports
 
-import "context"
+import (
+	"context"
 
-// Article holds what the bot can learn about a blog post from its web page.
-// Every field may be empty: an old post can lack a description or body text.
-type Article struct {
-	Title       string // Headline of the post
-	Description string // Teaser from the page's meta tags
-	Excerpt     string // Opening paragraphs of the post body, trimmed
-}
+	"github.com/jbspeakr/urbanartcore-bot/internal/domain"
+)
 
-// ArticleReader reads a blog post's web page, so generated posts can talk
-// about what the post shows instead of guessing from its URL.
-type ArticleReader interface {
-	// ReadArticle fetches the page at uri and extracts its title,
-	// description and opening paragraphs.
-	ReadArticle(ctx context.Context, uri string) (*Article, error)
+// PostReader reads a post's full article from its source, so generated posts
+// can talk about what the post shows instead of guessing from its URL.
+type PostReader interface {
+	// ReadPost returns a copy of post that carries the full article: title,
+	// teaser, body, typed tags, cover and photo credit.
+	ReadPost(ctx context.Context, post *domain.Post) (*domain.Post, error)
 }

@@ -14,7 +14,7 @@ import (
 // following 12-factor app principles.
 type Config struct {
 	// Core configuration
-	DataPath    string `mapstructure:"data_path"`
+	SiteBaseURL string `mapstructure:"site_base_url"` // Archive whose index.json and post JSON the bot reads
 	PromptsPath string `mapstructure:"prompts_path"`
 
 	// Mistral AI configuration
@@ -71,7 +71,7 @@ func LoadConfig() (*Config, error) {
 	v.AutomaticEnv()
 
 	// Set defaults BEFORE binding to avoid conflicts
-	v.SetDefault("data_path", "./data/posts_by_date.json")
+	v.SetDefault("site_base_url", "https://www.urbanartcore.com")
 	v.SetDefault("prompts_path", "./internal/infrastructure/prompts")
 	v.SetDefault("mistral_model", "mistral-large-2512")
 	v.SetDefault("mistral_max_tokens", 1000)
@@ -83,7 +83,7 @@ func LoadConfig() (*Config, error) {
 
 	// Bind all environment variables after setting defaults
 	envVars := []string{
-		"data_path",
+		"site_base_url",
 		"prompts_path",
 		"mistral_api_key",
 		"mistral_model",

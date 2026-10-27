@@ -7,7 +7,7 @@ locals {
 
   # Non-sensitive environment variables
   env_vars = {
-    UAC_DATA_PATH              = var.data_path
+    UAC_SITE_BASE_URL          = var.site_base_url
     UAC_PROMPTS_PATH           = var.prompts_path
     UAC_BLUESKY_HANDLE         = var.UAC_BLUESKY_HANDLE
     UAC_MASTODON_SERVER        = var.UAC_MASTODON_SERVER

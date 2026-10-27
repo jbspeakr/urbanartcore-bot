@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/jbspeakr/urbanartcore-bot/internal/domain"
 	"github.com/jbspeakr/urbanartcore-bot/internal/ports"
@@ -234,17 +235,19 @@ func (pm *PromptManager) buildVariableMap(req *ports.GenerationRequest) map[stri
 	vars := make(map[string]string)
 
 	// Calculate anniversary years from first post
+	var article domain.Article
 	if len(req.Posts) > 0 {
 		post := req.Posts[0]
 		years := time.Now().Year() - post.Date().Year()
 		vars["ANNIVERSARY_YEARS"] = fmt.Sprintf("%d", years)
 
 		// Add post URI and the words of its slug, the fallback hint of the
-		// post's subject when the post itself could not be read
+		// post's subject when nothing else is known about the post
 		vars["POST_URI"] = post.URI()
 		vars["POST_SLUG"] = slugWords(post.URI())
+		article = post.Article()
 	}
-	vars["POST_DETAILS"] = postDetails(req.Context, vars["POST_SLUG"])
+	vars["POST_DETAILS"] = postDetails(article, vars["POST_SLUG"])
 
 	// Add platform-specific constraints
 	switch req.Platform {
@@ -273,24 +276,60 @@ func (pm *PromptManager) buildVariableMap(req *ports.GenerationRequest) map[stri
 	return vars
 }
 
-// postDetails describes what is known about the post's content: the
-// title, teaser and opening text read from its page, or only the slug
-// words when the page could not be read.
-func postDetails(ctx map[string]string, slug string) string {
+// maxBodyWords caps how much of the post body goes into the prompt.
+const maxBodyWords = 2000
+
+// postDetails lays out what the site says about the post: title, section,
+// typed tags, teaser, photo credit and body. When nothing is known it falls
+// back to the words of the post's URL.
+func postDetails(article domain.Article, slug string) string {
+	tags := article.Tags
 	var b strings.Builder
-	for _, field := range []struct{ key, label string }{
-		{"post_title", "Title"},
-		{"post_description", "Teaser"},
-		{"post_excerpt", "Opening text"},
+	for _, field := range []struct{ label, value string }{
+		{"Title", article.Title},
+		{"Section", article.Section},
+		{"Artists", strings.Join(tags.Artists, ", ")},
+		{"Places", strings.Join(tags.Places, ", ")},
+		{"Events", strings.Join(tags.Events, ", ")},
+		{"Techniques", strings.Join(tags.Techniques, ", ")},
+		{"Formats", strings.Join(tags.Formats, ", ")},
+		{"Topics", strings.Join(tags.Topics, ", ")},
+		{"Teaser", article.Description},
+		{"Photo credit", article.Credit},
 	} {
-		if value := strings.TrimSpace(ctx[field.key]); value != "" {
+		if value := strings.TrimSpace(field.value); value != "" {
 			fmt.Fprintf(&b, "%s: %s\n", field.label, value)
 		}
+	}
+	if body := truncateWords(article.Body, maxBodyWords); body != "" {
+		fmt.Fprintf(&b, "Text:\n%s\n", body)
 	}
 	if b.Len() == 0 {
 		return fmt.Sprintf("The post could not be read. The only hint of its subject is the words of its URL: %q", slug)
 	}
 	return strings.TrimSuffix(b.String(), "\n")
+}
+
+// truncateWords keeps the first limit words of text, marking a cut with
+// " …". Paragraph breaks within the kept words survive.
+func truncateWords(text string, limit int) string {
+	text = strings.TrimSpace(text)
+	count := 0
+	inWord := false
+	for i, r := range text {
+		if unicode.IsSpace(r) {
+			inWord = false
+			continue
+		}
+		if !inWord {
+			inWord = true
+			count++
+			if count > limit {
+				return strings.TrimRightFunc(text[:i], unicode.IsSpace) + " …"
+			}
+		}
+	}
+	return text
 }
 
 // slugWords turns the last path segment of a post URL into plain words,

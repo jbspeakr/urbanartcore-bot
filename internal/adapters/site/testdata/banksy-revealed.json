@@ -1,0 +1,23 @@
+{
+  "artists": ["Banksy", "Brad Downey"],
+  "author": "Jan Brennenstuhl",
+  "cover": {
+    "alt": "Banksy Revealed!",
+    "height": 720,
+    "src": "https://www.urbanartcore.com/banksy-revealed/banksy-revealation1.jpg",
+    "width": 1200
+  },
+  "credit": "",
+  "date": "2011-09-14T13:52:52Z",
+  "description": "An original, eight years old Banksy mural was recently revealed by Berlin-based artist Brad Downey and curator Andrian Nabi!",
+  "events": [],
+  "formats": ["Exhibition"],
+  "html": "<p>After eight years and several new layers of paint ...</p>",
+  "markdown": "\nAfter eight years and several new layers of paint, Berlin-based artist **Brad Downey** and curator **Andrian Nabi** recently revealed an original **Banksy** mural!\n\n![banksy revealation](<https://www.urbanartcore.com/banksy-revealed/banksy-revealation1.jpg>)\n\nThe wall was painted during the [Bach Jumps festival](https://example.org/bach-jumps) in 2003 &amp; then covered.\n\n{{< youtube abc123 >}}\n\n## More\n\n- <em>Photos</em> by the artists\n",
+  "places": ["Berlin"],
+  "section": "Street Art",
+  "techniques": ["Mural Art"],
+  "title": "Banksy Revealed!",
+  "topics": ["Art Restoration"],
+  "url": "https://www.urbanartcore.com/banksy-revealed/"
+}
