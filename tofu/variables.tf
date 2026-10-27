@@ -123,7 +123,7 @@ variable "job_command" {
 
 # Cron Configuration
 variable "cron_schedule" {
-  description = "Cron schedule for job execution (always UTC)"
+  description = "Cron schedule for job execution"
   type        = string
   default     = "55 11 * * *"
   validation {
@@ -133,9 +133,9 @@ variable "cron_schedule" {
 }
 
 variable "cron_timezone" {
-  description = "Timezone for cron schedule (always UTC recommended)"
+  description = "Timezone for cron schedule"
   type        = string
-  default     = "UTC"
+  default     = "Europe/Berlin"
   validation {
     condition     = contains(["UTC", "Europe/London", "Europe/Paris", "Europe/Berlin", "US/Eastern", "US/Pacific", "Asia/Tokyo"], var.cron_timezone)
     error_message = "cron_timezone must be a valid IANA timezone"

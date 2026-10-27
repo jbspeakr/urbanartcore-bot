@@ -5,7 +5,7 @@ Production infrastructure as code for deploying UAC Socializer to Scaleway Serve
 ## Overview
 
 Deploys the application as a daily scheduled Scaleway Serverless Job with:
-- **Cron scheduling** (configurable time/timezone, default: midnight UTC)
+- **Cron scheduling** (configurable time/timezone, default: 11:55 Europe/Berlin)
 - **Secrets management** via Scaleway Secret Manager
 - **Environment variables** automatically populated from `.env`
 - **Cost-effective**: ~€0.04/month for daily execution
@@ -98,6 +98,8 @@ Sensitive credentials stored in Scaleway Secret Manager:
 - `UAC_BLUESKY_PASSWORD`
 - `UAC_MASTODON_ACCESS_TOKEN`
 - `UAC_LEDGER_SECRET_KEY` (created by `ledger.tf` from the ledger's own API key)
+
+The job reads each one through a secret reference at version `latest`, so a new version applies from the next run. Tofu sets the first three values once and then leaves them alone (`ignore_changes`); rotate them by adding a version in the console.
 
 ### Ledger
 
@@ -240,7 +242,7 @@ vim .env
 just tofu-apply
 ```
 
-Secrets in Secret Manager are automatically updated.
+Secret values are not updated by `tofu apply`; add a new version in the console instead.
 
 ### Updating Container Image
 
