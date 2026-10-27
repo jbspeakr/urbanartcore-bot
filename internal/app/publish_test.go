@@ -29,6 +29,14 @@ func (m *MockPostRepository) GetPostForDate(ctx context.Context, dateKey string)
 	return args.Get(0).(*domain.Post), args.Error(1)
 }
 
+func (m *MockPostRepository) GetPostsForDate(ctx context.Context, dateKey string) ([]*domain.Post, error) {
+	args := m.Called(ctx, dateKey)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.Post), args.Error(1)
+}
+
 func (m *MockPostRepository) ListAvailableDates(ctx context.Context) ([]string, error) {
 	args := m.Called(ctx)
 	return args.Get(0).([]string), args.Error(1)

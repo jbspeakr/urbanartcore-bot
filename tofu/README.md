@@ -97,6 +97,11 @@ Sensitive credentials stored in Scaleway Secret Manager:
 - `UAC_MISTRAL_API_KEY`
 - `UAC_BLUESKY_PASSWORD`
 - `UAC_MASTODON_ACCESS_TOKEN`
+- `UAC_LEDGER_SECRET_KEY` (created by `ledger.tf` from the ledger's own API key)
+
+### Ledger
+
+`ledger.tf` creates the `uac-socializer-ledger` bucket (versioned), an IAM application with read and write access to Object Storage in the project, and its API key. The job gets the bucket, endpoint, region and access key as plain environment variables; the secret key goes to Secret Manager like the other credentials. The ledger keeps one JSON document per year under `ledger/`.
 
 Marked with `protected = true` to prevent accidental deletion.
 
@@ -108,6 +113,7 @@ Marked with `protected = true` to prevent accidental deletion.
 | `provider.tf` | Scaleway provider configuration |
 | `main.tf` | Job definition resource |
 | `secrets.tf` | Secret Manager resources |
+| `ledger.tf` | Ledger bucket, its IAM application and API key |
 | `locals.tf` | Computed values (image URI, env vars) |
 | `outputs.tf` | Export job ID and console URL |
 | `.terraform/` | OpenTofu state and provider (gitignored) |

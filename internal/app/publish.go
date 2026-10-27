@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math/rand"
 	"regexp"
 	"strings"
 	"time"
@@ -48,6 +49,7 @@ type PublishResponse struct {
 	Generated map[string]*domain.GeneratedContent // Generated content per platform
 	Error     error                               // Any critical errors that occurred
 	RestDay   bool                                // No post for the date: nothing was generated or published
+	Published bool                                // Every platform already has this slot's post: nothing was done
 }
 
 // PublishService orchestrates the complete publishing workflow for anniversary posts.
@@ -59,6 +61,9 @@ type PublishService struct {
 	publishers map[string]ports.SocialPublisher
 	reader     ports.PostReader // optional; without it the model only sees what the catalogue holds
 	critic     ports.Critic     // optional; without it drafts are published unchecked
+	ledger     ports.Ledger     // optional; without it reruns post again and posts repeat freely
+	now        func() time.Time
+	intn       func(n int) int
 }
 
 // NewPublishService creates a new PublishService with the provided dependencies.
@@ -76,6 +81,8 @@ func NewPublishService(
 		repository: repository,
 		generator:  generator,
 		publishers: publishers,
+		now:        time.Now,
+		intn:       rand.Intn,
 	}
 }
 
@@ -91,6 +98,15 @@ func (ps *PublishService) WithPostReader(reader ports.PostReader) *PublishServic
 // MaxRewrites times, then replaced by the fallback template.
 func (ps *PublishService) WithCritic(critic ports.Critic) *PublishService {
 	ps.critic = critic
+	return ps
+}
+
+// WithLedger records every published post and consults the record before
+// each run: a platform that already has today's post is skipped, and posts
+// featured within domain.RepeatWindow are passed over when the day offers
+// another.
+func (ps *PublishService) WithLedger(ledger ports.Ledger) *PublishService {
+	ps.ledger = ledger
 	return ps
 }
 
@@ -122,7 +138,13 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 		slog.Bool("dryRun", req.DryRun))
 
 	// Step 2: Data Retrieval
-	post, err := ps.repository.GetPostForDate(ctx, req.DateKey)
+	slot := ps.slotDate(req.DateKey)
+	history, err := ps.history(ctx, slot)
+	if err != nil {
+		return nil, ApplicationError{Err: err}
+	}
+
+	post, err := ps.choosePost(ctx, req.DateKey, slot, history)
 	if err != nil {
 		if errors.Is(err, ports.ErrDateNotFound) {
 			// 26 calendar days have no anniversary post. That is a rest day,
@@ -151,6 +173,14 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 
 	if len(platforms) == 0 {
 		return nil, ApplicationError{Err: ErrNoPlatforms}
+	}
+
+	// A rerun of the same slot posts nothing where the post already went out
+	platforms = ps.unpublished(platforms, slot, history)
+	if len(platforms) == 0 {
+		slog.Default().Info("Already published: every platform has this slot's post",
+			slog.String("slot", slot.Format(domain.DateLayout)))
+		return &PublishResponse{Published: true}, nil
 	}
 
 	slog.Default().Info("Resolved target platforms", slog.Any("platforms", platforms))
@@ -230,6 +260,10 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 		if err := publishResult.AddPlatformResult(platformResult); err != nil {
 			slog.Default().Error("Failed to add platform result", slog.String("error", err.Error()))
 		}
+
+		if !req.DryRun && platformResult != nil && platformResult.IsSuccess() {
+			ps.record(ctx, slot, post, platformResult)
+		}
 	}
 
 	// Step 6: Result Aggregation
@@ -255,6 +289,130 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 	}
 
 	return response, nil
+}
+
+// slotDate is the calendar day being filled: dateKey (MM-DD) in the current
+// year. February 29 outside a leap year becomes March 1.
+func (ps *PublishService) slotDate(dateKey string) time.Time {
+	now := ps.now().UTC()
+	slot, err := time.Parse(domain.DateLayout, fmt.Sprintf("%d-%s", now.Year(), dateKey))
+	if err != nil {
+		var month, day int
+		_, _ = fmt.Sscanf(dateKey, "%d-%d", &month, &day)
+		return time.Date(now.Year(), time.Month(month), day, 0, 0, 0, 0, time.UTC)
+	}
+	return slot
+}
+
+// history reads the ledger records of the repeat window before slot. A
+// configured ledger that cannot be read stops the run, since it can no
+// longer tell whether today's post already went out.
+func (ps *PublishService) history(ctx context.Context, slot time.Time) ([]domain.PublishRecord, error) {
+	if ps.ledger == nil {
+		return nil, nil
+	}
+	records, err := ps.ledger.Records(ctx, slot.Add(-domain.RepeatWindow))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read the ledger: %w", err)
+	}
+	return records, nil
+}
+
+// choosePost picks the slot's post. A slot that already went out on some
+// platform keeps its post, so a rerun completes the other platforms with the
+// same one. Otherwise it picks at random among the day's posts, passing over
+// those featured within the repeat window when another is left.
+func (ps *PublishService) choosePost(ctx context.Context, dateKey string, slot time.Time, history []domain.PublishRecord) (*domain.Post, error) {
+	if ps.ledger == nil {
+		return ps.repository.GetPostForDate(ctx, dateKey)
+	}
+	posts, err := ps.repository.GetPostsForDate(ctx, dateKey)
+	if err != nil {
+		return nil, err
+	}
+	day := slot.Format(domain.DateLayout)
+	featured := make(map[string]bool, len(history))
+	for _, r := range history {
+		featured[r.PostURI] = true
+	}
+	for _, r := range history {
+		if r.Date != day {
+			continue
+		}
+		for _, post := range posts {
+			if post != nil && post.URI() == r.PostURI {
+				return post, nil
+			}
+		}
+	}
+	fresh := make([]*domain.Post, 0, len(posts))
+	for _, post := range posts {
+		if post != nil && !featured[post.URI()] {
+			fresh = append(fresh, post)
+		}
+	}
+	if len(fresh) == 0 {
+		slog.Default().Info("Every post of the day was featured within the last year, picking among all",
+			slog.String("dateKey", dateKey), slog.Int("posts", len(posts)))
+		fresh = posts
+	}
+	if len(fresh) == 0 {
+		return nil, ports.RepositoryError{Err: fmt.Errorf("%w: %s", ports.ErrDateNotFound, dateKey)}
+	}
+	return fresh[ps.intn(len(fresh))], nil
+}
+
+// unpublished drops the platforms the ledger already holds a post for on slot.
+func (ps *PublishService) unpublished(platforms []string, slot time.Time, history []domain.PublishRecord) []string {
+	day := slot.Format(domain.DateLayout)
+	done := make(map[string]string)
+	for _, r := range history {
+		if r.Date == day {
+			done[r.Platform] = r.RemoteURL
+		}
+	}
+	left := make([]string, 0, len(platforms))
+	for _, platform := range platforms {
+		if remote, ok := done[platform]; ok {
+			slog.Default().Info("Skipping platform: today's post already went out",
+				slog.String("platform", platform), slog.String("remote_url", remote))
+			continue
+		}
+		left = append(left, platform)
+	}
+	return left
+}
+
+// record appends a published post to the ledger. A failed write is logged,
+// not returned: the post is out, and failing the run would invite a retry
+// that posts it twice.
+func (ps *PublishService) record(ctx context.Context, slot time.Time, post *domain.Post, result *domain.PlatformResult) {
+	if ps.ledger == nil {
+		return
+	}
+	content := result.Content()
+	rec := domain.PublishRecord{
+		Key:         domain.LedgerKey(slot, domain.ProgramOnThisDay, post.URI(), result.Platform()),
+		Date:        slot.Format(domain.DateLayout),
+		Program:     domain.ProgramOnThisDay,
+		Platform:    result.Platform(),
+		PostURI:     post.URI(),
+		RemoteURL:   result.PublishedURL(),
+		Text:        content.RenderedText(),
+		Fallback:    content.IsFallback(),
+		PublishedAt: result.PublishedAt(),
+	}
+	if rec.PublishedAt.IsZero() {
+		rec.PublishedAt = ps.now()
+	}
+	if err := ps.ledger.Append(ctx, rec); err != nil {
+		slog.Default().Error("Published, but the ledger write failed: a rerun today may post again",
+			slog.String("key", rec.Key),
+			slog.String("remote_url", rec.RemoteURL),
+			slog.String("error", err.Error()))
+		return
+	}
+	slog.Default().Info("Recorded in the ledger", slog.String("key", rec.Key))
 }
 
 // validateRequest validates the publishing request parameters.

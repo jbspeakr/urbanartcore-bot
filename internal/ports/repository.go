@@ -39,6 +39,11 @@ type PostRepository interface {
 	// Returns ErrDateNotFound if no posts exist for the specified date.
 	GetPostForDate(ctx context.Context, dateKey string) (*domain.Post, error)
 
+	// GetPostsForDate returns every post published on dateKey (MM-DD) in any
+	// year, so the caller can choose among them.
+	// Returns ErrDateNotFound if no posts exist for the specified date.
+	GetPostsForDate(ctx context.Context, dateKey string) ([]*domain.Post, error)
+
 	// ListAvailableDates returns all MM-DD date keys that have associated posts.
 	// Results are returned in chronological order (01-01, 01-02, ..., 12-31).
 	// This is useful for validating date inputs and discovering available content.

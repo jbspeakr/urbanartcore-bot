@@ -198,6 +198,12 @@ variable "mistral_model" {
   default     = "mistral-large-2512"
 }
 
+variable "ledger_bucket" {
+  description = "Object Storage bucket for the ledger of published posts (globally unique name)"
+  type        = string
+  default     = "uac-socializer-ledger"
+}
+
 variable "critic_model" {
   description = "Mistral AI model that checks every draft against its post"
   type        = string

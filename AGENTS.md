@@ -92,6 +92,13 @@ UAC_BLUESKY_HANDLE="handle.bsky.social"
 UAC_MASTODON_SERVER="https://mastodon.social"
 UAC_SITE_BASE_URL="https://www.urbanartcore.com"   # optional; where index.json lives
 
+# Ledger of published posts (optional locally; without it reruns post again)
+UAC_LEDGER_BUCKET="uac-socializer-ledger"
+UAC_LEDGER_ACCESS_KEY="SCW..."
+UAC_LEDGER_SECRET_KEY="..."
+UAC_LEDGER_ENDPOINT="https://s3.fr-par.scw.cloud"   # default
+UAC_LEDGER_REGION="fr-par"                           # default
+
 # Optional (defaults provided)
 UAC_MISTRAL_MODEL="mistral-large-2512"
 UAC_CRITIC_MODEL="ministral-8b-2512"   # checks every draft against its post
@@ -182,6 +189,8 @@ Monitor: https://console.scaleway.com/serverless/jobs
 - Infrastructure: DI container, logging, config
 - CLI: Cobra commands
 
+**Ledger:** before choosing, the run reads the last year of records from the ledger bucket (`ledger/<year>.json`). Platforms that already have the slot's post are skipped (a rerun posts nothing; a partial run completes the missing platform with the same post), and posts featured within a year are passed over when the day has another. Each successful publish is appended straight away with a conditional PUT. An unreadable ledger stops the run; a failed append is logged, not fatal. Dry runs read but never write.
+
 **Content pipeline (per platform):** read the post's JSON → writer drafts text plus a list of its claims → critic checks each claim against the post and scores the voice → a rejected draft is rewritten with the critic's findings, at most twice → if nothing passes, or the critic gives no verdict, the fallback template is posted instead. Dry runs log every review (`Draft reviewed`, with `unsupported` claims) and mark fallback content.
 
 **Design Principles:**
@@ -203,6 +212,7 @@ Monitor: https://console.scaleway.com/serverless/jobs
 - `internal/infrastructure/prompts/voice.md` - System prompt: register, banned phrases, example posts
 - `internal/infrastructure/prompts/` - Task templates per platform (`bluesky.txt`, `mastodon.txt`)
 - `internal/adapters/generator/critic.go` - Critic: a small Mistral model checks each claim of a draft against the post and scores the voice
+- `internal/adapters/ledger/objectstorage.go` - Ledger in S3-compatible Object Storage, SigV4-signed requests, one JSON document per year
 - `internal/domain/fallback.go` - Template post from title, artists, place and month, used when no draft passes review
 - `tofu/` - Infrastructure as code (see tofu/README.md)
 

@@ -407,3 +407,25 @@ func clearUACEnvVars() {
 		_ = os.Unsetenv(envVar)
 	}
 }
+
+func TestConfig_LedgerNeedsCredentials(t *testing.T) {
+	config := &Config{
+		MistralModel:       "mistral-large-2512",
+		MistralTemperature: 0.7,
+		MistralMaxTokens:   1000,
+		AITimeout:          30 * time.Second,
+		AIRetryCount:       3,
+		MaxRetryCount:      10,
+	}
+	require.NoError(t, config.Validate())
+	assert.False(t, config.HasLedger())
+
+	config.LedgerBucket = "uac-socializer-ledger"
+	assert.True(t, errors.Is(config.Validate(), ErrMissingRequiredField))
+
+	config.LedgerAccessKey = "SCWXXX"
+	config.LedgerSecretKey = "secret"
+	require.NoError(t, config.Validate())
+	assert.True(t, config.HasLedger())
+	assert.Equal(t, "***", config.SanitizeForLogging().LedgerSecretKey)
+}
