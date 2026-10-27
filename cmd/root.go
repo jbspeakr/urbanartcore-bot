@@ -8,6 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	"github.com/jbspeakr/urbanartcore-bot/internal/app"
 )
 
 var cfgFile string
@@ -45,7 +47,8 @@ Key Features:
 • Comprehensive error handling and structured logging
 • Containerized for serverless deployment
 
-Configuration via Environment Variables:
+Configuration via Environment Variables (read from .env in the working directory
+when present; variables already set in the environment take precedence):
   UAC_MISTRAL_API_KEY       - Mistral AI API key (required)
   UAC_BLUESKY_HANDLE        - Bluesky account handle (required for Bluesky)
   UAC_BLUESKY_PASSWORD      - Bluesky app password (required for Bluesky)
@@ -89,6 +92,10 @@ func init() {
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
+	// Local runs read .env from the working directory; real environment
+	// variables still win, and the container has no .env file
+	cobra.CheckErr(app.LoadDotEnv(".env"))
+
 	if cfgFile != "" {
 		// Use config file from the flag.
 		viper.SetConfigFile(cfgFile)

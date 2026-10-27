@@ -4,7 +4,7 @@ Go CLI application that publishes anniversary blog posts to Bluesky and Mastodon
 
 ## Quick Start (Local)
 
-Set environment variables from `.env`, then run:
+With a `.env` in the repository root (read automatically; real environment variables win), run:
 
 ```bash
 go run ./main.go publish --dry-run                           # Preview
