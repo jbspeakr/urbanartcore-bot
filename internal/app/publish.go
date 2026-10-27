@@ -57,6 +57,7 @@ type PublishService struct {
 	repository ports.PostRepository
 	generator  ports.ContentGenerator
 	publishers map[string]ports.SocialPublisher
+	reader     ports.ArticleReader // optional; without it the model only sees the URL slug
 }
 
 // NewPublishService creates a new PublishService with the provided dependencies.
@@ -75,6 +76,13 @@ func NewPublishService(
 		generator:  generator,
 		publishers: publishers,
 	}
+}
+
+// WithArticleReader lets the service read each post's page, so the
+// generated text can promote what the post is about.
+func (ps *PublishService) WithArticleReader(reader ports.ArticleReader) *PublishService {
+	ps.reader = reader
+	return ps
 }
 
 // PublishAnniversaryPosts executes the complete publishing workflow.
@@ -134,6 +142,8 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 
 	slog.Default().Info("Resolved target platforms", slog.Any("platforms", platforms))
 
+	article := ps.readArticle(ctx, post)
+
 	// Initialize result tracking
 	publishResult, err := domain.NewPublishResult(post, req.DryRun)
 	if err != nil {
@@ -153,7 +163,7 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 
 		slog.Default().Info("Generating content for platform", slog.String("platform", platform))
 
-		content, err := ps.generateContentForPlatform(ctx, post, platform, req.DateKey, req.DryRun)
+		content, err := ps.generateContentForPlatform(ctx, post, article, platform, req.DateKey, req.DryRun)
 		if err != nil {
 			// Platform error - continue with other platforms
 			slog.Default().Error("Content generation failed for platform",
@@ -314,8 +324,28 @@ func (ps *PublishService) resolvePlatforms(platforms []string) ([]string, error)
 	return unique, nil
 }
 
+// readArticle reads the post's page once for all platforms. A failure is
+// not fatal: the prompt falls back to the URL slug.
+func (ps *PublishService) readArticle(ctx context.Context, post *domain.Post) *ports.Article {
+	if ps.reader == nil {
+		return nil
+	}
+	article, err := ps.reader.ReadArticle(ctx, post.URI())
+	if err != nil {
+		slog.Default().Warn("Could not read the post, generating from its URL only",
+			slog.String("uri", post.URI()),
+			slog.String("error", err.Error()))
+		return nil
+	}
+	slog.Default().Info("Read post for content generation",
+		slog.String("uri", post.URI()),
+		slog.String("title", article.Title),
+		slog.Int("excerpt_chars", len([]rune(article.Excerpt))))
+	return article
+}
+
 // generateContentForPlatform generates content for a specific platform.
-func (ps *PublishService) generateContentForPlatform(ctx context.Context, post *domain.Post, platform, dateKey string, dryRun bool) (*domain.GeneratedContent, error) {
+func (ps *PublishService) generateContentForPlatform(ctx context.Context, post *domain.Post, article *ports.Article, platform, dateKey string, dryRun bool) (*domain.GeneratedContent, error) {
 	// Nil safety check
 	if post == nil {
 		return nil, errors.New("post cannot be nil")
@@ -329,6 +359,11 @@ func (ps *PublishService) generateContentForPlatform(ctx context.Context, post *
 	// Add anniversary context
 	req.WithContext("anniversary_date", dateKey)
 	req.WithContext("post_count", "1")
+	if article != nil {
+		req.WithContext("post_title", article.Title)
+		req.WithContext("post_description", article.Description)
+		req.WithContext("post_excerpt", article.Excerpt)
+	}
 
 	if dryRun {
 		// In dry-run mode, placeholder generator will return "not implemented" error

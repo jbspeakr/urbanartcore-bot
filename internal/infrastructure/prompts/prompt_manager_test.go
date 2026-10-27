@@ -617,7 +617,7 @@ func TestRealTemplateFiles(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, blueskyTemplate, "Bluesky")
 	assert.Contains(t, blueskyTemplate, "{POST_URI}")
-	assert.Contains(t, blueskyTemplate, "{DATE_KEY}")
+	assert.Contains(t, blueskyTemplate, "{POST_DETAILS}")
 	assert.Contains(t, blueskyTemplate, "300 character") // Bluesky char limit
 
 	// Test Mastodon template
@@ -625,7 +625,7 @@ func TestRealTemplateFiles(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, mastodonTemplate, "Mastodon")
 	assert.Contains(t, mastodonTemplate, "{POST_URI}")
-	assert.Contains(t, mastodonTemplate, "{DATE_KEY}")
+	assert.Contains(t, mastodonTemplate, "{POST_DETAILS}")
 	assert.Contains(t, mastodonTemplate, "500 character") // Mastodon char limit
 
 	// Test rendering with real templates
@@ -736,8 +736,8 @@ func TestSlugWords(t *testing.T) {
 	}
 }
 
-// TestRealTemplatesAreHonest checks the shipped prompts no longer claim the
-// model can read the post, and that every variable they use is filled.
+// TestRealTemplatesAreHonest checks the shipped prompts fall back to the
+// slug when the post could not be read, and that every variable is filled.
 func TestRealTemplatesAreHonest(t *testing.T) {
 	pm, err := NewPromptManager("../prompts")
 	require.NoError(t, err)
@@ -752,10 +752,37 @@ func TestRealTemplatesAreHonest(t *testing.T) {
 		rendered, err := pm.RenderPrompt(context.Background(), platform, req)
 		require.NoError(t, err)
 
-		assert.NotContains(t, strings.ToLower(rendered), "read the blog post", platform)
-		assert.Contains(t, rendered, "You cannot open the URL", platform)
+		assert.Contains(t, rendered, "The post could not be read", platform)
 		assert.Contains(t, rendered, `"graffiti meets thalys in paris"`, platform)
 		assert.Contains(t, rendered, "September 2009", platform)
+		assert.Empty(t, templateVarPattern.FindAllString(rendered, -1), platform)
+	}
+}
+
+// TestRealTemplatesPromoteTheContent checks that what was read from the
+// post reaches the prompt, and the prompt forbids talking about the blog.
+func TestRealTemplatesPromoteTheContent(t *testing.T) {
+	pm, err := NewPromptManager("../prompts")
+	require.NoError(t, err)
+
+	post, err := domain.NewPost("https://www.urbanartcore.com/bomb-it-israel/", "2010-10-27")
+	require.NoError(t, err)
+
+	for _, platform := range []string{domain.PlatformBluesky, domain.PlatformMastodon} {
+		req, err := ports.NewGenerationRequest([]*domain.Post{post}, platform, "10-27")
+		require.NoError(t, err)
+		req.WithContext("post_title", "Bomb It: Israel")
+		req.WithContext("post_description", "A clip from the Bomb It documentary.")
+		req.WithContext("post_excerpt", "")
+
+		rendered, err := pm.RenderPrompt(context.Background(), platform, req)
+		require.NoError(t, err)
+
+		assert.Contains(t, rendered, "Title: Bomb It: Israel", platform)
+		assert.Contains(t, rendered, "Teaser: A clip from the Bomb It documentary.", platform)
+		assert.NotContains(t, rendered, "Opening text:", platform)
+		assert.NotContains(t, rendered, "could not be read", platform)
+		assert.Contains(t, rendered, `no "Urban Art Core published"`, platform)
 		assert.Empty(t, templateVarPattern.FindAllString(rendered, -1), platform)
 	}
 }
