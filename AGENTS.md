@@ -106,6 +106,7 @@ internal/
     repository/               # Data access (JSON file)
     publisher/                # Bluesky, Mastodon adapters
     generator/                # Mistral AI adapter
+    reader/                   # Reads a post's web page for the prompt
   app/
     publish.go                # PublishService use case
     config.go                 # Viper configuration
@@ -190,6 +191,8 @@ Monitor: https://console.scaleway.com/serverless/jobs
 - `internal/adapters/publisher/bluesky.go` - Bluesky/ATProto integration
 - `internal/adapters/publisher/mastodon.go` - Mastodon REST API
 - `internal/adapters/generator/mistral.go` - Mistral AI integration
+- `internal/adapters/reader/web.go` - Reads the post's title, teaser and opening text
+- `internal/infrastructure/prompts/` - Prompt templates per platform
 - `tofu/` - Infrastructure as code (see tofu/README.md)
 
 ## Important Constraints

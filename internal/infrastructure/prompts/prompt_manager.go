@@ -239,11 +239,12 @@ func (pm *PromptManager) buildVariableMap(req *ports.GenerationRequest) map[stri
 		years := time.Now().Year() - post.Date().Year()
 		vars["ANNIVERSARY_YEARS"] = fmt.Sprintf("%d", years)
 
-		// Add post URI and the words of its slug, the only hint of the
-		// post's subject the model gets until the bot reads the post itself
+		// Add post URI and the words of its slug, the fallback hint of the
+		// post's subject when the post itself could not be read
 		vars["POST_URI"] = post.URI()
 		vars["POST_SLUG"] = slugWords(post.URI())
 	}
+	vars["POST_DETAILS"] = postDetails(req.Context, vars["POST_SLUG"])
 
 	// Add platform-specific constraints
 	switch req.Platform {
@@ -270,6 +271,26 @@ func (pm *PromptManager) buildVariableMap(req *ports.GenerationRequest) map[stri
 	}
 
 	return vars
+}
+
+// postDetails describes what is known about the post's content: the
+// title, teaser and opening text read from its page, or only the slug
+// words when the page could not be read.
+func postDetails(ctx map[string]string, slug string) string {
+	var b strings.Builder
+	for _, field := range []struct{ key, label string }{
+		{"post_title", "Title"},
+		{"post_description", "Teaser"},
+		{"post_excerpt", "Opening text"},
+	} {
+		if value := strings.TrimSpace(ctx[field.key]); value != "" {
+			fmt.Fprintf(&b, "%s: %s\n", field.label, value)
+		}
+	}
+	if b.Len() == 0 {
+		return fmt.Sprintf("The post could not be read. The only hint of its subject is the words of its URL: %q", slug)
+	}
+	return strings.TrimSuffix(b.String(), "\n")
 }
 
 // slugWords turns the last path segment of a post URL into plain words,

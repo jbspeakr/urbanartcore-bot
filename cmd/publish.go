@@ -157,11 +157,17 @@ func runPublishCommand(cmd *cobra.Command, args []string) error {
 					slog.Int("platforms", len(response.Generated)))
 
 				for platform, content := range response.Generated {
-					logger.Info("Generated content for platform",
+					attrs := []any{
 						slog.String("platform", platform),
 						slog.Int("character_count", content.CharacterCount()),
 						slog.Int("character_limit", getCharacterLimit(platform)),
-						slog.String("content_text", content.Text()))
+						slog.String("content_text", content.RenderedText()),
+					}
+					if platform == domain.PlatformBluesky {
+						// Bluesky carries the link as a card under the post, not in the text
+						attrs = append(attrs, slog.String("link_card", content.URI()))
+					}
+					logger.Info("Generated content for platform", attrs...)
 				}
 			}
 

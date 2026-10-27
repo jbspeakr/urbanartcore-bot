@@ -8,6 +8,7 @@ import (
 
 	"github.com/jbspeakr/urbanartcore-bot/internal/adapters/generator"
 	"github.com/jbspeakr/urbanartcore-bot/internal/adapters/publisher"
+	"github.com/jbspeakr/urbanartcore-bot/internal/adapters/reader"
 	"github.com/jbspeakr/urbanartcore-bot/internal/adapters/repository"
 	"github.com/jbspeakr/urbanartcore-bot/internal/app"
 	"github.com/jbspeakr/urbanartcore-bot/internal/domain"
@@ -227,5 +228,5 @@ func (c *Container) GetPublishService() *app.PublishService {
 		c.PostRepository,
 		c.ContentGenerator,
 		publishers,
-	)
+	).WithArticleReader(reader.NewWebArticleReader())
 }
