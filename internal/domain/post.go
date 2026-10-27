@@ -4,7 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
+	"unicode"
 )
 
 // DomainError represents business rule violations in the domain layer.
@@ -128,6 +130,56 @@ func (p *Post) Date() time.Time {
 		return time.Time{}
 	}
 	return p.date
+}
+
+// SourceText lays out the article as the models read it: title, section,
+// typed tags, teaser, photo credit and the first maxWords words of the body,
+// one labelled line each, leaving out what is empty. It returns "" when
+// nothing is known about the article.
+func (a Article) SourceText(maxWords int) string {
+	var b strings.Builder
+	for _, field := range []struct{ label, value string }{
+		{"Title", a.Title},
+		{"Section", a.Section},
+		{"Artists", strings.Join(a.Tags.Artists, ", ")},
+		{"Places", strings.Join(a.Tags.Places, ", ")},
+		{"Events", strings.Join(a.Tags.Events, ", ")},
+		{"Techniques", strings.Join(a.Tags.Techniques, ", ")},
+		{"Formats", strings.Join(a.Tags.Formats, ", ")},
+		{"Topics", strings.Join(a.Tags.Topics, ", ")},
+		{"Teaser", a.Description},
+		{"Photo credit", a.Credit},
+	} {
+		if value := strings.TrimSpace(field.value); value != "" {
+			fmt.Fprintf(&b, "%s: %s\n", field.label, value)
+		}
+	}
+	if body := TruncateWords(a.Body, maxWords); body != "" {
+		fmt.Fprintf(&b, "Text:\n%s\n", body)
+	}
+	return strings.TrimSuffix(b.String(), "\n")
+}
+
+// TruncateWords keeps the first limit words of text, marking a cut with
+// " …". Paragraph breaks within the kept words survive.
+func TruncateWords(text string, limit int) string {
+	text = strings.TrimSpace(text)
+	count := 0
+	inWord := false
+	for i, r := range text {
+		if unicode.IsSpace(r) {
+			inWord = false
+			continue
+		}
+		if !inWord {
+			inWord = true
+			count++
+			if count > limit {
+				return strings.TrimRightFunc(text[:i], unicode.IsSpace) + " …"
+			}
+		}
+	}
+	return text
 }
 
 // Article returns what the site says about the post.

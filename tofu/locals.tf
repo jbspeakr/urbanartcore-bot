@@ -12,6 +12,7 @@ locals {
     UAC_BLUESKY_HANDLE         = var.UAC_BLUESKY_HANDLE
     UAC_MASTODON_SERVER        = var.UAC_MASTODON_SERVER
     UAC_MISTRAL_MODEL          = var.mistral_model
+    UAC_CRITIC_MODEL           = var.critic_model
     UAC_MISTRAL_MAX_TOKENS     = tostring(var.mistral_max_tokens)
     UAC_MISTRAL_TEMPERATURE    = tostring(var.mistral_temperature)
     UAC_AI_RETRY_COUNT         = tostring(var.ai_retry_count)

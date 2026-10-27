@@ -35,6 +35,10 @@ func (m *mockPromptManager) RenderPrompt(ctx context.Context, platform string, r
 	return fmt.Sprintf("Generate social media content for %s platform for date %s", platform, req.DateKey), nil
 }
 
+func (m *mockPromptManager) SystemPrompt(ctx context.Context) (string, error) {
+	return "test voice", nil
+}
+
 func (m *mockPromptManager) ValidateTemplate(ctx context.Context, template string) error {
 	if m.validateTemplateFunc != nil {
 		return m.validateTemplateFunc(ctx, template)

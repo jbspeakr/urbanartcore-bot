@@ -50,6 +50,8 @@ type GeneratedContent struct {
 	uri         string    // Source blog post URI (required for embeds/attribution)
 	promptUsed  string    // Original prompt for debugging/optimization
 	generatedAt time.Time // When content was generated
+	claims      []string  // Factual statements the text makes, as the writer lists them
+	fallback    bool      // Built from the template, not generated
 }
 
 // NewGeneratedContent creates a new GeneratedContent with validation.
@@ -99,6 +101,34 @@ func NewGeneratedContent(text, platform string, hashtags []string, promptUsed, u
 		promptUsed:  strings.TrimSpace(promptUsed),
 		generatedAt: time.Now(),
 	}, nil
+}
+
+// WithClaims records the factual statements the text makes, for review.
+func (gc *GeneratedContent) WithClaims(claims []string) *GeneratedContent {
+	if gc == nil {
+		return nil
+	}
+	gc.claims = make([]string, 0, len(claims))
+	for _, claim := range claims {
+		if claim = strings.TrimSpace(claim); claim != "" {
+			gc.claims = append(gc.claims, claim)
+		}
+	}
+	return gc
+}
+
+// Claims returns a copy of the factual statements the text makes.
+func (gc *GeneratedContent) Claims() []string {
+	if gc == nil {
+		return nil
+	}
+	return append([]string(nil), gc.claims...)
+}
+
+// IsFallback reports whether the content was built from the fallback
+// template rather than generated.
+func (gc *GeneratedContent) IsFallback() bool {
+	return gc != nil && gc.fallback
 }
 
 // Text returns the generated post text.

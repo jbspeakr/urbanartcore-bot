@@ -198,6 +198,12 @@ variable "mistral_model" {
   default     = "mistral-large-2512"
 }
 
+variable "critic_model" {
+  description = "Mistral AI model that checks every draft against its post"
+  type        = string
+  default     = "ministral-8b-2512"
+}
+
 variable "mistral_max_tokens" {
   description = "Maximum tokens for Mistral AI responses"
   type        = number

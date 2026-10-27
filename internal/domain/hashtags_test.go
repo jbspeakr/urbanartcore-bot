@@ -103,3 +103,9 @@ func TestPostArticle(t *testing.T) {
 	assert.Nil(t, nilPost.WithArticle(Article{}))
 	assert.True(t, nilPost.Article().IsZero())
 }
+
+func TestTruncateWords(t *testing.T) {
+	assert.Equal(t, "", TruncateWords("  ", 3))
+	assert.Equal(t, "one two three", TruncateWords("one two three", 3))
+	assert.Equal(t, "one two\n\nthree …", TruncateWords("one two\n\nthree four five", 3))
+}

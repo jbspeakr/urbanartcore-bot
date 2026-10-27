@@ -22,6 +22,7 @@ type Config struct {
 	MistralModel       string  `mapstructure:"mistral_model"`
 	MistralMaxTokens   int     `mapstructure:"mistral_max_tokens"`
 	MistralTemperature float64 `mapstructure:"mistral_temperature"`
+	CriticModel        string  `mapstructure:"critic_model"` // Checks every draft against its post
 
 	// Bluesky configuration
 	BlueskyHandle   string `mapstructure:"bluesky_handle"`
@@ -74,6 +75,7 @@ func LoadConfig() (*Config, error) {
 	v.SetDefault("site_base_url", "https://www.urbanartcore.com")
 	v.SetDefault("prompts_path", "./internal/infrastructure/prompts")
 	v.SetDefault("mistral_model", "mistral-large-2512")
+	v.SetDefault("critic_model", "ministral-8b-2512")
 	v.SetDefault("mistral_max_tokens", 1000)
 	v.SetDefault("mistral_temperature", 0.7)
 	v.SetDefault("ai_retry_count", 3)
@@ -89,6 +91,7 @@ func LoadConfig() (*Config, error) {
 		"mistral_model",
 		"mistral_max_tokens",
 		"mistral_temperature",
+		"critic_model",
 		"bluesky_handle",
 		"bluesky_password",
 		"mastodon_server",
@@ -170,6 +173,13 @@ func (c *Config) Validate() error {
 	if strings.HasSuffix(strings.ToLower(strings.TrimSpace(c.MistralModel)), "-latest") {
 		return ConfigError{
 			Err: fmt.Errorf("%w: mistral_model must be a dated identifier such as mistral-large-2512, not an alias (got: %s)", ErrUnpinnedModel, c.MistralModel),
+		}
+	}
+
+	// The critic's model must be pinned for the same reason
+	if strings.HasSuffix(strings.ToLower(strings.TrimSpace(c.CriticModel)), "-latest") {
+		return ConfigError{
+			Err: fmt.Errorf("%w: critic_model must be a dated identifier such as ministral-8b-2512, not an alias (got: %s)", ErrUnpinnedModel, c.CriticModel),
 		}
 	}
 

@@ -61,6 +61,9 @@ Original: {ORIGINAL_DATE}
 Constraints: {PLATFORM_CONSTRAINTS}
 Tone: {TONE}`
 
+	err = os.WriteFile(filepath.Join(promptsDir, "voice.md"), []byte("Test voice."), 0644)
+	require.NoError(t, err)
+
 	err = os.WriteFile(filepath.Join(promptsDir, "bluesky.txt"), []byte(blueskyTemplate), 0644)
 	require.NoError(t, err)
 

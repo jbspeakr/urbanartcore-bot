@@ -24,6 +24,7 @@ type Container struct {
 	BlueskyPublisher  ports.SocialPublisher
 	MastodonPublisher ports.SocialPublisher
 	ContentGenerator  ports.ContentGenerator
+	Critic            ports.Critic // nil when no critic model is configured
 	PromptManager     ports.PromptManager
 }
 
@@ -93,6 +94,19 @@ func NewContainer(ctx context.Context, config *app.Config) (*Container, error) {
 		slog.String("type", "MistralAdapter"),
 		slog.String("model", config.MistralModel))
 
+	// The critic checks every draft against its post before it is published
+	var critic ports.Critic
+	if config.CriticModel != "" {
+		mistralCritic, err := generator.NewMistralCritic(config.MistralAPIKey, config.CriticModel, "", config.AITimeout)
+		if err != nil {
+			return nil, fmt.Errorf("%s: failed to initialize critic: %w", op, err)
+		}
+		critic = mistralCritic
+		logger.Debug("Initialized critic",
+			slog.String("type", "MistralCritic"),
+			slog.String("model", config.CriticModel))
+	}
+
 	container := &Container{
 		Config:            config,
 		PostRepository:    siteClient,
@@ -100,6 +114,7 @@ func NewContainer(ctx context.Context, config *app.Config) (*Container, error) {
 		BlueskyPublisher:  blueskyPublisher,
 		MastodonPublisher: mastodonPublisher,
 		ContentGenerator:  contentGenerator,
+		Critic:            critic,
 		PromptManager:     promptManager,
 	}
 
@@ -230,5 +245,5 @@ func (c *Container) GetPublishService() *app.PublishService {
 		c.PostRepository,
 		c.ContentGenerator,
 		publishers,
-	).WithPostReader(c.PostReader)
+	).WithPostReader(c.PostReader).WithCritic(c.Critic)
 }

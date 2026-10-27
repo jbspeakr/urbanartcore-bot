@@ -112,6 +112,11 @@ func runPublishCommand(cmd *cobra.Command, args []string) error {
 	if err := container.GetContentGenerator().TestConnection(ctx); err != nil {
 		return fmt.Errorf("content generator unavailable: %w", err)
 	}
+	if container.Critic != nil {
+		if err := container.Critic.TestConnection(ctx); err != nil {
+			return fmt.Errorf("critic unavailable: %w", err)
+		}
+	}
 
 	// 6. Service Execution
 	publishService := container.GetPublishService()
@@ -162,6 +167,7 @@ func runPublishCommand(cmd *cobra.Command, args []string) error {
 						slog.Int("character_count", content.CharacterCount()),
 						slog.Int("character_limit", getCharacterLimit(platform)),
 						slog.String("content_text", content.RenderedText()),
+						slog.Bool("fallback", content.IsFallback()),
 					}
 					if platform == domain.PlatformBluesky {
 						// Bluesky carries the link as a card under the post, not in the text
