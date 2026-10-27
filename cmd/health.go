@@ -6,12 +6,15 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/jbspeakr/urbanartcore-bot/internal/adapters/generator"
+	"github.com/jbspeakr/urbanartcore-bot/internal/adapters/ledger"
 	"github.com/jbspeakr/urbanartcore-bot/internal/adapters/site"
 	"github.com/jbspeakr/urbanartcore-bot/internal/app"
+	"github.com/jbspeakr/urbanartcore-bot/internal/domain"
 	"github.com/jbspeakr/urbanartcore-bot/internal/infrastructure/prompts"
 )
 
@@ -26,6 +29,7 @@ This command checks:
   - Configuration loading from environment variables
   - Post catalogue from the site, or the built-in snapshot when the site is down
   - Prompt template files existence and validity
+  - Ledger bucket readable (when UAC_LEDGER_BUCKET is set)
   - Mistral model availability (when UAC_MISTRAL_API_KEY is set)
 
 Exit codes:
@@ -95,6 +99,32 @@ func runHealthCheck(cmd *cobra.Command, args []string) error {
 			} else {
 				logger.Info("Post catalogue check passed", attrs...)
 			}
+		}
+	}
+
+	// Check: ledger bucket readable, when one is configured
+	if config != nil && config.HasLedger() {
+		logger.Info("Health check: Ledger")
+		store, err := ledger.NewObjectStorage(ledger.Config{
+			Endpoint:  config.LedgerEndpoint,
+			Region:    config.LedgerRegion,
+			Bucket:    config.LedgerBucket,
+			AccessKey: config.LedgerAccessKey,
+			SecretKey: config.LedgerSecretKey,
+		})
+		var records []domain.PublishRecord
+		if err == nil {
+			records, err = store.Records(ctx, time.Now().UTC().AddDate(0, 0, -30))
+		}
+		if err != nil {
+			logger.Error("Ledger check failed",
+				slog.String("bucket", config.LedgerBucket),
+				slog.String("error", err.Error()))
+			allChecksPass = false
+		} else {
+			logger.Info("Ledger check passed",
+				slog.String("bucket", config.LedgerBucket),
+				slog.Int("records_last_30_days", len(records)))
 		}
 	}
 

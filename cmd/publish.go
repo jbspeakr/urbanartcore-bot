@@ -141,6 +141,14 @@ func runPublishCommand(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	// The slot's post already went out everywhere: a rerun posts nothing
+	if response != nil && response.Published {
+		logger.Info("Already published",
+			slog.String("date", publishRequest.Date),
+			slog.Bool("dry_run", dryRun))
+		return nil
+	}
+
 	// 7. Output Formatting & Display Results
 	if response != nil && response.Result != nil {
 		result := response.Result

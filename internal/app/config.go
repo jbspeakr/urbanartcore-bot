@@ -24,6 +24,13 @@ type Config struct {
 	MistralTemperature float64 `mapstructure:"mistral_temperature"`
 	CriticModel        string  `mapstructure:"critic_model"` // Checks every draft against its post
 
+	// Ledger in S3-compatible object storage; disabled when the bucket is empty
+	LedgerBucket    string `mapstructure:"ledger_bucket"`
+	LedgerEndpoint  string `mapstructure:"ledger_endpoint"`
+	LedgerRegion    string `mapstructure:"ledger_region"`
+	LedgerAccessKey string `mapstructure:"ledger_access_key"`
+	LedgerSecretKey string `mapstructure:"ledger_secret_key"`
+
 	// Bluesky configuration
 	BlueskyHandle   string `mapstructure:"bluesky_handle"`
 	BlueskyPassword string `mapstructure:"bluesky_password"`
@@ -76,6 +83,8 @@ func LoadConfig() (*Config, error) {
 	v.SetDefault("prompts_path", "./internal/infrastructure/prompts")
 	v.SetDefault("mistral_model", "mistral-large-2512")
 	v.SetDefault("critic_model", "ministral-8b-2512")
+	v.SetDefault("ledger_endpoint", "https://s3.fr-par.scw.cloud")
+	v.SetDefault("ledger_region", "fr-par")
 	v.SetDefault("mistral_max_tokens", 1000)
 	v.SetDefault("mistral_temperature", 0.7)
 	v.SetDefault("ai_retry_count", 3)
@@ -92,6 +101,11 @@ func LoadConfig() (*Config, error) {
 		"mistral_max_tokens",
 		"mistral_temperature",
 		"critic_model",
+		"ledger_bucket",
+		"ledger_endpoint",
+		"ledger_region",
+		"ledger_access_key",
+		"ledger_secret_key",
 		"bluesky_handle",
 		"bluesky_password",
 		"mastodon_server",
@@ -183,6 +197,13 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	// A configured ledger needs credentials to sign its requests
+	if c.LedgerBucket != "" && (c.LedgerAccessKey == "" || c.LedgerSecretKey == "") {
+		return ConfigError{
+			Err: fmt.Errorf("%w: ledger_bucket is set, so ledger_access_key and ledger_secret_key are required", ErrMissingRequiredField),
+		}
+	}
+
 	// Validate Mistral max tokens is positive
 	if c.MistralMaxTokens <= 0 {
 		return ConfigError{
@@ -208,6 +229,9 @@ func (c *Config) SanitizeForLogging() Config {
 	if sanitized.MastodonAccessToken != "" {
 		sanitized.MastodonAccessToken = "***"
 	}
+	if sanitized.LedgerSecretKey != "" {
+		sanitized.LedgerSecretKey = "***"
+	}
 
 	return sanitized
 }
@@ -223,6 +247,11 @@ func (c *Config) GetMistralConfig() MistralConfig {
 		RetryCount:  c.AIRetryCount,
 		Timeout:     c.AITimeout,
 	}
+}
+
+// HasLedger reports whether a ledger bucket is configured.
+func (c *Config) HasLedger() bool {
+	return c.LedgerBucket != ""
 }
 
 // GetBlueskyConfig returns Bluesky-specific configuration as a separate struct.

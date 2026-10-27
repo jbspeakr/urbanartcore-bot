@@ -110,6 +110,16 @@ func NewClient(baseURL string, opts ...Option) (*Client, error) {
 // GetPostForDate returns one of the posts published on dateKey (MM-DD),
 // picked at random, with the title, teaser and tags the catalogue holds.
 func (c *Client) GetPostForDate(ctx context.Context, dateKey string) (*domain.Post, error) {
+	posts, err := c.GetPostsForDate(ctx, dateKey)
+	if err != nil {
+		return nil, err
+	}
+	return posts[c.intn(len(posts))], nil
+}
+
+// GetPostsForDate returns every post published on dateKey (MM-DD), with the
+// title, teaser and tags the catalogue holds.
+func (c *Client) GetPostsForDate(ctx context.Context, dateKey string) ([]*domain.Post, error) {
 	dateKey = strings.TrimSpace(dateKey)
 	if !dateKeyPattern.MatchString(dateKey) {
 		return nil, ports.RepositoryError{Err: fmt.Errorf("%w: expected MM-DD format, got %q", ports.ErrInvalidDateFormat, dateKey)}
@@ -121,7 +131,7 @@ func (c *Client) GetPostForDate(ctx context.Context, dateKey string) (*domain.Po
 	if len(posts) == 0 {
 		return nil, ports.RepositoryError{Err: fmt.Errorf("%w: %s", ports.ErrDateNotFound, dateKey)}
 	}
-	return posts[c.intn(len(posts))], nil
+	return append([]*domain.Post(nil), posts...), nil
 }
 
 // ListAvailableDates returns every MM-DD key with at least one post, in order.

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/jbspeakr/urbanartcore-bot/internal/adapters/generator"
+	"github.com/jbspeakr/urbanartcore-bot/internal/adapters/ledger"
 	"github.com/jbspeakr/urbanartcore-bot/internal/adapters/publisher"
 	"github.com/jbspeakr/urbanartcore-bot/internal/adapters/site"
 	"github.com/jbspeakr/urbanartcore-bot/internal/app"
@@ -25,6 +26,7 @@ type Container struct {
 	MastodonPublisher ports.SocialPublisher
 	ContentGenerator  ports.ContentGenerator
 	Critic            ports.Critic // nil when no critic model is configured
+	Ledger            ports.Ledger // nil when no ledger bucket is configured
 	PromptManager     ports.PromptManager
 }
 
@@ -107,6 +109,27 @@ func NewContainer(ctx context.Context, config *app.Config) (*Container, error) {
 			slog.String("model", config.CriticModel))
 	}
 
+	// The ledger keeps reruns from posting twice and posts from repeating
+	var publishLedger ports.Ledger
+	if config.HasLedger() {
+		objectStorage, err := ledger.NewObjectStorage(ledger.Config{
+			Endpoint:  config.LedgerEndpoint,
+			Region:    config.LedgerRegion,
+			Bucket:    config.LedgerBucket,
+			AccessKey: config.LedgerAccessKey,
+			SecretKey: config.LedgerSecretKey,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("%s: failed to initialize ledger: %w", op, err)
+		}
+		publishLedger = objectStorage
+		logger.Debug("Initialized ledger",
+			slog.String("type", "ObjectStorage"),
+			slog.String("bucket", config.LedgerBucket))
+	} else {
+		logger.Warn("No ledger bucket configured: reruns will post again and posts may repeat")
+	}
+
 	container := &Container{
 		Config:            config,
 		PostRepository:    siteClient,
@@ -115,6 +138,7 @@ func NewContainer(ctx context.Context, config *app.Config) (*Container, error) {
 		MastodonPublisher: mastodonPublisher,
 		ContentGenerator:  contentGenerator,
 		Critic:            critic,
+		Ledger:            publishLedger,
 		PromptManager:     promptManager,
 	}
 
@@ -245,5 +269,5 @@ func (c *Container) GetPublishService() *app.PublishService {
 		c.PostRepository,
 		c.ContentGenerator,
 		publishers,
-	).WithPostReader(c.PostReader).WithCritic(c.Critic)
+	).WithPostReader(c.PostReader).WithCritic(c.Critic).WithLedger(c.Ledger)
 }

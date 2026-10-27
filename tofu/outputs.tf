@@ -29,6 +29,7 @@ output "secret_ids" {
     mistral_api_key           = scaleway_secret.mistral_api_key.id
     bluesky_password          = scaleway_secret.bluesky_password.id
     mastodon_access_token     = scaleway_secret.mastodon_access_token.id
+    ledger_secret_key         = scaleway_secret.ledger_secret_key.id
   }
 }
 
@@ -55,6 +56,11 @@ output "platform_config" {
     mastodon_server    = var.UAC_MASTODON_SERVER
   }
   sensitive = false
+}
+
+output "ledger_bucket" {
+  description = "Object Storage bucket holding the ledger of published posts"
+  value       = scaleway_object_bucket.ledger.name
 }
 
 output "console_url" {
