@@ -265,3 +265,22 @@ func TestPlainText(t *testing.T) {
 	assert.Equal(t, "One. Two.\n\nThree", PlainText("One.\nTwo.\n\n\n> Three"))
 	assert.Equal(t, "Link text and more", PlainText("[Link text](<https://example.org/a b>) and **more**"))
 }
+
+func TestGetPostsForDate(t *testing.T) {
+	srv := newFakeSite(t)
+	client, err := NewClient(srv.URL)
+	require.NoError(t, err)
+
+	posts, err := client.GetPostsForDate(context.Background(), "09-14")
+	require.NoError(t, err)
+	require.Len(t, posts, 2)
+	posts[0] = nil
+	again, err := client.GetPostsForDate(context.Background(), "09-14")
+	require.NoError(t, err)
+	assert.NotNil(t, again[0], "callers get a copy")
+
+	_, err = client.GetPostsForDate(context.Background(), "12-25")
+	assert.ErrorIs(t, err, ports.ErrDateNotFound)
+	_, err = client.GetPostsForDate(context.Background(), "9-14")
+	assert.ErrorIs(t, err, ports.ErrInvalidDateFormat)
+}
