@@ -184,6 +184,22 @@ func runHealthCheck(cmd *cobra.Command, args []string) error {
 			logger.Info("Mistral model check passed",
 				slog.String("model", config.MistralModel))
 		}
+
+		if config.CriticModel != "" {
+			critic, err := generator.NewMistralCritic(config.MistralAPIKey, config.CriticModel, "", config.AITimeout)
+			if err == nil {
+				err = critic.TestConnection(ctx)
+			}
+			if err != nil {
+				logger.Error("Critic model check failed",
+					slog.String("model", config.CriticModel),
+					slog.String("error", err.Error()))
+				allChecksPass = false
+			} else {
+				logger.Info("Critic model check passed",
+					slog.String("model", config.CriticModel))
+			}
+		}
 	}
 
 	// Final summary

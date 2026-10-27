@@ -335,9 +335,9 @@ func (m *MistralAdapter) generateWithRetry(ctx context.Context, prompt string, r
 	}
 }
 
-// systemPrompt sets the voice shared by all platforms.
-const systemPrompt = "You write social media posts for the Urban Art Core archive, a street art and graffiti blog published from 2009 to 2012. " +
-	"The archive speaks in the third person, in the past tense, plainly and specifically. " +
+// defaultSystemPrompt is used when the prompt manager has no voice file.
+const defaultSystemPrompt = "You write social media posts about stories from Urban Art Core, a street art and graffiti blog published from 2009 to 2012. " +
+	"Write in the third person, plainly and specifically. " +
 	"You never invent facts, never ask the reader questions, and never use exclamation marks or emoji. " +
 	"Respond with a JSON object that matches the given schema."
 
@@ -354,8 +354,13 @@ var draftSchema = &responseFormat{
 					"type":        "string",
 					"description": "The post text, without hashtags",
 				},
+				"claims": map[string]any{
+					"type":        "array",
+					"description": "Every factual statement the text makes, one per entry",
+					"items":       map[string]any{"type": "string"},
+				},
 			},
-			"required":             []string{"text"},
+			"required":             []string{"text", "claims"},
 			"additionalProperties": false,
 		},
 	},
@@ -364,6 +369,11 @@ var draftSchema = &responseFormat{
 // generate performs a single content generation attempt.
 func (m *MistralAdapter) generate(ctx context.Context, prompt string, req *ports.GenerationRequest) (*domain.GeneratedContent, error) {
 	platform := req.Platform
+
+	systemPrompt, err := m.promptMgr.SystemPrompt(ctx)
+	if err != nil || strings.TrimSpace(systemPrompt) == "" {
+		systemPrompt = defaultSystemPrompt
+	}
 
 	chatReq := &chatRequest{
 		Model: m.config.Model,
@@ -398,7 +408,8 @@ func (m *MistralAdapter) generate(ctx context.Context, prompt string, req *ports
 
 	// Parse JSON response
 	var apiResponse struct {
-		Text string `json:"text"`
+		Text   string   `json:"text"`
+		Claims []string `json:"claims"`
 	}
 
 	if err := json.Unmarshal([]byte(content), &apiResponse); err != nil {
@@ -441,7 +452,7 @@ func (m *MistralAdapter) generate(ctx context.Context, prompt string, req *ports
 		}
 	}
 
-	return generatedContent, nil
+	return generatedContent.WithClaims(apiResponse.Claims), nil
 }
 
 // extractURIFromRequest extracts the URI from the generation request.

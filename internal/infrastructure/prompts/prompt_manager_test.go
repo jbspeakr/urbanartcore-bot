@@ -35,13 +35,22 @@ Constraints: {PLATFORM_CONSTRAINTS}
 Tone: {TONE}
 Context: {COMMUNITY_CONTEXT}`
 
-	err := os.WriteFile(filepath.Join(tempDir, "bluesky.txt"), []byte(blueskyTemplate), 0644)
+	err := os.WriteFile(filepath.Join(tempDir, VoiceFile), []byte("Test voice: plain and specific."), 0644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(tempDir, "bluesky.txt"), []byte(blueskyTemplate), 0644)
 	require.NoError(t, err)
 
 	err = os.WriteFile(filepath.Join(tempDir, "mastodon.txt"), []byte(mastodonTemplate), 0644)
 	require.NoError(t, err)
 
 	return tempDir
+}
+
+// writeVoice puts a minimal voice file into dir.
+func writeVoice(t *testing.T, dir string) {
+	t.Helper()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, VoiceFile), []byte("Test voice."), 0644))
 }
 
 // createTestPost creates a test post for generation requests
@@ -97,6 +106,7 @@ func TestNewPromptManager(t *testing.T) {
 			name: "missing bluesky template",
 			setup: func() string {
 				tempDir := t.TempDir()
+				writeVoice(t, tempDir)
 				// Only create mastodon template
 				err := os.WriteFile(filepath.Join(tempDir, "mastodon.txt"), []byte("test prompt"), 0644)
 				require.NoError(t, err)
@@ -109,6 +119,7 @@ func TestNewPromptManager(t *testing.T) {
 			name: "empty template file",
 			setup: func() string {
 				tempDir := t.TempDir()
+				writeVoice(t, tempDir)
 				err := os.WriteFile(filepath.Join(tempDir, "bluesky.txt"), []byte(""), 0644)
 				require.NoError(t, err)
 				err = os.WriteFile(filepath.Join(tempDir, "mastodon.txt"), []byte("test"), 0644)
@@ -117,6 +128,18 @@ func TestNewPromptManager(t *testing.T) {
 			},
 			expectError: true,
 			errorMsg:    "empty",
+		},
+		{
+			name: "missing voice file",
+			setup: func() string {
+				tempDir := t.TempDir()
+				for _, name := range []string{"bluesky.txt", "mastodon.txt"} {
+					require.NoError(t, os.WriteFile(filepath.Join(tempDir, name), []byte("test prompt"), 0644))
+				}
+				return tempDir
+			},
+			expectError: true,
+			errorMsg:    "voice file",
 		},
 	}
 
@@ -797,8 +820,36 @@ func TestRealTemplatesPromoteTheContent(t *testing.T) {
 	}
 }
 
-func TestTruncateWords(t *testing.T) {
-	assert.Equal(t, "", truncateWords("  ", 3))
-	assert.Equal(t, "one two three", truncateWords("one two three", 3))
-	assert.Equal(t, "one two\n\nthree …", truncateWords("one two\n\nthree four five", 3))
+func TestSystemPrompt(t *testing.T) {
+	pm, err := NewPromptManager("../prompts")
+	require.NoError(t, err)
+
+	voice, err := pm.SystemPrompt(context.Background())
+	require.NoError(t, err)
+	assert.Contains(t, voice, "Third person")
+	assert.Contains(t, voice, `"claims"`)
+	assert.Contains(t, voice, "never reuse a name")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err = pm.SystemPrompt(ctx)
+	assert.Error(t, err)
+}
+
+func TestRenderPrompt_CriticFeedback(t *testing.T) {
+	pm, err := NewPromptManager("../prompts")
+	require.NoError(t, err)
+
+	req, err := ports.NewGenerationRequest([]*domain.Post{createTestPost()}, domain.PlatformBluesky, "09-14")
+	require.NoError(t, err)
+
+	first, err := pm.RenderPrompt(context.Background(), domain.PlatformBluesky, req)
+	require.NoError(t, err)
+	assert.NotContains(t, first, "FACT CHECK")
+
+	req.WithContext(ports.ContextCriticFeedback, `- Not supported by THE STORY: "the wall is red"`)
+	again, err := pm.RenderPrompt(context.Background(), domain.PlatformBluesky, req)
+	require.NoError(t, err)
+	assert.True(t, strings.HasSuffix(again, "A FACT CHECK REJECTED YOUR PREVIOUS DRAFT. Write a new one that fixes every problem below and uses only facts from THE STORY:\n- Not supported by THE STORY: \"the wall is red\"\n"))
+	assert.Empty(t, templateVarPattern.FindAllString(again, -1))
 }

@@ -58,6 +58,7 @@ type PublishService struct {
 	generator  ports.ContentGenerator
 	publishers map[string]ports.SocialPublisher
 	reader     ports.PostReader // optional; without it the model only sees what the catalogue holds
+	critic     ports.Critic     // optional; without it drafts are published unchecked
 }
 
 // NewPublishService creates a new PublishService with the provided dependencies.
@@ -84,6 +85,18 @@ func (ps *PublishService) WithPostReader(reader ports.PostReader) *PublishServic
 	ps.reader = reader
 	return ps
 }
+
+// WithCritic has every draft checked against its post before it is
+// published. A rejected draft is rewritten with the critic's findings up to
+// MaxRewrites times, then replaced by the fallback template.
+func (ps *PublishService) WithCritic(critic ports.Critic) *PublishService {
+	ps.critic = critic
+	return ps
+}
+
+// MaxRewrites is how often a draft the critic rejects is written again
+// before the fallback template takes its place.
+const MaxRewrites = 2
 
 // PublishAnniversaryPosts executes the complete publishing workflow.
 // It handles all 6 orchestration steps with proper error handling and context management.
@@ -366,21 +379,73 @@ func (ps *PublishService) generateContentForPlatform(ctx context.Context, post *
 	req.WithContext("anniversary_date", dateKey)
 	req.WithContext("post_count", "1")
 
-	if dryRun {
-		// In dry-run mode, placeholder generator will return "not implemented" error
-		// We catch this and create mock content for preview
-		content, err := ps.generator.GenerateContent(ctx, req)
-		if err != nil {
-			if strings.Contains(err.Error(), "not implemented") {
-				slog.Default().Info("DRY RUN - content generation simulated", slog.String("platform", platform))
-				return ps.createMockContent(platform, post, dateKey), nil
-			}
-			return nil, err
+	content, err := ps.generator.GenerateContent(ctx, req)
+	if err != nil {
+		if dryRun && strings.Contains(err.Error(), "not implemented") {
+			// In dry-run mode, a placeholder generator returns "not implemented";
+			// mock content stands in for the preview
+			slog.Default().Info("DRY RUN - content generation simulated", slog.String("platform", platform))
+			return ps.createMockContent(platform, post, dateKey), nil
 		}
-		return content, nil
+		return nil, err
 	}
 
-	return ps.generator.GenerateContent(ctx, req)
+	return ps.reviewed(ctx, post, req, content)
+}
+
+// reviewed returns content once the critic approves it. A rejected draft is
+// written again with the critic's findings, up to MaxRewrites times; when no
+// draft passes, or the critic cannot give a verdict, the fallback template
+// takes its place, because an unchecked claim about a real artist must not go
+// out.
+func (ps *PublishService) reviewed(ctx context.Context, post *domain.Post, req *ports.GenerationRequest, content *domain.GeneratedContent) (*domain.GeneratedContent, error) {
+	if ps.critic == nil {
+		return content, nil
+	}
+	logger := slog.Default().With(slog.String("platform", req.Platform), slog.String("uri", post.URI()))
+
+	for rewrite := 0; ; rewrite++ {
+		review, err := ps.critic.Review(ctx, post, content)
+		if err != nil {
+			logger.Warn("Critic gave no verdict, using the fallback template", slog.String("error", err.Error()))
+			break
+		}
+
+		unsupported := make([]string, 0)
+		for _, verdict := range review.Unsupported() {
+			unsupported = append(unsupported, verdict.Claim)
+		}
+		logger.Info("Draft reviewed",
+			slog.Int("rewrite", rewrite),
+			slog.Bool("approved", review.Approved()),
+			slog.Int("claims", len(review.Verdicts)),
+			slog.Any("unsupported", unsupported),
+			slog.Int("voice_score", review.VoiceScore),
+			slog.String("voice_problems", review.VoiceProblems),
+			slog.String("text", content.Text()))
+
+		if review.Approved() {
+			return content, nil
+		}
+		if rewrite == MaxRewrites {
+			logger.Warn("No draft passed review, using the fallback template", slog.Int("rewrites", rewrite))
+			break
+		}
+
+		req.WithContext(ports.ContextCriticFeedback, review.Feedback())
+		content, err = ps.generator.GenerateContent(ctx, req)
+		if err != nil {
+			logger.Warn("Rewrite failed, using the fallback template", slog.String("error", err.Error()))
+			break
+		}
+	}
+
+	fallback, err := domain.FallbackContent(post, req.Platform)
+	if err != nil {
+		return nil, fmt.Errorf("fallback template failed: %w", err)
+	}
+	logger.Info("Fallback content", slog.String("text", fallback.Text()))
+	return fallback, nil
 }
 
 // publishToPlatform publishes content to a specific platform.

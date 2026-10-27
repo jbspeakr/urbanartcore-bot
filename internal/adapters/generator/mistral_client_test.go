@@ -31,7 +31,7 @@ func TestGenerate_SendsJSONSchema(t *testing.T) {
 			"model": got.Model,
 			"choices": []map[string]any{{
 				"index":         0,
-				"message":       map[string]any{"role": "assistant", "content": `{"text":"In September 2009 a Thalys train in Paris was painted."}`},
+				"message":       map[string]any{"role": "assistant", "content": `{"text":"In September 2009 a Thalys train in Paris was painted.","claims":["A Thalys train was painted in Paris in September 2009."]}`},
 				"finish_reason": "stop",
 			}},
 		})
@@ -56,10 +56,11 @@ func TestGenerate_SendsJSONSchema(t *testing.T) {
 	assert.Equal(t, "json_schema", got.ResponseFormat.Type)
 	require.NotNil(t, got.ResponseFormat.JSONSchema)
 	assert.True(t, got.ResponseFormat.JSONSchema.Strict)
-	assert.Equal(t, []any{"text"}, got.ResponseFormat.JSONSchema.Schema["required"])
+	assert.Equal(t, []any{"text", "claims"}, got.ResponseFormat.JSONSchema.Schema["required"])
 	require.Len(t, got.Messages, 2)
 	assert.Equal(t, roleSystem, got.Messages[0].Role)
-	assert.Contains(t, got.Messages[0].Content, "third person")
+	assert.Equal(t, "test voice", got.Messages[0].Content, "the system prompt is the voice file")
+	assert.Equal(t, []string{"A Thalys train was painted in Paris in September 2009."}, content.Claims())
 }
 
 // TestTestConnection_ModelCheck checks the startup check against the models endpoint.

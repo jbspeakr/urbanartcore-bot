@@ -45,6 +45,10 @@ var (
 	ErrInsufficientQuota  = errors.New("AI service quota exhausted")
 )
 
+// ContextCriticFeedback is the GenerationRequest.Context key that carries
+// the critic's findings on a rejected draft back to the writer.
+const ContextCriticFeedback = "critic_feedback"
+
 // GenerationRequest contains all information needed to generate platform-specific content.
 type GenerationRequest struct {
 	Posts       []*domain.Post    `json:"posts"`       // Source posts for anniversary
@@ -180,6 +184,10 @@ type AdvancedGenerator interface {
 
 // PromptManager handles prompt templates and variable substitution for content generation.
 type PromptManager interface {
+	// SystemPrompt returns the voice shared by all platforms: register,
+	// banned phrases and example posts.
+	SystemPrompt(ctx context.Context) (string, error)
+
 	// GetPrompt retrieves the prompt template for a specific platform.
 	GetPrompt(ctx context.Context, platform string) (string, error)
 

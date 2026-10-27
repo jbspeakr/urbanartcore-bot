@@ -12,7 +12,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode"
 
 	"github.com/jbspeakr/urbanartcore-bot/internal/domain"
 	"github.com/jbspeakr/urbanartcore-bot/internal/ports"
@@ -45,6 +44,7 @@ var templateVarPattern = regexp.MustCompile(`{[A-Z_0-9]+}`)
 type PromptManager struct {
 	promptsDir string            // Directory containing prompt template files
 	templates  map[string]string // Cached templates by platform
+	voice      string            // System prompt shared by all platforms, from voice.md
 	mu         sync.RWMutex      // Protects concurrent access to templates
 }
 
@@ -97,8 +97,21 @@ func NewPromptManager(promptsDir string) (*PromptManager, error) {
 	return pm, nil
 }
 
-// loadTemplates loads all prompt template files from the prompts directory.
+// VoiceFile is the system prompt every generation call starts with.
+const VoiceFile = "voice.md"
+
+// loadTemplates loads the voice file and every platform's prompt template
+// from the prompts directory.
 func (pm *PromptManager) loadTemplates() error {
+	voice, err := os.ReadFile(filepath.Join(pm.promptsDir, VoiceFile))
+	if err != nil {
+		return fmt.Errorf("failed to read voice file: %w", err)
+	}
+	if strings.TrimSpace(string(voice)) == "" {
+		return fmt.Errorf("voice file is empty: %s", filepath.Join(pm.promptsDir, VoiceFile))
+	}
+	pm.voice = strings.TrimSpace(string(voice))
+
 	// Load templates for all supported platforms
 	platforms := []string{domain.PlatformBluesky, domain.PlatformMastodon}
 
@@ -133,6 +146,19 @@ func (pm *PromptManager) loadTemplates() error {
 	}
 
 	return nil
+}
+
+// SystemPrompt returns the voice shared by all platforms.
+func (pm *PromptManager) SystemPrompt(ctx context.Context) (string, error) {
+	if pm == nil {
+		return "", PromptManagerError{Err: fmt.Errorf("prompt manager is nil")}
+	}
+	if err := ctx.Err(); err != nil {
+		return "", PromptManagerError{Err: err}
+	}
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+	return pm.voice, nil
 }
 
 // GetPrompt retrieves the prompt template for a specific platform.
@@ -214,6 +240,13 @@ func (pm *PromptManager) RenderPrompt(ctx context.Context, platform string, req 
 		rendered = strings.ReplaceAll(rendered, placeholder, value)
 	}
 
+	// A rejected earlier draft comes back with the critic's findings
+	if feedback := strings.TrimSpace(req.Context[ports.ContextCriticFeedback]); feedback != "" {
+		rendered = strings.TrimRight(rendered, "\n") + "\n\n" +
+			"A FACT CHECK REJECTED YOUR PREVIOUS DRAFT. Write a new one that fixes every problem below and uses only facts from THE STORY:\n" +
+			feedback + "\n"
+	}
+
 	// Check for unresolved variables
 	if unresolved := templateVarPattern.FindAllString(rendered, -1); len(unresolved) > 0 {
 		slog.Default().Warn("Template contains unresolved variables",
@@ -279,57 +312,13 @@ func (pm *PromptManager) buildVariableMap(req *ports.GenerationRequest) map[stri
 // maxBodyWords caps how much of the post body goes into the prompt.
 const maxBodyWords = 2000
 
-// postDetails lays out what the site says about the post: title, section,
-// typed tags, teaser, photo credit and body. When nothing is known it falls
-// back to the words of the post's URL.
+// postDetails lays out what the site says about the post. When nothing is
+// known it falls back to the words of the post's URL.
 func postDetails(article domain.Article, slug string) string {
-	tags := article.Tags
-	var b strings.Builder
-	for _, field := range []struct{ label, value string }{
-		{"Title", article.Title},
-		{"Section", article.Section},
-		{"Artists", strings.Join(tags.Artists, ", ")},
-		{"Places", strings.Join(tags.Places, ", ")},
-		{"Events", strings.Join(tags.Events, ", ")},
-		{"Techniques", strings.Join(tags.Techniques, ", ")},
-		{"Formats", strings.Join(tags.Formats, ", ")},
-		{"Topics", strings.Join(tags.Topics, ", ")},
-		{"Teaser", article.Description},
-		{"Photo credit", article.Credit},
-	} {
-		if value := strings.TrimSpace(field.value); value != "" {
-			fmt.Fprintf(&b, "%s: %s\n", field.label, value)
-		}
+	if source := article.SourceText(maxBodyWords); source != "" {
+		return source
 	}
-	if body := truncateWords(article.Body, maxBodyWords); body != "" {
-		fmt.Fprintf(&b, "Text:\n%s\n", body)
-	}
-	if b.Len() == 0 {
-		return fmt.Sprintf("The post could not be read. The only hint of its subject is the words of its URL: %q", slug)
-	}
-	return strings.TrimSuffix(b.String(), "\n")
-}
-
-// truncateWords keeps the first limit words of text, marking a cut with
-// " …". Paragraph breaks within the kept words survive.
-func truncateWords(text string, limit int) string {
-	text = strings.TrimSpace(text)
-	count := 0
-	inWord := false
-	for i, r := range text {
-		if unicode.IsSpace(r) {
-			inWord = false
-			continue
-		}
-		if !inWord {
-			inWord = true
-			count++
-			if count > limit {
-				return strings.TrimRightFunc(text[:i], unicode.IsSpace) + " …"
-			}
-		}
-	}
-	return text
+	return fmt.Sprintf("The post could not be read. The only hint of its subject is the words of its URL: %q", slug)
 }
 
 // slugWords turns the last path segment of a post URL into plain words,

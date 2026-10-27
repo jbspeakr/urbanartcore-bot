@@ -94,6 +94,7 @@ UAC_SITE_BASE_URL="https://www.urbanartcore.com"   # optional; where index.json 
 
 # Optional (defaults provided)
 UAC_MISTRAL_MODEL="mistral-large-2512"
+UAC_CRITIC_MODEL="ministral-8b-2512"   # checks every draft against its post
 UAC_MISTRAL_MAX_TOKENS="1024"
 UAC_MISTRAL_TEMPERATURE="0.7"
 UAC_AI_RETRY_COUNT="3"
@@ -181,6 +182,8 @@ Monitor: https://console.scaleway.com/serverless/jobs
 - Infrastructure: DI container, logging, config
 - CLI: Cobra commands
 
+**Content pipeline (per platform):** read the post's JSON → writer drafts text plus a list of its claims → critic checks each claim against the post and scores the voice → a rejected draft is rewritten with the critic's findings, at most twice → if nothing passes, or the critic gives no verdict, the fallback template is posted instead. Dry runs log every review (`Draft reviewed`, with `unsupported` claims) and mark fallback content.
+
 **Design Principles:**
 - 12-factor app (environment-based config)
 - Stateless, containerized
@@ -197,7 +200,10 @@ Monitor: https://console.scaleway.com/serverless/jobs
 - `internal/adapters/publisher/bluesky.go` - Bluesky/ATProto integration
 - `internal/adapters/publisher/mastodon.go` - Mastodon REST API
 - `internal/adapters/generator/mistral.go` - Mistral AI integration
-- `internal/infrastructure/prompts/` - Prompt templates per platform
+- `internal/infrastructure/prompts/voice.md` - System prompt: register, banned phrases, example posts
+- `internal/infrastructure/prompts/` - Task templates per platform (`bluesky.txt`, `mastodon.txt`)
+- `internal/adapters/generator/critic.go` - Critic: a small Mistral model checks each claim of a draft against the post and scores the voice
+- `internal/domain/fallback.go` - Template post from title, artists, place and month, used when no draft passes review
 - `tofu/` - Infrastructure as code (see tofu/README.md)
 
 ## Important Constraints
