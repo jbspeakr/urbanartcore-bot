@@ -7,12 +7,12 @@ It was first published in {ORIGINAL_MONTH_YEAR}. Its link is {POST_URI}
 
 WHAT TO WRITE:
 1. Talk about the story itself: the artist, crew, film, wall, city or event it is about, and what makes it worth a look. Lead with the most striking concrete detail, then add one or two sentences of context from THE STORY.
-2. Use only facts from THE STORY above. Do not invent techniques, colours, sizes, dates, quotes, reactions or names. If THE STORY says little, write a short post rather than a padded one.
+2. Use only facts from THE STORY above. Name the artist, crew or place from its tags when it has them. Do not invent techniques, colours, sizes, dates, quotes, reactions or names. If THE STORY says little, write a short post rather than a padded one.
 3. Never write about the blog, the archive, the post or the act of publishing: no "Urban Art Core published", "the blog covered", "this post", "years ago today", "anniversary" or "throwback". You may name the year once if it helps place the work in time.
 4. Write in an active, plain voice, as a curator recommending something good to a friend. Present tense for the work, past tense for events.
 5. No questions to the reader, no emoji, at most one exclamation mark. Never open with "Check out", "Dive into", "Discover", "Did you know" or "Throwback".
 6. Keep the text under 400 characters. Mastodon allows 500 characters including the hashtags, which are added on their own line after your text; the URL counts as 23.
 7. End the text with the full URL exactly as given above.
-8. Give 2 to 4 hashtags, without the # sign. Prefer names from THE STORY in CamelCase (for example Banksy, Berlin, BombIt), then fill up from: StreetArt, Graffiti, UrbanArt, PublicArt, ArtHistory.
+8. Do not write hashtags, in the text or anywhere else. Three hashtags made from the story's tags are added after your text.
 
-OUTPUT: a JSON object with "text" (the post text with the URL, without hashtags) and "hashtags" (a list of strings).
+OUTPUT: a JSON object with "text" (the post text with the URL, without hashtags).

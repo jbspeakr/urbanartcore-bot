@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/jbspeakr/urbanartcore-bot/internal/adapters/generator"
+	"github.com/jbspeakr/urbanartcore-bot/internal/adapters/site"
 	"github.com/jbspeakr/urbanartcore-bot/internal/app"
 	"github.com/jbspeakr/urbanartcore-bot/internal/infrastructure/prompts"
 )
@@ -18,12 +19,12 @@ import (
 var healthCmd = &cobra.Command{
 	Use:   "health",
 	Short: "Perform health checks on application dependencies",
-	Long: `Validate configuration, data files, and prompt templates to ensure the application
+	Long: `Validate configuration, the post catalogue, and prompt templates to ensure the application
 is properly configured and can run successfully.
 
 This command checks:
   - Configuration loading from environment variables
-  - Data file existence and readability
+  - Post catalogue from the site, or the built-in snapshot when the site is down
   - Prompt template files existence and validity
   - Mistral model availability (when UAC_MISTRAL_API_KEY is set)
 
@@ -65,48 +66,34 @@ func runHealthCheck(cmd *cobra.Command, args []string) error {
 		allChecksPass = false
 	} else {
 		logger.Info("Configuration check passed",
-			slog.String("data_path", config.DataPath),
+			slog.String("site_base_url", config.SiteBaseURL),
 			slog.String("prompts_path", config.PromptsPath),
 			slog.String("mistral_model", config.MistralModel))
 	}
 
-	// Check 2: Data file existence and readability
+	// Check 2: Post catalogue, live from the site or from the built-in snapshot
 	if config != nil {
-		logger.Info("Health check: Data file")
-		dataPath := config.DataPath
-		if dataPath == "" {
-			dataPath = "./data/posts_by_date.json"
+		logger.Info("Health check: Post catalogue")
+		client, err := site.NewClient(config.SiteBaseURL)
+		if err == nil {
+			err = client.ValidateDataSource(ctx)
 		}
-
-		// Check file exists
-		info, err := os.Stat(dataPath)
 		if err != nil {
-			logger.Error("Data file check failed",
-				slog.String("path", dataPath),
+			logger.Error("Post catalogue check failed",
+				slog.String("site_base_url", config.SiteBaseURL),
 				slog.String("error", err.Error()))
 			allChecksPass = false
-		} else if info.IsDir() {
-			logger.Error("Data file check failed",
-				slog.String("path", dataPath),
-				slog.String("error", "path is a directory, not a file"))
-			allChecksPass = false
 		} else {
-			// Check file is readable
-			file, err := os.Open(dataPath)
-			if err != nil {
-				logger.Error("Data file check failed",
-					slog.String("path", dataPath),
-					slog.String("error", fmt.Sprintf("cannot read file: %v", err)))
-				allChecksPass = false
+			count, _ := client.GetPostCount(ctx)
+			attrs := []any{
+				slog.String("site_base_url", config.SiteBaseURL),
+				slog.String("source", client.Source()),
+				slog.Int("posts", count),
+			}
+			if client.Source() == site.SourceSnapshot {
+				logger.Warn("Post catalogue check passed on the built-in snapshot; the site could not be reached", attrs...)
 			} else {
-				if err := file.Close(); err != nil {
-					logger.Warn("Failed to close data file",
-						slog.String("path", dataPath),
-						slog.String("error", err.Error()))
-				}
-				logger.Info("Data file check passed",
-					slog.String("path", dataPath),
-					slog.Int64("size_bytes", info.Size()))
+				logger.Info("Post catalogue check passed", attrs...)
 			}
 		}
 	}

@@ -8,8 +8,7 @@ import (
 
 	"github.com/jbspeakr/urbanartcore-bot/internal/adapters/generator"
 	"github.com/jbspeakr/urbanartcore-bot/internal/adapters/publisher"
-	"github.com/jbspeakr/urbanartcore-bot/internal/adapters/reader"
-	"github.com/jbspeakr/urbanartcore-bot/internal/adapters/repository"
+	"github.com/jbspeakr/urbanartcore-bot/internal/adapters/site"
 	"github.com/jbspeakr/urbanartcore-bot/internal/app"
 	"github.com/jbspeakr/urbanartcore-bot/internal/domain"
 	"github.com/jbspeakr/urbanartcore-bot/internal/infrastructure/prompts"
@@ -21,6 +20,7 @@ import (
 type Container struct {
 	Config            *app.Config
 	PostRepository    ports.PostRepository
+	PostReader        ports.PostReader
 	BlueskyPublisher  ports.SocialPublisher
 	MastodonPublisher ports.SocialPublisher
 	ContentGenerator  ports.ContentGenerator
@@ -47,15 +47,16 @@ func NewContainer(ctx context.Context, config *app.Config) (*Container, error) {
 		slog.Any("config", config.SanitizeForLogging()),
 	)
 
-	// Initialize repository with real JSONFileRepository implementation
-	repo, err := repository.NewJSONFileRepository(config.DataPath)
+	// The site's JSON is both the catalogue and the source of each article;
+	// the catalogue is fetched on first use
+	siteClient, err := site.NewClient(config.SiteBaseURL)
 	if err != nil {
-		return nil, fmt.Errorf("%s: failed to initialize repository: %w", op, err)
+		return nil, fmt.Errorf("%s: failed to initialize site client: %w", op, err)
 	}
 
-	logger.Debug("Initialized post repository",
-		slog.String("type", "JSONFileRepository"),
-		slog.String("dataPath", config.DataPath))
+	logger.Debug("Initialized site client",
+		slog.String("type", "site.Client"),
+		slog.String("siteBaseURL", config.SiteBaseURL))
 
 	// Initialize social publishers with real adapters (Phase 4)
 	blueskyPublisher, err := publisher.NewBlueskyAdapter(config.BlueskyHandle, config.BlueskyPassword)
@@ -94,7 +95,8 @@ func NewContainer(ctx context.Context, config *app.Config) (*Container, error) {
 
 	container := &Container{
 		Config:            config,
-		PostRepository:    repo,
+		PostRepository:    siteClient,
+		PostReader:        siteClient,
 		BlueskyPublisher:  blueskyPublisher,
 		MastodonPublisher: mastodonPublisher,
 		ContentGenerator:  contentGenerator,
@@ -102,7 +104,7 @@ func NewContainer(ctx context.Context, config *app.Config) (*Container, error) {
 	}
 
 	logger.Info("Dependency container initialized successfully",
-		slog.String("data_path", config.DataPath),
+		slog.String("site_base_url", config.SiteBaseURL),
 	)
 
 	return container, nil
@@ -228,5 +230,5 @@ func (c *Container) GetPublishService() *app.PublishService {
 		c.PostRepository,
 		c.ContentGenerator,
 		publishers,
-	).WithArticleReader(reader.NewWebArticleReader())
+	).WithPostReader(c.PostReader)
 }

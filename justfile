@@ -95,6 +95,17 @@ build-local:
     go build -o bin/uac-socializer ./main.go
     ./bin/uac-socializer --help
 
+# Refresh the built-in catalogue snapshot from the live site (commit the result)
+snapshot:
+    #!/bin/bash
+    set -euo pipefail
+    snapshot=internal/adapters/site/snapshot/index.json
+    curl -fsS --max-time 60 -A "urbanartcore-bot (+https://github.com/jbspeakr/urbanartcore-bot)" \
+        https://www.urbanartcore.com/index.json -o "$snapshot.tmp"
+    jq -e 'type == "array" and length > 900 and all(.[]; .permalink and .date)' "$snapshot.tmp" > /dev/null
+    mv "$snapshot.tmp" "$snapshot"
+    echo "Snapshot refreshed: $(jq length "$snapshot") posts"
+
 # OpenTofu: Initialize working directory
 tofu-init:
     #!/bin/bash

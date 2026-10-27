@@ -13,7 +13,7 @@ import (
 func TestLoadConfig_AllEnvVars(t *testing.T) {
 	// Set all environment variables
 	envVars := map[string]string{
-		"UAC_DATA_PATH":             "/custom/data/posts.json",
+		"UAC_SITE_BASE_URL":         "https://archive.example.org",
 		"UAC_PROMPTS_PATH":          "/custom/prompts",
 		"UAC_MISTRAL_API_KEY":       "sk-test-key-123",
 		"UAC_MISTRAL_MODEL":         "mistral-medium",
@@ -39,7 +39,7 @@ func TestLoadConfig_AllEnvVars(t *testing.T) {
 	require.NotNil(t, config)
 
 	// Verify all values are loaded correctly
-	assert.Equal(t, "/custom/data/posts.json", config.DataPath)
+	assert.Equal(t, "https://archive.example.org", config.SiteBaseURL)
 	assert.Equal(t, "/custom/prompts", config.PromptsPath)
 	assert.Equal(t, "sk-test-key-123", config.MistralAPIKey)
 	assert.Equal(t, "mistral-medium", config.MistralModel)
@@ -64,7 +64,7 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	require.NotNil(t, config)
 
 	// Verify default values
-	assert.Equal(t, "./data/posts_by_date.json", config.DataPath)
+	assert.Equal(t, "https://www.urbanartcore.com", config.SiteBaseURL)
 	assert.Equal(t, "./internal/infrastructure/prompts", config.PromptsPath)
 	assert.Equal(t, "mistral-large-2512", config.MistralModel)
 	assert.Equal(t, 1000, config.MistralMaxTokens)
@@ -286,7 +286,7 @@ func TestValidateConfig_ValidRetryBounds(t *testing.T) {
 
 func TestSanitizeForLogging_RedactsSecrets(t *testing.T) {
 	config := &Config{
-		DataPath:            "/path/to/data",
+		SiteBaseURL:         "https://www.urbanartcore.com",
 		MistralAPIKey:       "sk-secret-key-12345",
 		BlueskyPassword:     "secret-password",
 		MastodonAccessToken: "access-token-67890",
@@ -296,7 +296,7 @@ func TestSanitizeForLogging_RedactsSecrets(t *testing.T) {
 	sanitized := config.SanitizeForLogging()
 
 	// Non-secrets should be preserved
-	assert.Equal(t, config.DataPath, sanitized.DataPath)
+	assert.Equal(t, config.SiteBaseURL, sanitized.SiteBaseURL)
 	assert.Equal(t, config.MistralModel, sanitized.MistralModel)
 
 	// Secrets should be redacted
@@ -312,7 +312,7 @@ func TestSanitizeForLogging_RedactsSecrets(t *testing.T) {
 
 func TestSanitizeForLogging_EmptySecrets(t *testing.T) {
 	config := &Config{
-		DataPath:            "/path/to/data",
+		SiteBaseURL:         "https://www.urbanartcore.com",
 		MistralAPIKey:       "",
 		BlueskyPassword:     "",
 		MastodonAccessToken: "",
@@ -324,7 +324,7 @@ func TestSanitizeForLogging_EmptySecrets(t *testing.T) {
 	assert.Equal(t, "", sanitized.MistralAPIKey)
 	assert.Equal(t, "", sanitized.BlueskyPassword)
 	assert.Equal(t, "", sanitized.MastodonAccessToken)
-	assert.Equal(t, config.DataPath, sanitized.DataPath)
+	assert.Equal(t, config.SiteBaseURL, sanitized.SiteBaseURL)
 }
 
 func TestGetMistralConfig(t *testing.T) {
@@ -382,7 +382,7 @@ func TestConfigError(t *testing.T) {
 // Helper function to clear all UAC environment variables for testing defaults
 func clearUACEnvVars() {
 	envVars := []string{
-		"UAC_DATA_PATH",
+		"UAC_SITE_BASE_URL",
 		"UAC_PROMPTS_PATH",
 		"UAC_MISTRAL_API_KEY",
 		"UAC_MISTRAL_MODEL",

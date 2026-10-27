@@ -31,7 +31,7 @@ func TestGenerate_SendsJSONSchema(t *testing.T) {
 			"model": got.Model,
 			"choices": []map[string]any{{
 				"index":         0,
-				"message":       map[string]any{"role": "assistant", "content": `{"text":"In September 2009 a Thalys train in Paris was painted.","hashtags":["Graffiti","Paris"]}`},
+				"message":       map[string]any{"role": "assistant", "content": `{"text":"In September 2009 a Thalys train in Paris was painted."}`},
 				"finish_reason": "stop",
 			}},
 		})
@@ -49,14 +49,14 @@ func TestGenerate_SendsJSONSchema(t *testing.T) {
 
 	content, err := adapter.GenerateContent(context.Background(), req)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"#Graffiti", "#Paris"}, content.Hashtags())
+	assert.Equal(t, createTestPost().Hashtags(), content.Hashtags(), "hashtags come from the post's tags")
 
 	assert.Equal(t, "mistral-large-2512", got.Model)
 	require.NotNil(t, got.ResponseFormat)
 	assert.Equal(t, "json_schema", got.ResponseFormat.Type)
 	require.NotNil(t, got.ResponseFormat.JSONSchema)
 	assert.True(t, got.ResponseFormat.JSONSchema.Strict)
-	assert.Equal(t, []any{"text", "hashtags"}, got.ResponseFormat.JSONSchema.Schema["required"])
+	assert.Equal(t, []any{"text"}, got.ResponseFormat.JSONSchema.Schema["required"])
 	require.Len(t, got.Messages, 2)
 	assert.Equal(t, roleSystem, got.Messages[0].Role)
 	assert.Contains(t, got.Messages[0].Content, "third person")

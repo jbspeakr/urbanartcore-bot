@@ -64,6 +64,21 @@ jobs:
           SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
         run: echo "$SECRET_KEY" | docker login "rg.${SCW_REGION}.scw.cloud" -u nologin --password-stdin
       - if: steps.current.outputs.push == 'true'
+        name: Refresh the built-in catalogue snapshot
+        # The bot reads the live index.json and falls back to this copy when the site is down.
+        # Keep the committed copy when the site cannot be reached or returns something odd.
+        run: |
+          set -uo pipefail
+          snapshot=internal/adapters/site/snapshot/index.json
+          if curl -fsS --max-time 60 -A "urbanartcore-bot (+https://github.com/$GITHUB_REPOSITORY)" \
+              https://www.urbanartcore.com/index.json -o /tmp/index.json &&
+             jq -e 'type == "array" and length > 900 and all(.[]; .permalink and .date)' /tmp/index.json > /dev/null; then
+            mv /tmp/index.json "$snapshot"
+            echo "Snapshot refreshed: $(jq length "$snapshot") posts"
+          else
+            echo "::warning::Could not refresh the catalogue snapshot; building with the committed copy"
+          fi
+      - if: steps.current.outputs.push == 'true'
         name: Build and push the image
         run: |
           set -euo pipefail

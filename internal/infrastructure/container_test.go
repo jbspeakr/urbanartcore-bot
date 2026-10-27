@@ -11,15 +11,18 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	adapterrepository "github.com/jbspeakr/urbanartcore-bot/internal/adapters/repository"
+	"github.com/jbspeakr/urbanartcore-bot/internal/adapters/site"
 	"github.com/jbspeakr/urbanartcore-bot/internal/app"
 	"github.com/jbspeakr/urbanartcore-bot/internal/domain"
 )
 
+// testSiteURL is never fetched: the site client loads the catalogue on first use.
+const testSiteURL = "https://www.urbanartcore.invalid"
+
 // createTestConfig creates a test configuration for use in container tests.
-func createTestConfig(dataPath string) *app.Config {
+func createTestConfig(siteURL string) *app.Config {
 	return &app.Config{
-		DataPath:            dataPath,
+		SiteBaseURL:         siteURL,
 		PromptsPath:         "./prompts", // Use relative path to actual prompts
 		MistralAPIKey:       "test-key",
 		MistralModel:        "mistral-large",
@@ -74,16 +77,13 @@ Tone: {TONE}`
 // No need to duplicate those tests here
 
 func TestNewContainer_ValidConfig(t *testing.T) {
-	// Create a temporary data file
-	tmpDir := t.TempDir()
-	dataPath := filepath.Join(tmpDir, "posts.json")
-	err := os.WriteFile(dataPath, []byte(`{"01-01":[]}`), 0644)
-	require.NoError(t, err)
+	siteURL := testSiteURL
+	var err error
 
 	// Create prompts directory with test templates
 	promptsDir := createTestPromptsDir(t)
 
-	testConfig := createTestConfig(dataPath)
+	testConfig := createTestConfig(siteURL)
 	testConfig.PromptsPath = promptsDir
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -120,7 +120,7 @@ func TestNewContainer_ValidConfig(t *testing.T) {
 	assert.NotNil(t, container.PromptManager)
 
 	// Verify config values
-	assert.Equal(t, dataPath, container.Config.DataPath)
+	assert.Equal(t, siteURL, container.Config.SiteBaseURL)
 
 	// Verify publishers have correct platforms
 	assert.Equal(t, domain.PlatformBluesky, container.BlueskyPublisher.Platform())
@@ -140,7 +140,7 @@ func TestNewContainer_InvalidConfig(t *testing.T) {
 	})
 
 	t.Run("invalid config data", func(t *testing.T) {
-		invalidConfig := createTestConfig("./data/posts_by_date.json")
+		invalidConfig := createTestConfig(testSiteURL)
 		invalidConfig.MistralTemperature = 1.5 // Invalid: must be between 0.0 and 1.0
 
 		container, err := NewContainer(ctx, invalidConfig)
@@ -152,16 +152,13 @@ func TestNewContainer_InvalidConfig(t *testing.T) {
 }
 
 func TestContainer_GetRepository_ReturnsCorrectType(t *testing.T) {
-	// Create a temporary data file
-	tmpDir := t.TempDir()
-	dataPath := filepath.Join(tmpDir, "posts.json")
-	err := os.WriteFile(dataPath, []byte(`{"01-01":[]}`), 0644)
-	require.NoError(t, err)
+	siteURL := testSiteURL
+	var err error
 
 	// Create prompts directory with test templates
 	promptsDir := createTestPromptsDir(t)
 
-	testConfig := createTestConfig(dataPath)
+	testConfig := createTestConfig(siteURL)
 	testConfig.PromptsPath = promptsDir
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -178,22 +175,19 @@ func TestContainer_GetRepository_ReturnsCorrectType(t *testing.T) {
 	repo := container.GetRepository()
 	assert.NotNil(t, repo)
 
-	// Verify it's the real JSONFileRepository implementation
-	_, ok := repo.(*adapterrepository.JSONFileRepository)
-	assert.True(t, ok, "repository should be JSONFileRepository")
+	// Verify it's the site client
+	_, ok := repo.(*site.Client)
+	assert.True(t, ok, "repository should be the site client")
 }
 
 func TestContainer_GetPublisher(t *testing.T) {
-	// Create a temporary data file
-	tmpDir := t.TempDir()
-	dataPath := filepath.Join(tmpDir, "posts.json")
-	err := os.WriteFile(dataPath, []byte(`{"01-01":[]}`), 0644)
-	require.NoError(t, err)
+	siteURL := testSiteURL
+	var err error
 
 	// Create prompts directory with test templates
 	promptsDir := createTestPromptsDir(t)
 
-	testConfig := createTestConfig(dataPath)
+	testConfig := createTestConfig(siteURL)
 	testConfig.PromptsPath = promptsDir
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -255,16 +249,13 @@ func TestContainer_GetPublisher(t *testing.T) {
 }
 
 func TestContainer_Validate_Success(t *testing.T) {
-	// Create a temporary data file
-	tmpDir := t.TempDir()
-	dataPath := filepath.Join(tmpDir, "posts.json")
-	err := os.WriteFile(dataPath, []byte(`{"01-01":[]}`), 0644)
-	require.NoError(t, err)
+	siteURL := testSiteURL
+	var err error
 
 	// Create prompts directory with test templates
 	promptsDir := createTestPromptsDir(t)
 
-	testConfig := createTestConfig(dataPath)
+	testConfig := createTestConfig(siteURL)
 	testConfig.PromptsPath = promptsDir
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -283,31 +274,26 @@ func TestContainer_Validate_Success(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestContainer_Validate_MissingDataSource(t *testing.T) {
-	testConfig := createTestConfig("/nonexistent/path/posts.json")
+func TestContainer_InvalidSiteBaseURL(t *testing.T) {
+	testConfig := createTestConfig("ftp://www.urbanartcore.com")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// NewContainer should now fail with missing data file (real repository validates during init)
-	// This ensures we catch data access issues early rather than during operations
 	container, err := NewContainer(ctx, testConfig)
 	assert.Error(t, err)
 	assert.Nil(t, container)
-	assert.Contains(t, err.Error(), "failed to initialize repository")
+	assert.Contains(t, err.Error(), "failed to initialize site client")
 }
 
 func TestContainer_Close_NoError(t *testing.T) {
-	// Create a temporary data file
-	tmpDir := t.TempDir()
-	dataPath := filepath.Join(tmpDir, "posts.json")
-	err := os.WriteFile(dataPath, []byte(`{"01-01":[]}`), 0644)
-	require.NoError(t, err)
+	siteURL := testSiteURL
+	var err error
 
 	// Create prompts directory with test templates
 	promptsDir := createTestPromptsDir(t)
 
-	testConfig := createTestConfig(dataPath)
+	testConfig := createTestConfig(siteURL)
 	testConfig.PromptsPath = promptsDir
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -326,16 +312,13 @@ func TestContainer_Close_NoError(t *testing.T) {
 }
 
 func TestContainer_GetMethods(t *testing.T) {
-	// Create a temporary data file
-	tmpDir := t.TempDir()
-	dataPath := filepath.Join(tmpDir, "posts.json")
-	err := os.WriteFile(dataPath, []byte(`{"01-01":[]}`), 0644)
-	require.NoError(t, err)
+	siteURL := testSiteURL
+	var err error
 
 	// Create prompts directory with test templates
 	promptsDir := createTestPromptsDir(t)
 
-	testConfig := createTestConfig(dataPath)
+	testConfig := createTestConfig(siteURL)
 	testConfig.PromptsPath = promptsDir
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -375,14 +358,12 @@ func TestContainer_GetMethods(t *testing.T) {
 
 // TestContainer_GetRepository tests repository getter
 func TestContainer_GetRepository(t *testing.T) {
-	tmpDir := t.TempDir()
-	dataPath := filepath.Join(tmpDir, "posts.json")
-	err := os.WriteFile(dataPath, []byte(`{"01-01":[]}`), 0644)
-	require.NoError(t, err)
+	siteURL := testSiteURL
+	var err error
 
 	promptsDir := createTestPromptsDir(t)
 
-	testConfig := createTestConfig(dataPath)
+	testConfig := createTestConfig(siteURL)
 	testConfig.PromptsPath = promptsDir
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -402,14 +383,12 @@ func TestContainer_GetRepository(t *testing.T) {
 
 // TestContainer_GetPublisher_BlueskyPlatform tests getting Bluesky publisher
 func TestContainer_GetPublisher_BlueskyPlatform(t *testing.T) {
-	tmpDir := t.TempDir()
-	dataPath := filepath.Join(tmpDir, "posts.json")
-	err := os.WriteFile(dataPath, []byte(`{"01-01":[]}`), 0644)
-	require.NoError(t, err)
+	siteURL := testSiteURL
+	var err error
 
 	promptsDir := createTestPromptsDir(t)
 
-	testConfig := createTestConfig(dataPath)
+	testConfig := createTestConfig(siteURL)
 	testConfig.PromptsPath = promptsDir
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -430,14 +409,12 @@ func TestContainer_GetPublisher_BlueskyPlatform(t *testing.T) {
 
 // TestContainer_GetPublisher_MastodonPlatform tests getting Mastodon publisher
 func TestContainer_GetPublisher_MastodonPlatform(t *testing.T) {
-	tmpDir := t.TempDir()
-	dataPath := filepath.Join(tmpDir, "posts.json")
-	err := os.WriteFile(dataPath, []byte(`{"01-01":[]}`), 0644)
-	require.NoError(t, err)
+	siteURL := testSiteURL
+	var err error
 
 	promptsDir := createTestPromptsDir(t)
 
-	testConfig := createTestConfig(dataPath)
+	testConfig := createTestConfig(siteURL)
 	testConfig.PromptsPath = promptsDir
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -458,14 +435,12 @@ func TestContainer_GetPublisher_MastodonPlatform(t *testing.T) {
 
 // TestContainer_GetPublisher_CaseInsensitive tests platform normalization
 func TestContainer_GetPublisher_CaseInsensitive(t *testing.T) {
-	tmpDir := t.TempDir()
-	dataPath := filepath.Join(tmpDir, "posts.json")
-	err := os.WriteFile(dataPath, []byte(`{"01-01":[]}`), 0644)
-	require.NoError(t, err)
+	siteURL := testSiteURL
+	var err error
 
 	promptsDir := createTestPromptsDir(t)
 
-	testConfig := createTestConfig(dataPath)
+	testConfig := createTestConfig(siteURL)
 	testConfig.PromptsPath = promptsDir
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -493,14 +468,12 @@ func TestContainer_GetPublisher_CaseInsensitive(t *testing.T) {
 
 // TestContainer_GetPublisher_InvalidPlatform tests error for unsupported platform
 func TestContainer_GetPublisher_InvalidPlatform(t *testing.T) {
-	tmpDir := t.TempDir()
-	dataPath := filepath.Join(tmpDir, "posts.json")
-	err := os.WriteFile(dataPath, []byte(`{"01-01":[]}`), 0644)
-	require.NoError(t, err)
+	siteURL := testSiteURL
+	var err error
 
 	promptsDir := createTestPromptsDir(t)
 
-	testConfig := createTestConfig(dataPath)
+	testConfig := createTestConfig(siteURL)
 	testConfig.PromptsPath = promptsDir
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -521,14 +494,12 @@ func TestContainer_GetPublisher_InvalidPlatform(t *testing.T) {
 
 // TestContainer_GetContentGenerator tests content generator getter
 func TestContainer_GetContentGenerator(t *testing.T) {
-	tmpDir := t.TempDir()
-	dataPath := filepath.Join(tmpDir, "posts.json")
-	err := os.WriteFile(dataPath, []byte(`{"01-01":[]}`), 0644)
-	require.NoError(t, err)
+	siteURL := testSiteURL
+	var err error
 
 	promptsDir := createTestPromptsDir(t)
 
-	testConfig := createTestConfig(dataPath)
+	testConfig := createTestConfig(siteURL)
 	testConfig.PromptsPath = promptsDir
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -548,14 +519,12 @@ func TestContainer_GetContentGenerator(t *testing.T) {
 
 // TestContainer_GetPromptManager tests prompt manager getter
 func TestContainer_GetPromptManager(t *testing.T) {
-	tmpDir := t.TempDir()
-	dataPath := filepath.Join(tmpDir, "posts.json")
-	err := os.WriteFile(dataPath, []byte(`{"01-01":[]}`), 0644)
-	require.NoError(t, err)
+	siteURL := testSiteURL
+	var err error
 
 	promptsDir := createTestPromptsDir(t)
 
-	testConfig := createTestConfig(dataPath)
+	testConfig := createTestConfig(siteURL)
 	testConfig.PromptsPath = promptsDir
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -575,14 +544,12 @@ func TestContainer_GetPromptManager(t *testing.T) {
 
 // TestContainer_GetConfig tests config getter
 func TestContainer_GetConfig(t *testing.T) {
-	tmpDir := t.TempDir()
-	dataPath := filepath.Join(tmpDir, "posts.json")
-	err := os.WriteFile(dataPath, []byte(`{"01-01":[]}`), 0644)
-	require.NoError(t, err)
+	siteURL := testSiteURL
+	var err error
 
 	promptsDir := createTestPromptsDir(t)
 
-	testConfig := createTestConfig(dataPath)
+	testConfig := createTestConfig(siteURL)
 	testConfig.PromptsPath = promptsDir
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -598,5 +565,5 @@ func TestContainer_GetConfig(t *testing.T) {
 	config := container.GetConfig()
 	assert.NotNil(t, config)
 	assert.Equal(t, testConfig, config)
-	assert.Equal(t, dataPath, config.DataPath)
+	assert.Equal(t, siteURL, config.SiteBaseURL)
 }

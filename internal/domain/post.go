@@ -38,11 +38,48 @@ const (
 
 // Post represents a blog post entity with validation and business rules.
 // It encapsulates the core information needed to generate social media content
-// for anniversary posts from Urban Art Core. The URI is parsed by Mistral AI
-// to extract content, so only URI and date are required.
+// for anniversary posts from Urban Art Core. Only URI and date are required;
+// the article, what the site says about the post, is filled in when known.
 type Post struct {
-	uri  string    // Full URL to the blog post
-	date time.Time // Original publication date
+	uri     string    // Full URL to the blog post
+	date    time.Time // Original publication date
+	article Article   // What the site says about the post; zero when unknown
+}
+
+// Article holds what the site publishes about a post beyond its address and
+// date. Every field may be empty: the catalogue snapshot only knows the URL,
+// and old posts can lack a teaser, a cover or a credit.
+type Article struct {
+	Title       string // Headline of the post
+	Description string // Teaser written for the post
+	Section     string // Editorial section, for example "Street Art" or "Graffiti"
+	Body        string // Body as plain text, without images, links or markup
+	Tags        Tags   // Typed tags the site assigns
+	Cover       Cover  // Lead photograph; zero when the post has none
+	Credit      string // Photo credit for the post; empty when the photos are the author's
+}
+
+// Tags are a post's typed tags, by kind, as the site labels them.
+type Tags struct {
+	Artists    []string // Artists and crews, for example "Banksy"
+	Places     []string // Cities and regions, for example "Berlin"
+	Events     []string // Festivals and shows
+	Techniques []string // For example "Stencil Art" or "Mural Art"
+	Formats    []string // For example "Video" or "Interview"
+	Topics     []string // Anything else the site tags the post with
+}
+
+// Cover is a post's lead photograph.
+type Cover struct {
+	URL    string // Absolute URL of the image
+	Alt    string // The site's alt text, often only the post title
+	Width  int    // Pixel width; zero when unknown
+	Height int    // Pixel height; zero when unknown
+}
+
+// IsZero reports whether nothing is known about the article.
+func (a Article) IsZero() bool {
+	return a.Title == "" && a.Description == "" && a.Body == ""
 }
 
 // NewPost creates a new Post with validation of URI and date.
@@ -91,6 +128,22 @@ func (p *Post) Date() time.Time {
 		return time.Time{}
 	}
 	return p.date
+}
+
+// Article returns what the site says about the post.
+func (p *Post) Article() Article {
+	if p == nil {
+		return Article{}
+	}
+	return p.article
+}
+
+// WithArticle returns a copy of the post that carries article.
+func (p *Post) WithArticle(article Article) *Post {
+	if p == nil {
+		return nil
+	}
+	return &Post{uri: p.uri, date: p.date, article: article}
 }
 
 // DateString returns the date formatted as YYYY-MM-DD.

@@ -90,6 +90,7 @@ UAC_MASTODON_ACCESS_TOKEN="..."
 # Platform configuration
 UAC_BLUESKY_HANDLE="handle.bsky.social"
 UAC_MASTODON_SERVER="https://mastodon.social"
+UAC_SITE_BASE_URL="https://www.urbanartcore.com"   # optional; where index.json lives
 
 # Optional (defaults provided)
 UAC_MISTRAL_MODEL="mistral-large-2512"
@@ -107,17 +108,16 @@ internal/
   domain/                     # Business logic
   ports/                      # Interface contracts
   adapters/
-    repository/               # Data access (JSON file)
+    site/                     # Catalogue and articles from the site's JSON
+      snapshot/index.json     # Built-in catalogue, used when the site is down (`just snapshot`)
     publisher/                # Bluesky, Mastodon adapters
     generator/                # Mistral AI adapter
-    reader/                   # Reads a post's web page for the prompt
   app/
     publish.go                # PublishService use case
     config.go                 # Viper configuration
   infrastructure/
     container.go              # Dependency injection
     logger.go                 # slog structured logging
-data/posts_by_date.json       # Anniversary posts (MM-DD keys)
 tofu/                         # OpenTofu infrastructure as code
 justfile                      # Build automation
 Dockerfile                    # Container definition
@@ -130,6 +130,7 @@ just check              # Quality gates (fmt, vet, lint)
 just test               # Run all tests
 just push-image         # Build and push container
 just build-local        # Build binary locally
+just snapshot           # Refresh the built-in catalogue snapshot from the site
 just tofu-init          # Initialize OpenTofu
 just tofu-plan          # Preview infrastructure changes
 just tofu-apply         # Deploy infrastructure
@@ -175,7 +176,7 @@ Monitor: https://console.scaleway.com/serverless/jobs
 **Hexagonal (Ports & Adapters):**
 - Domain: Pure business logic (Post, PublishResult)
 - Ports: Interface contracts
-- Adapters: Bluesky, Mastodon, Mistral, JSON repository
+- Adapters: Bluesky, Mastodon, Mistral, site JSON
 - Application: PublishService orchestration
 - Infrastructure: DI container, logging, config
 - CLI: Cobra commands
@@ -191,11 +192,11 @@ Monitor: https://console.scaleway.com/serverless/jobs
 
 - `cmd/publish.go` - Publish CLI command
 - `internal/app/publish.go` - PublishService orchestration
-- `internal/adapters/repository/json_file.go` - Data access
+- `internal/adapters/site/site.go` - Reads the site's index.json (catalogue) and each post's index.json (title, teaser, body, typed tags, cover, credit); falls back to the built-in snapshot
+- `internal/domain/hashtags.go` - Hashtags from the post's typed tags (artist, place, technique, format, then #StreetArt/#Graffiti)
 - `internal/adapters/publisher/bluesky.go` - Bluesky/ATProto integration
 - `internal/adapters/publisher/mastodon.go` - Mastodon REST API
 - `internal/adapters/generator/mistral.go` - Mistral AI integration
-- `internal/adapters/reader/web.go` - Reads the post's title, teaser and opening text
 - `internal/infrastructure/prompts/` - Prompt templates per platform
 - `tofu/` - Infrastructure as code (see tofu/README.md)
 

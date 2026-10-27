@@ -47,11 +47,9 @@ COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 COPY --from=builder /build/uac-socializer /uac-socializer
 
 # Copy runtime data
-COPY --from=builder /build/data/posts_by_date.json /data/posts_by_date.json
 COPY --from=builder /build/internal/infrastructure/prompts /prompts
 
 # Set environment variables
-ENV UAC_DATA_PATH=/data/posts_by_date.json
 ENV UAC_PROMPTS_PATH=/prompts
 ENV TZ=UTC
 
