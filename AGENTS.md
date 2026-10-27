@@ -27,6 +27,10 @@ just deploy  # test → check → build → push → deploy
 - Code must be committed before `just push-image` (container tagged with git commit hash)
 - Tests must pass before deploying (included in `just check`)
 
+### From GitHub Actions
+
+`.github/workflows/image.yml` builds the image and pushes it to the Scaleway Container Registry (tagged with the commit SHA and `latest`) after CI passes on `main`, or by hand from the Actions tab. It uses the `production` environment: secret `SCW_SECRET_KEY`, optional variables `SCW_REGION` (default `fr-par`) and `SCW_REGISTRY_NAMESPACE` (default `brennenstuhl`). The job definition stays with OpenTofu and runs `:latest`.
+
 ### Step-by-Step
 
 **1. Prepare .env**

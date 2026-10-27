@@ -1,0 +1,76 @@
+name: Image
+
+# Builds the container image and pushes it to the Scaleway Container Registry. Runs after the CI
+# workflow has passed on main (never on a red commit), or by hand from main. The Serverless Job
+# definition stays with OpenTofu (tofu/), which points it at the :latest tag, so the next
+# scheduled run picks up the new image.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: image
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  push:
+    name: Build and push to Scaleway
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    env:
+      SCW_REGION: ${{ vars.SCW_REGION || 'fr-par' }}
+      IMAGE: rg.${{ vars.SCW_REGION || 'fr-par' }}.scw.cloud/${{ vars.SCW_REGISTRY_NAMESPACE || 'brennenstuhl' }}/uac-socializer
+      # push exactly the commit CI tested
+      SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - name: Verify this is still the current main commit
+        id: current
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          current=$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)
+          if [ "$current" = "$SHA" ]; then
+            echo "push=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "push=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping stale image of $SHA; main is $current"
+          fi
+      - if: steps.current.outputs.push == 'true'
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ env.SHA }}
+      - if: steps.current.outputs.push == 'true'
+        name: Check the configuration
+        env:
+          SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+        run: |
+          : "${SECRET_KEY:?set the production environment secret SCW_SECRET_KEY}"
+      - if: steps.current.outputs.push == 'true'
+        name: Log in to the Scaleway Container Registry
+        env:
+          SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+        run: echo "$SECRET_KEY" | docker login "rg.${SCW_REGION}.scw.cloud" -u nologin --password-stdin
+      - if: steps.current.outputs.push == 'true'
+        name: Build and push the image
+        run: |
+          set -euo pipefail
+          docker build \
+            --build-arg VERSION=latest \
+            --build-arg COMMIT="${SHA::7}" \
+            --build-arg BUILD_TIME="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            -t "$IMAGE:${SHA}" -t "$IMAGE:latest" .
+          docker push "$IMAGE:${SHA}"
+          docker push "$IMAGE:latest"
