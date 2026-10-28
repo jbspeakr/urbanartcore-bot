@@ -27,7 +27,7 @@ const criticSystemPrompt = `You check social media posts against the story they 
 
 You get THE STORY, THE DRAFT and the CLAIMS its writer listed. Check every claim, and every other factual statement in THE DRAFT that the list leaves out: a name, place, date, number, technique, colour, size, quote or reaction.
 
-A statement is supported only when THE STORY states it or it follows directly from what THE STORY states. The publication date and the tags count as part of THE STORY. Anything else is unsupported, even when it is probably true. Quote the passage of THE STORY that supports a statement as its evidence, or say briefly why nothing does.
+A statement is supported only when THE STORY states it or it follows directly from what THE STORY states. The publication date and the tags count as part of THE STORY. The URL at the end of THE DRAFT is the story's own link: it is neither a claim nor a voice problem. Anything else is unsupported, even when it is probably true. Quote the passage of THE STORY that supports a statement as its evidence, or say briefly why nothing does.
 
 Then score THE DRAFT against the voice rules:
 3: plain and specific, names people and places from THE STORY, no hype.
