@@ -10,8 +10,11 @@ import (
 // and day in an earlier year.
 const ProgramOnThisDay = "on-this-day"
 
+// ProgramRestDay marks a day on which nothing is posted.
+const ProgramRestDay = "rest-day"
+
 // RepeatWindow is how long a post rests after it was featured before it is
-// picked again, unless the day has no other candidate.
+// picked again. A day with no other candidate is a rest day.
 const RepeatWindow = 365 * 24 * time.Hour
 
 // PublishRecord is what the ledger keeps about one post that went out on

@@ -139,6 +139,7 @@ just check              # Quality gates (fmt, vet, lint)
 just test               # Run all tests
 just push-image         # Build and push container
 just build-local        # Build binary locally
+just plan [days]        # Print the coming days: program, post, score
 just snapshot           # Refresh the built-in catalogue snapshot from the site
 just tofu-init          # Initialize OpenTofu
 just tofu-plan          # Preview infrastructure changes
@@ -170,6 +171,12 @@ Example:
 ./uac-socializer publish --platform bluesky
 ```
 
+Planning and previews (catalogue and ledger only for `plan`; no posting for either):
+```bash
+uac-socializer plan --days 14 --from MM-DD   # Table of the coming days: program, post, score, why
+uac-socializer draft --date 09-14            # Same as publish --dry-run
+```
+
 ## Production
 
 Deployed to Scaleway Serverless Jobs:
@@ -190,7 +197,9 @@ Monitor: https://console.scaleway.com/serverless/jobs
 - Infrastructure: DI container, logging, config
 - CLI: Cobra commands
 
-**Ledger:** before choosing, the run reads the last year of records from the ledger bucket (`ledger/<year>.json`). Platforms that already have the slot's post are skipped (a rerun posts nothing; a partial run completes the missing platform with the same post), and posts featured within a year are passed over when the day has another. Each successful publish is appended straight away with a conditional PUT. An unreadable ledger stops the run; a failed append is logged, not fatal. Dry runs read but never write.
+**Choosing the post:** the day's anniversary posts are scored (`internal/domain/plan.go`): 1 to start, +2 for a named artist, +1 for a place, +1 for a summary of 12 words or more, +1 for a round anniversary (5, 10, 15 years). A post featured within a year scores 0, and so does a link roundup (format `Link Tips`: links to other sites, whose artists and places get mixed up), and a day where nothing reaches 1 is a rest day. Ties go to the post never featured, then the one featured longest ago. `plan` uses the same scoring and never repeats a post within the plan.
+
+**Ledger:** before choosing, the run reads the last year of records from the ledger bucket (`ledger/<year>.json`). Platforms that already have the slot's post are skipped (a rerun posts nothing; a partial run completes the missing platform with the same post), and posts featured within a year are passed over; a day with nothing else is a rest day. Each successful publish is appended straight away with a conditional PUT. An unreadable ledger stops the run; a failed append is logged, not fatal. Dry runs read but never write.
 
 **Content pipeline (per platform):** read the post's JSON → writer drafts text plus a list of its claims → critic checks each claim against the post and scores the voice → a rejected draft is rewritten with the critic's findings, at most twice → if nothing passes, or the critic gives no verdict, the fallback template is posted instead. Dry runs log every review (`Draft reviewed`, with `unsupported` claims) and mark fallback content.
 

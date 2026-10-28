@@ -67,7 +67,7 @@ func runWithCritic(t *testing.T, gen *sequenceGenerator, critic ports.Critic) *d
 		Tags:  domain.Tags{Artists: []string{"Banksy"}, Places: []string{"Berlin"}},
 	})
 	repo := &MockPostRepository{}
-	repo.On("GetPostForDate", ctx, "09-14").Return(post, nil)
+	repo.On("GetPostsForDate", ctx, "09-14").Return([]*domain.Post{post}, nil)
 	pub := NewMockSocialPublisher(domain.PlatformBluesky)
 	pub.On("ValidateContent", ctx, mock.Anything).Return(nil)
 

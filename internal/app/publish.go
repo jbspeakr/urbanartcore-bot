@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"math/rand"
 	"regexp"
 	"strings"
 	"time"
@@ -64,7 +63,6 @@ type PublishService struct {
 	ledger     ports.Ledger         // optional; without it reruns post again and posts repeat freely
 	describer  ports.ImageDescriber // optional; without it alt text comes from the site's cover alt or the title
 	now        func() time.Time
-	intn       func(n int) int
 }
 
 // NewPublishService creates a new PublishService with the provided dependencies.
@@ -83,7 +81,6 @@ func NewPublishService(
 		generator:  generator,
 		publishers: publishers,
 		now:        time.Now,
-		intn:       rand.Intn,
 	}
 }
 
@@ -330,46 +327,34 @@ func (ps *PublishService) history(ctx context.Context, slot time.Time) ([]domain
 
 // choosePost picks the slot's post. A slot that already went out on some
 // platform keeps its post, so a rerun completes the other platforms with the
-// same one. Otherwise it picks at random among the day's posts, passing over
-// those featured within the repeat window when another is left.
+// same one. Otherwise the day's anniversary posts are scored and the best
+// one wins; a day whose posts were all featured within the repeat window is
+// a rest day.
 func (ps *PublishService) choosePost(ctx context.Context, dateKey string, slot time.Time, history []domain.PublishRecord) (*domain.Post, error) {
-	if ps.ledger == nil {
-		return ps.repository.GetPostForDate(ctx, dateKey)
-	}
 	posts, err := ps.repository.GetPostsForDate(ctx, dateKey)
 	if err != nil {
 		return nil, err
 	}
 	day := slot.Format(domain.DateLayout)
-	featured := make(map[string]bool, len(history))
 	for _, r := range history {
-		featured[r.PostURI] = true
-	}
-	for _, r := range history {
-		if r.Date != day {
-			continue
-		}
-		for _, post := range posts {
-			if post != nil && post.URI() == r.PostURI {
+		if r.Date == day {
+			if post := postByURI(posts, r.PostURI); post != nil {
 				return post, nil
 			}
 		}
 	}
-	fresh := make([]*domain.Post, 0, len(posts))
-	for _, post := range posts {
-		if post != nil && !featured[post.URI()] {
-			fresh = append(fresh, post)
-		}
-	}
-	if len(fresh) == 0 {
-		slog.Default().Info("Every post of the day was featured within the last year, picking among all",
-			slog.String("dateKey", dateKey), slog.Int("posts", len(posts)))
-		fresh = posts
-	}
-	if len(fresh) == 0 {
+	chosen := chooseOnThisDay(posts, slot, domain.LastFeatured(history))
+	if chosen.IsRestDay() {
+		slog.Default().Info("No post qualifies for the day",
+			slog.String("dateKey", dateKey), slog.Any("reasons", chosen.Reasons))
 		return nil, ports.RepositoryError{Err: fmt.Errorf("%w: %s", ports.ErrDateNotFound, dateKey)}
 	}
-	return fresh[ps.intn(len(fresh))], nil
+	slog.Default().Info("Chose the day's post",
+		slog.String("uri", chosen.Post.URI()),
+		slog.Float64("score", chosen.Score),
+		slog.Any("reasons", chosen.Reasons),
+		slog.Int("candidates", len(posts)))
+	return chosen.Post, nil
 }
 
 // unpublished drops the platforms the ledger already holds a post for on slot.
