@@ -40,15 +40,17 @@ type PublishRequest struct {
 	DateKey   string   // MM-DD format date key
 	Platforms []string // Target platforms (bluesky, mastodon, all)
 	DryRun    bool     // Whether to perform a dry run (generate but don't publish)
+	Program   string   // domain.ProgramOnThisDay when empty, or a thread program
 }
 
 // PublishResponse contains the aggregated results of a publishing operation.
 type PublishResponse struct {
-	Result    *domain.PublishResult               // Aggregated publishing results
-	Generated map[string]*domain.GeneratedContent // Generated content per platform
-	Error     error                               // Any critical errors that occurred
-	RestDay   bool                                // No post for the date: nothing was generated or published
-	Published bool                                // Every platform already has this slot's post: nothing was done
+	Result    *domain.PublishResult                 // Aggregated publishing results
+	Generated map[string]*domain.GeneratedContent   // Generated content per platform
+	Error     error                                 // Any critical errors that occurred
+	Threads   map[string][]*domain.GeneratedContent // Every post of a thread per platform, first post first
+	RestDay   bool                                  // No post for the date: nothing was generated or published
+	Published bool                                  // Every platform already has this slot's post: nothing was done
 }
 
 // PublishService orchestrates the complete publishing workflow for anniversary posts.
@@ -62,6 +64,7 @@ type PublishService struct {
 	critic     ports.Critic         // optional; without it drafts are published unchecked
 	ledger     ports.Ledger         // optional; without it reruns post again and posts repeat freely
 	describer  ports.ImageDescriber // optional; without it alt text comes from the site's cover alt or the title
+	archive    ports.Archive        // needed by the thread programs only
 	now        func() time.Time
 }
 
@@ -115,6 +118,13 @@ func (ps *PublishService) WithImageDescriber(describer ports.ImageDescriber) *Pu
 	return ps
 }
 
+// WithArchive gives the thread programs the whole archive: collections,
+// artists and every post.
+func (ps *PublishService) WithArchive(archive ports.Archive) *PublishService {
+	ps.archive = archive
+	return ps
+}
+
 // MaxRewrites is how often a draft the critic rejects is written again
 // before the fallback template takes its place.
 const MaxRewrites = 2
@@ -147,6 +157,9 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 	history, err := ps.history(ctx, slot)
 	if err != nil {
 		return nil, ApplicationError{Err: err}
+	}
+	if req.Program != "" && req.Program != domain.ProgramOnThisDay {
+		return ps.publishThread(ctx, req, slot, history)
 	}
 
 	post, err := ps.choosePost(ctx, req.DateKey, slot, history)
@@ -269,7 +282,7 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 		}
 
 		if !req.DryRun && platformResult != nil && platformResult.IsSuccess() {
-			ps.record(ctx, slot, post, platformResult)
+			ps.record(ctx, slot, domain.ProgramOnThisDay, post.URI(), platformResult)
 		}
 	}
 
@@ -381,17 +394,17 @@ func (ps *PublishService) unpublished(platforms []string, slot time.Time, histor
 // record appends a published post to the ledger. A failed write is logged,
 // not returned: the post is out, and failing the run would invite a retry
 // that posts it twice.
-func (ps *PublishService) record(ctx context.Context, slot time.Time, post *domain.Post, result *domain.PlatformResult) {
+func (ps *PublishService) record(ctx context.Context, slot time.Time, program, uri string, result *domain.PlatformResult) {
 	if ps.ledger == nil {
 		return
 	}
 	content := result.Content()
 	rec := domain.PublishRecord{
-		Key:         domain.LedgerKey(slot, domain.ProgramOnThisDay, post.URI(), result.Platform()),
+		Key:         domain.LedgerKey(slot, program, uri, result.Platform()),
 		Date:        slot.Format(domain.DateLayout),
-		Program:     domain.ProgramOnThisDay,
+		Program:     program,
 		Platform:    result.Platform(),
-		PostURI:     post.URI(),
+		PostURI:     uri,
 		RemoteURL:   result.PublishedURL(),
 		Text:        content.RenderedText(),
 		Fallback:    content.IsFallback(),
@@ -442,6 +455,12 @@ func (ps *PublishService) validateRequest(req *PublishRequest) error {
 		if !domain.IsValidPlatform(platform) {
 			return fmt.Errorf("invalid platform: %s", platform)
 		}
+	}
+
+	switch req.Program {
+	case "", domain.ProgramOnThisDay, domain.ProgramCollection, domain.ProgramArtist, domain.ProgramBackThen:
+	default:
+		return fmt.Errorf("unknown program %q", req.Program)
 	}
 
 	return nil

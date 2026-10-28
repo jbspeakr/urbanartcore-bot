@@ -63,6 +63,8 @@ type Client struct {
 	once    sync.Once
 	loadErr error
 	byDate  map[string][]*domain.Post
+	all     []*domain.Post // oldest first
+	artists []domain.TagPage
 	count   int
 	source  string
 }
@@ -242,6 +244,8 @@ func (c *Client) load(ctx context.Context) error {
 // post is skipped; a catalogue without any valid post is an error.
 func (c *Client) index(entries []indexEntry) error {
 	byDate := make(map[string][]*domain.Post)
+	all := make([]*domain.Post, 0, len(entries))
+	artists := make(map[string]*domain.TagPage)
 	count, skipped := 0, 0
 	for _, entry := range entries {
 		post, err := entry.post()
@@ -251,7 +255,20 @@ func (c *Client) index(entries []indexEntry) error {
 		}
 		key := post.AnniversaryDateKey()
 		byDate[key] = append(byDate[key], post)
+		all = append(all, post)
 		count++
+		for _, topic := range entry.Topics {
+			if topic.Entity != "artist" || clean(topic.Label) == "" {
+				continue
+			}
+			name := clean(topic.Label)
+			page, ok := artists[name]
+			if !ok {
+				page = &domain.TagPage{Name: name, URL: c.absolute(topic.URL)}
+				artists[name] = page
+			}
+			page.Posts = append(page.Posts, post)
+		}
 	}
 	if count == 0 {
 		return fmt.Errorf("%w: no valid posts among %d entries", ports.ErrDataCorrupted, len(entries))
@@ -259,8 +276,46 @@ func (c *Client) index(entries []indexEntry) error {
 	if skipped > 0 {
 		slog.Default().Warn("Skipped catalogue entries that are not valid posts", slog.Int("skipped", skipped))
 	}
-	c.byDate, c.count = byDate, count
+	sort.SliceStable(all, func(i, j int) bool { return all[i].Date().Before(all[j].Date()) })
+	pages := make([]domain.TagPage, 0, len(artists))
+	for _, page := range artists {
+		sort.SliceStable(page.Posts, func(i, j int) bool { return page.Posts[i].Date().Before(page.Posts[j].Date()) })
+		pages = append(pages, *page)
+	}
+	sort.Slice(pages, func(i, j int) bool { return pages[i].Name < pages[j].Name })
+	c.byDate, c.all, c.artists, c.count = byDate, all, pages, count
 	return nil
+}
+
+// absolute resolves a site path such as /banksy/ against the base URL.
+func (c *Client) absolute(path string) string {
+	path = strings.TrimSpace(path)
+	if path == "" || strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
+		return path
+	}
+	return c.baseURL + "/" + strings.TrimLeft(path, "/")
+}
+
+// AllPosts returns every post in the catalogue, oldest first.
+func (c *Client) AllPosts(ctx context.Context) ([]*domain.Post, error) {
+	if err := c.load(ctx); err != nil {
+		return nil, err
+	}
+	return append([]*domain.Post(nil), c.all...), nil
+}
+
+// Artists returns every artist tag in the catalogue with its posts, oldest
+// first, sorted by name.
+func (c *Client) Artists(ctx context.Context) ([]domain.TagPage, error) {
+	if err := c.load(ctx); err != nil {
+		return nil, err
+	}
+	pages := make([]domain.TagPage, len(c.artists))
+	for i, page := range c.artists {
+		page.Posts = append([]*domain.Post(nil), page.Posts...)
+		pages[i] = page
+	}
+	return pages, nil
 }
 
 // getJSON fetches uri and decodes at most limit bytes of JSON into v.
@@ -309,6 +364,7 @@ type indexEntry struct {
 type indexTopic struct {
 	Entity string `json:"entity"`
 	Label  string `json:"label"`
+	URL    string `json:"url"`
 }
 
 func (e indexEntry) post() (*domain.Post, error) {

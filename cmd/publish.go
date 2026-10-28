@@ -57,6 +57,7 @@ func init() {
 	publishCmd.Flags().Bool("dry-run", false, "Preview generated content without publishing (recommended for testing)")
 	publishCmd.Flags().String("date", "", "Target date in MM-DD format (default: today)")
 	publishCmd.Flags().String("platform", "all", "Target platform: bluesky|mastodon|all")
+	publishCmd.Flags().String("program", domain.ProgramOnThisDay, "Program: on-this-day|collection|artist-spotlight|back-then")
 }
 
 // runPublishCommand executes the publish workflow with comprehensive error handling.
@@ -67,6 +68,7 @@ func runPublishCommand(cmd *cobra.Command, args []string) error {
 	dryRun, _ := cmd.Flags().GetBool("dry-run")
 	dateFlag, _ := cmd.Flags().GetString("date")
 	platform, _ := cmd.Flags().GetString("platform")
+	program, _ := cmd.Flags().GetString("program")
 
 	// 1. Config Loading
 	config, err := app.LoadConfig()
@@ -134,6 +136,7 @@ func runPublishCommand(cmd *cobra.Command, args []string) error {
 		DateKey:   publishRequest.Date,
 		Platforms: parsePlatforms(publishRequest.Platform),
 		DryRun:    dryRun,
+		Program:   program,
 	}
 
 	response, err := publishService.PublishAnniversaryPosts(ctx, publishServiceReq)
@@ -196,6 +199,16 @@ func runPublishCommand(cmd *cobra.Command, args []string) error {
 						}
 					}
 					logger.Info("Generated content for platform", attrs...)
+					for i, reply := range response.Threads[platform] {
+						if i == 0 {
+							continue
+						}
+						logger.Info("Thread reply",
+							slog.String("platform", platform),
+							slog.Int("reply", i),
+							slog.String("content_text", reply.RenderedText()),
+							slog.String("link", reply.URI()))
+					}
 				}
 			}
 

@@ -163,6 +163,7 @@ uac-socializer publish [flags]
 --dry-run              # Preview without publishing
 --date MM-DD           # Specific date (default: today)
 --platform PLATFORM    # bluesky|mastodon|all (default: all)
+--program PROGRAM      # on-this-day|collection|artist-spotlight|back-then (default: on-this-day)
 ```
 
 Example:
@@ -198,6 +199,8 @@ Monitor: https://console.scaleway.com/serverless/jobs
 - CLI: Cobra commands
 
 **Choosing the post:** the day's anniversary posts are scored (`internal/domain/plan.go`): 1 to start, +2 for a named artist, +1 for a place, +1 for a summary of 12 words or more, +1 for a round anniversary (5, 10, 15 years). A post featured within a year scores 0, and so does a link roundup (format `Link Tips`: links to other sites, whose artists and places get mixed up), and a day where nothing reaches 1 is a rest day. Ties go to the post never featured, then the one featured longest ago. `plan` uses the same scoring and never repeats a post within the plan.
+
+**Thread programs:** `collection` posts one of the site's collections (found through `llms.txt`, each read from `collections/<slug>/index.json`) as a thread: title and description first, then each item in reading order with the collection's own note. `artist-spotlight` takes an artist with 5 or more posts, not spotlighted for half a year, and posts their first, a middle and their last post. `back-then` posts the slot's month, one post per year. The texts come from the site's titles and notes, so no model writes them. Bluesky replies carry link cards, Mastodon replies the link in the text; each reply answers the one before. The first post is recorded in the ledger under the collection, tag page or archive URL; a reply that fails ends the thread there.
 
 **Ledger:** before choosing, the run reads the last year of records from the ledger bucket (`ledger/<year>.json`). Platforms that already have the slot's post are skipped (a rerun posts nothing; a partial run completes the missing platform with the same post), and posts featured within a year are passed over; a day with nothing else is a rest day. Each successful publish is appended straight away with a conditional PUT. An unreadable ledger stops the run; a failed append is logged, not fatal. Dry runs read but never write.
 

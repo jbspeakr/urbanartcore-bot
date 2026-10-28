@@ -53,6 +53,8 @@ type GeneratedContent struct {
 	claims      []string  // Factual statements the text makes, as the writer lists them
 	fallback    bool      // Built from the template, not generated
 	images      []Image   // Photographs attached to the post, at most MaxPostImages
+	replyRoot   string    // RemoteRef of the thread's first post, when this is a reply
+	replyParent string    // RemoteRef of the post this one answers
 }
 
 // NewGeneratedContent creates a new GeneratedContent with validation.
@@ -132,6 +134,26 @@ func (gc *GeneratedContent) WithImages(images []Image) *GeneratedContent {
 		gc.images = append(gc.images, img)
 	}
 	return gc
+}
+
+// InReplyTo makes the content a reply in a thread. root and parent are the
+// RemoteRef values the platform's publisher returned for the thread's first
+// post and for the post this one answers.
+func (gc *GeneratedContent) InReplyTo(root, parent string) *GeneratedContent {
+	if gc == nil {
+		return nil
+	}
+	gc.replyRoot, gc.replyParent = root, parent
+	return gc
+}
+
+// ReplyRefs returns the thread root and parent the content answers, both
+// empty for a post that starts a thread or stands alone.
+func (gc *GeneratedContent) ReplyRefs() (root, parent string) {
+	if gc == nil {
+		return "", ""
+	}
+	return gc.replyRoot, gc.replyParent
 }
 
 // Images returns a copy of the photographs attached to the post.
@@ -256,6 +278,7 @@ type PlatformResult struct {
 	publishedAt  time.Time         // When publishing completed
 	retryCount   int               // Number of retry attempts
 	responseTime time.Duration     // Time taken for the publish operation
+	remoteRef    string            // Platform reference a reply needs to answer this post
 }
 
 // NewPlatformResult creates a new PlatformResult.
@@ -364,6 +387,23 @@ func (pr *PlatformResult) SetSuccess(publishedURL string, responseTime time.Dura
 	pr.publishedURL = publishedURL
 	pr.responseTime = responseTime
 	pr.publishedAt = time.Now()
+}
+
+// SetRemoteRef records the platform's reference to the published post: the
+// record URI and CID on Bluesky, the status id on Mastodon.
+func (pr *PlatformResult) SetRemoteRef(ref string) {
+	if pr != nil {
+		pr.remoteRef = ref
+	}
+}
+
+// RemoteRef returns the platform's reference to the published post, which a
+// reply in the same thread passes to InReplyTo.
+func (pr *PlatformResult) RemoteRef() string {
+	if pr == nil {
+		return ""
+	}
+	return pr.remoteRef
 }
 
 // SetFailure updates the result with failure information.

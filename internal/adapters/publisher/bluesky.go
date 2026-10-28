@@ -448,6 +448,18 @@ func (a *BlueskyAdapter) Publish(ctx context.Context, content *domain.GeneratedC
 		postRecord["embed"] = embedData
 	}
 
+	// A reply names the thread's first post and the post it answers
+	if root, parent := content.ReplyRefs(); parent != "" {
+		reply, err := blueskyReply(root, parent)
+		if err != nil {
+			result, _ := domain.NewPlatformResult("bluesky", domain.StatusFailed, content)
+			wrappedErr := ports.PublisherError{Platform: "bluesky", Err: err, Retryable: false}
+			result.SetFailure(wrappedErr, time.Since(startTime))
+			return result, wrappedErr
+		}
+		postRecord["reply"] = reply
+	}
+
 	// Log complete postRecord structure for debugging
 	logger := slog.Default()
 	logger.Info("Bluesky publish request validation",
@@ -530,6 +542,7 @@ func (a *BlueskyAdapter) Publish(ctx context.Context, content *domain.GeneratedC
 	// Parse response
 	var createResp struct {
 		URI string `json:"uri"`
+		CID string `json:"cid"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&createResp); err != nil {
 		result, _ := domain.NewPlatformResult("bluesky", domain.StatusFailed, content)
@@ -549,6 +562,7 @@ func (a *BlueskyAdapter) Publish(ctx context.Context, content *domain.GeneratedC
 	// Create success result
 	result, _ := domain.NewPlatformResult("bluesky", domain.StatusSuccess, content)
 	result.SetSuccess(publishedURL, time.Since(startTime))
+	result.SetRemoteRef(createResp.URI + " " + createResp.CID)
 
 	slog.Default().Info("Published to Bluesky",
 		slog.String("platform", "bluesky"),
@@ -1076,4 +1090,28 @@ func wrapPublishError(err error) ports.PublisherError {
 		Err:       classified,
 		Retryable: retryable,
 	}
+}
+
+// blueskyReply builds a post's reply field from the RemoteRef values of the
+// thread's root and of the parent, each "<record uri> <cid>".
+func blueskyReply(root, parent string) (map[string]any, error) {
+	if root == "" {
+		root = parent
+	}
+	ref := func(remote string) (map[string]string, error) {
+		parts := strings.Fields(remote)
+		if len(parts) != 2 || !strings.HasPrefix(parts[0], "at://") {
+			return nil, fmt.Errorf("invalid reply reference %q", remote)
+		}
+		return map[string]string{"uri": parts[0], "cid": parts[1]}, nil
+	}
+	rootRef, err := ref(root)
+	if err != nil {
+		return nil, err
+	}
+	parentRef, err := ref(parent)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"root": rootRef, "parent": parentRef}, nil
 }
