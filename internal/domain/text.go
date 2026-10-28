@@ -11,6 +11,10 @@ import (
 // Bluesky receives it as langs, Mastodon as language.
 const ContentLanguage = "en"
 
+// UserAgent identifies the bot to the sites it reads, naming its repository
+// as the site's guidance asks.
+const UserAgent = "urbanartcore-bot (+https://github.com/jbspeakr/urbanartcore-bot)"
+
 // Platform text limits as the platforms count them.
 const (
 	// BlueskyGraphemeLimit is the maximum number of grapheme clusters in a Bluesky post.

@@ -83,14 +83,49 @@ type chatResponse struct {
 	} `json:"choices"`
 }
 
+// contentPart is one part of a multimodal message: text, or an image the
+// API fetches from its URL.
+type contentPart struct {
+	Type     string `json:"type"`
+	Text     string `json:"text,omitempty"`
+	ImageURL string `json:"image_url,omitempty"`
+}
+
+type partsMessage struct {
+	Role    string        `json:"role"`
+	Content []contentPart `json:"content"`
+}
+
+// partsRequest is a chat request whose messages may carry images.
+type partsRequest struct {
+	Model       string         `json:"model"`
+	Messages    []partsMessage `json:"messages"`
+	Temperature float64        `json:"temperature"`
+	TopP        float64        `json:"top_p"`
+	MaxTokens   int            `json:"max_tokens"`
+}
+
 // modelCard is the part of GET /v1/models/{id} the bot reads.
 type modelCard struct {
 	ID          string `json:"id"`
 	Deprecation string `json:"deprecation,omitempty"`
+	// Capabilities says what the model accepts; Vision means image input
+	Capabilities struct {
+		Vision bool `json:"vision"`
+	} `json:"capabilities"`
 }
 
 // chat sends one chat completion request.
 func (c *mistralClient) chat(ctx context.Context, req *chatRequest) (*chatResponse, error) {
+	var resp chatResponse
+	if err := c.do(ctx, http.MethodPost, "/v1/chat/completions", req, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// chatWithParts sends one chat completion request with multimodal messages.
+func (c *mistralClient) chatWithParts(ctx context.Context, req *partsRequest) (*chatResponse, error) {
 	var resp chatResponse
 	if err := c.do(ctx, http.MethodPost, "/v1/chat/completions", req, &resp); err != nil {
 		return nil, err

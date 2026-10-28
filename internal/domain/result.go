@@ -52,6 +52,7 @@ type GeneratedContent struct {
 	generatedAt time.Time // When content was generated
 	claims      []string  // Factual statements the text makes, as the writer lists them
 	fallback    bool      // Built from the template, not generated
+	images      []Image   // Photographs attached to the post, at most MaxPostImages
 }
 
 // NewGeneratedContent creates a new GeneratedContent with validation.
@@ -115,6 +116,30 @@ func (gc *GeneratedContent) WithClaims(claims []string) *GeneratedContent {
 		}
 	}
 	return gc
+}
+
+// WithImages attaches photographs to the post, keeping the first
+// MaxPostImages that have a URL.
+func (gc *GeneratedContent) WithImages(images []Image) *GeneratedContent {
+	if gc == nil {
+		return nil
+	}
+	gc.images = make([]Image, 0, len(images))
+	for _, img := range images {
+		if strings.TrimSpace(img.URL) == "" || len(gc.images) == MaxPostImages {
+			continue
+		}
+		gc.images = append(gc.images, img)
+	}
+	return gc
+}
+
+// Images returns a copy of the photographs attached to the post.
+func (gc *GeneratedContent) Images() []Image {
+	if gc == nil {
+		return nil
+	}
+	return append([]Image(nil), gc.images...)
 }
 
 // Claims returns a copy of the factual statements the text makes.

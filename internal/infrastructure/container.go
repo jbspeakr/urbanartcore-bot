@@ -25,8 +25,9 @@ type Container struct {
 	BlueskyPublisher  ports.SocialPublisher
 	MastodonPublisher ports.SocialPublisher
 	ContentGenerator  ports.ContentGenerator
-	Critic            ports.Critic // nil when no critic model is configured
-	Ledger            ports.Ledger // nil when no ledger bucket is configured
+	Critic            ports.Critic         // nil when no critic model is configured
+	Describer         ports.ImageDescriber // nil when no vision model is configured
+	Ledger            ports.Ledger         // nil when no ledger bucket is configured
 	PromptManager     ports.PromptManager
 }
 
@@ -109,6 +110,19 @@ func NewContainer(ctx context.Context, config *app.Config) (*Container, error) {
 			slog.String("model", config.CriticModel))
 	}
 
+	// The describer writes the alt text of cover photos
+	var describer ports.ImageDescriber
+	if config.VisionModel != "" {
+		mistralDescriber, err := generator.NewMistralDescriber(config.MistralAPIKey, config.VisionModel, "", config.AITimeout)
+		if err != nil {
+			return nil, fmt.Errorf("%s: failed to initialize image describer: %w", op, err)
+		}
+		describer = mistralDescriber
+		logger.Debug("Initialized image describer",
+			slog.String("type", "MistralDescriber"),
+			slog.String("model", config.VisionModel))
+	}
+
 	// The ledger keeps reruns from posting twice and posts from repeating
 	var publishLedger ports.Ledger
 	if config.HasLedger() {
@@ -138,6 +152,7 @@ func NewContainer(ctx context.Context, config *app.Config) (*Container, error) {
 		MastodonPublisher: mastodonPublisher,
 		ContentGenerator:  contentGenerator,
 		Critic:            critic,
+		Describer:         describer,
 		Ledger:            publishLedger,
 		PromptManager:     promptManager,
 	}
@@ -269,5 +284,5 @@ func (c *Container) GetPublishService() *app.PublishService {
 		c.PostRepository,
 		c.ContentGenerator,
 		publishers,
-	).WithPostReader(c.PostReader).WithCritic(c.Critic).WithLedger(c.Ledger)
+	).WithPostReader(c.PostReader).WithCritic(c.Critic).WithLedger(c.Ledger).WithImageDescriber(c.Describer)
 }

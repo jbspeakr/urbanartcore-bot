@@ -332,6 +332,8 @@ func (a *BlueskyAdapter) TestConnection(ctx context.Context) error {
 }
 
 // Publish sends content to Bluesky with facets and optional external embed.
+// A post holds one embed, so the link card wins and the content's images
+// are not attached; the card shows the post's cover as its thumbnail.
 // Returns PlatformResult with success status and published post URL.
 func (a *BlueskyAdapter) Publish(ctx context.Context, content *domain.GeneratedContent) (*domain.PlatformResult, error) {
 	startTime := time.Now()

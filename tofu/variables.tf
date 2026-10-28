@@ -210,6 +210,12 @@ variable "critic_model" {
   default     = "ministral-8b-2512"
 }
 
+variable "vision_model" {
+  description = "Mistral AI model that writes the alt text of cover photos (must accept images)"
+  type        = string
+  default     = "mistral-large-2512"
+}
+
 variable "mistral_max_tokens" {
   description = "Maximum tokens for Mistral AI responses"
   type        = number

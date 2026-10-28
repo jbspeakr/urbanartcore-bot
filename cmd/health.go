@@ -230,6 +230,22 @@ func runHealthCheck(cmd *cobra.Command, args []string) error {
 					slog.String("model", config.CriticModel))
 			}
 		}
+
+		if config.VisionModel != "" {
+			describer, err := generator.NewMistralDescriber(config.MistralAPIKey, config.VisionModel, "", config.AITimeout)
+			if err == nil {
+				err = describer.TestConnection(ctx)
+			}
+			if err != nil {
+				logger.Error("Vision model check failed",
+					slog.String("model", config.VisionModel),
+					slog.String("error", err.Error()))
+				allChecksPass = false
+			} else {
+				logger.Info("Vision model check passed",
+					slog.String("model", config.VisionModel))
+			}
+		}
 	}
 
 	// Final summary

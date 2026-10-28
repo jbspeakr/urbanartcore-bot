@@ -117,6 +117,15 @@ func runPublishCommand(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("critic unavailable: %w", err)
 		}
 	}
+	// Without the describer, photos go out with the site's alt text
+	if container.Describer != nil {
+		if err := container.Describer.TestConnection(ctx); err != nil {
+			logger.Warn("Image describer unavailable, using the site's alt text",
+				slog.String("model", container.Config.VisionModel),
+				slog.String("error", err.Error()))
+			container.Describer = nil
+		}
+	}
 
 	// 6. Service Execution
 	publishService := container.GetPublishService()
@@ -180,6 +189,11 @@ func runPublishCommand(cmd *cobra.Command, args []string) error {
 					if platform == domain.PlatformBluesky {
 						// Bluesky carries the link as a card under the post, not in the text
 						attrs = append(attrs, slog.String("link_card", content.URI()))
+					} else {
+						for i, img := range content.Images() {
+							attrs = append(attrs, slog.Group(fmt.Sprintf("image_%d", i+1),
+								slog.String("url", img.URL), slog.String("alt", img.Alt)))
+						}
 					}
 					logger.Info("Generated content for platform", attrs...)
 				}
