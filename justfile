@@ -95,6 +95,10 @@ build-local:
     go build -o bin/uac-socializer ./main.go
     ./bin/uac-socializer --help
 
+# Print the plan for the coming days (no model calls, no posting)
+plan days="14":
+    go run ./main.go plan --days {{days}}
+
 # Refresh the built-in catalogue snapshot from the live site (commit the result)
 snapshot:
     #!/bin/bash

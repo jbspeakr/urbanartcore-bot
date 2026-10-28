@@ -37,7 +37,7 @@ func runDryRunWithReader(t *testing.T, reader ports.PostReader) []*ports.Generat
 	catalogued := createTestPost("https://www.urbanartcore.com/bomb-it-israel/", "2010-10-27").
 		WithArticle(domain.Article{Title: "Bomb It: Israel"})
 	repo := &MockPostRepository{}
-	repo.On("GetPostForDate", ctx, "10-27").Return(catalogued, nil)
+	repo.On("GetPostsForDate", ctx, "10-27").Return([]*domain.Post{catalogued}, nil)
 
 	var requests []*ports.GenerationRequest
 	gen := &MockContentGenerator{}

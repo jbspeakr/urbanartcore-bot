@@ -177,7 +177,7 @@ func TestPublishAnniversaryPosts_HappyPath(t *testing.T) {
 
 	// Setup mocks
 	repo := &MockPostRepository{}
-	repo.On("GetPostForDate", ctx, "09-14").Return(posts[0], nil)
+	repo.On("GetPostsForDate", ctx, "09-14").Return([]*domain.Post{posts[0]}, nil)
 
 	gen := &MockContentGenerator{}
 	blueskycontent := createTestGeneratedContent("Test bluesky content", "bluesky")
@@ -232,7 +232,7 @@ func TestPublishAnniversaryPosts_DryRun(t *testing.T) {
 
 	// Setup mocks
 	repo := &MockPostRepository{}
-	repo.On("GetPostForDate", ctx, "09-14").Return(posts[0], nil)
+	repo.On("GetPostsForDate", ctx, "09-14").Return([]*domain.Post{posts[0]}, nil)
 
 	gen := &MockContentGenerator{}
 	// Placeholder generator returns "not implemented" error in dry-run
@@ -291,7 +291,7 @@ func TestPublishAnniversaryPosts_PartialFailure(t *testing.T) {
 
 	// Setup mocks
 	repo := &MockPostRepository{}
-	repo.On("GetPostForDate", ctx, "09-14").Return(posts[0], nil)
+	repo.On("GetPostsForDate", ctx, "09-14").Return([]*domain.Post{posts[0]}, nil)
 
 	gen := &MockContentGenerator{}
 	blueskyContent := createTestGeneratedContent("Test bluesky content", "bluesky")
@@ -361,7 +361,7 @@ func TestPublishAnniversaryPosts_NoPostsFound(t *testing.T) {
 
 	// Setup mocks
 	repo := &MockPostRepository{}
-	repo.On("GetPostForDate", ctx, "09-14").Return(nil, ports.ErrDateNotFound)
+	repo.On("GetPostsForDate", ctx, "09-14").Return(nil, ports.ErrDateNotFound)
 
 	gen := &MockContentGenerator{}
 	publishers := map[string]ports.SocialPublisher{
@@ -482,7 +482,7 @@ func TestPublishAnniversaryPosts_GeneratorErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup mocks
 			repo := &MockPostRepository{}
-			repo.On("GetPostForDate", ctx, "09-14").Return(posts[0], nil)
+			repo.On("GetPostsForDate", ctx, "09-14").Return([]*domain.Post{posts[0]}, nil)
 
 			gen := &MockContentGenerator{}
 			gen.On("GenerateContent", ctx, mock.AnythingOfType("*ports.GenerationRequest")).Return(nil, tt.genErr)
@@ -545,7 +545,7 @@ func TestPublishAnniversaryPosts_PublisherErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup mocks
 			repo := &MockPostRepository{}
-			repo.On("GetPostForDate", ctx, "09-14").Return(posts[0], nil)
+			repo.On("GetPostsForDate", ctx, "09-14").Return([]*domain.Post{posts[0]}, nil)
 
 			gen := &MockContentGenerator{}
 			blueskycontent := createTestGeneratedContent("Test content", "bluesky")
@@ -594,7 +594,7 @@ func TestPublishAnniversaryPosts_ContextCancellation(t *testing.T) {
 
 	// Setup mocks
 	repo := &MockPostRepository{}
-	repo.On("GetPostForDate", mock.AnythingOfType("*context.cancelCtx"), "09-14").Return(posts[0], nil)
+	repo.On("GetPostsForDate", mock.AnythingOfType("*context.cancelCtx"), "09-14").Return([]*domain.Post{posts[0]}, nil)
 
 	gen := &MockContentGenerator{}
 	publishers := map[string]ports.SocialPublisher{

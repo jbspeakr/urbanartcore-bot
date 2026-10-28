@@ -94,7 +94,6 @@ func newLedgerRig(t *testing.T, ledger *memLedger, posts ...*domain.Post) *ledge
 	gen := &sequenceGenerator{drafts: []string{"A story from Paris."}}
 	rig.service = NewPublishService(repo, gen, publishers).WithLedger(ledger)
 	rig.service.now = func() time.Time { return ledgerNow }
-	rig.service.intn = func(n int) int { return 0 }
 	return rig
 }
 
@@ -106,7 +105,7 @@ func (r *ledgerRig) publish(t *testing.T, dryRun bool) *PublishResponse {
 }
 
 func TestLedger_RecordsEveryPublishedPost(t *testing.T) {
-	rig := newLedgerRig(t, &memLedger{}, thalys, marker)
+	rig := newLedgerRig(t, &memLedger{}, thalys)
 
 	resp := rig.publish(t, false)
 	require.NoError(t, resp.Error)
@@ -161,7 +160,7 @@ func TestLedger_PassesOverRecentlyFeaturedPosts(t *testing.T) {
 	assert.Equal(t, []string{revealed.URI()}, rig.publishers[domain.PlatformBluesky].published)
 }
 
-func TestLedger_RepeatsWhenEveryPostIsRecent(t *testing.T) {
+func TestLedger_PostComesBackAfterAYear(t *testing.T) {
 	ledger := &memLedger{records: []domain.PublishRecord{
 		{Date: "2025-09-14", Platform: domain.PlatformBluesky, PostURI: thalys.URI()},
 	}}
@@ -169,6 +168,17 @@ func TestLedger_RepeatsWhenEveryPostIsRecent(t *testing.T) {
 
 	rig.publish(t, false)
 	assert.Equal(t, []string{thalys.URI()}, rig.publishers[domain.PlatformBluesky].published)
+}
+
+func TestLedger_RestDayWhenEveryPostIsRecent(t *testing.T) {
+	ledger := &memLedger{records: []domain.PublishRecord{
+		{Date: "2025-12-01", Platform: domain.PlatformBluesky, PostURI: thalys.URI()},
+	}}
+	rig := newLedgerRig(t, ledger, thalys)
+
+	resp := rig.publish(t, false)
+	assert.True(t, resp.RestDay, "a post featured within a year does not come back")
+	assert.Empty(t, rig.publishers[domain.PlatformBluesky].published)
 }
 
 func TestLedger_DryRunWritesNothing(t *testing.T) {
