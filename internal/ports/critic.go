@@ -18,3 +18,15 @@ type Critic interface {
 	// TestConnection verifies the critic's model is still served.
 	TestConnection(ctx context.Context) error
 }
+
+// ImageDescriber writes alt text for a post's photograph: what the image
+// shows, for someone who cannot see it.
+type ImageDescriber interface {
+	// Describe returns a short description of the image at imageURL, which
+	// belongs to post. It may name the artists and places the post is
+	// tagged with, nothing else.
+	Describe(ctx context.Context, post *domain.Post, imageURL string) (string, error)
+
+	// TestConnection verifies the model is served and accepts images.
+	TestConnection(ctx context.Context) error
+}

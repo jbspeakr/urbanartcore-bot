@@ -377,10 +377,13 @@ func (a *MastodonAdapter) Publish(ctx context.Context, content *domain.Generated
 	tootText := formatTootContent(content)
 
 	// Build POST request body
-	postData := map[string]string{
+	postData := map[string]any{
 		"status":     tootText,
 		"visibility": "public",
 		"language":   domain.ContentLanguage,
+	}
+	if mediaIDs := a.uploadImages(ctx, content.Images()); len(mediaIDs) > 0 {
+		postData["media_ids"] = mediaIDs
 	}
 
 	body, err := json.Marshal(postData)

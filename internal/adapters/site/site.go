@@ -34,7 +34,7 @@ const (
 	// maxPostBytes caps how much of a post's index.json is read.
 	maxPostBytes = 8 << 20
 	// userAgent names the bot and its repository, as the site's llms.txt asks.
-	userAgent = "urbanartcore-bot (+https://github.com/jbspeakr/urbanartcore-bot)"
+	userAgent = domain.UserAgent
 )
 
 // Catalogue sources, reported by Source.

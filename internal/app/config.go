@@ -23,6 +23,7 @@ type Config struct {
 	MistralMaxTokens   int     `mapstructure:"mistral_max_tokens"`
 	MistralTemperature float64 `mapstructure:"mistral_temperature"`
 	CriticModel        string  `mapstructure:"critic_model"` // Checks every draft against its post
+	VisionModel        string  `mapstructure:"vision_model"` // Writes the alt text of cover photos; empty uses the site's alt text
 
 	// Ledger in S3-compatible object storage; disabled when the bucket is empty
 	LedgerBucket    string `mapstructure:"ledger_bucket"`
@@ -83,6 +84,7 @@ func LoadConfig() (*Config, error) {
 	v.SetDefault("prompts_path", "./internal/infrastructure/prompts")
 	v.SetDefault("mistral_model", "mistral-large-2512")
 	v.SetDefault("critic_model", "ministral-8b-2512")
+	v.SetDefault("vision_model", "mistral-large-2512")
 	v.SetDefault("ledger_endpoint", "https://s3.fr-par.scw.cloud")
 	v.SetDefault("ledger_region", "fr-par")
 	v.SetDefault("mistral_max_tokens", 1000)
@@ -101,6 +103,7 @@ func LoadConfig() (*Config, error) {
 		"mistral_max_tokens",
 		"mistral_temperature",
 		"critic_model",
+		"vision_model",
 		"ledger_bucket",
 		"ledger_endpoint",
 		"ledger_region",
@@ -194,6 +197,12 @@ func (c *Config) Validate() error {
 	if strings.HasSuffix(strings.ToLower(strings.TrimSpace(c.CriticModel)), "-latest") {
 		return ConfigError{
 			Err: fmt.Errorf("%w: critic_model must be a dated identifier such as ministral-8b-2512, not an alias (got: %s)", ErrUnpinnedModel, c.CriticModel),
+		}
+	}
+
+	if strings.HasSuffix(strings.ToLower(strings.TrimSpace(c.VisionModel)), "-latest") {
+		return ConfigError{
+			Err: fmt.Errorf("%w: vision_model must be a dated identifier such as mistral-large-2512, not an alias (got: %s)", ErrUnpinnedModel, c.VisionModel),
 		}
 	}
 

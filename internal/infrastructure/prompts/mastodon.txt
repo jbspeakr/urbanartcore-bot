@@ -6,7 +6,7 @@ THE STORY:
 It was first published in {ORIGINAL_MONTH_YEAR}. Its link is {POST_URI}
 
 WHAT TO WRITE:
-1. Talk about the story itself: the artist, crew, film, wall, city or event it is about, and what makes it worth a look. Lead with the most striking concrete detail, then add one or two sentences of context from THE STORY.
+1. Talk about the story itself: the artist, crew, film, wall, city or event it is about, and what makes it worth a look. Lead with the most striking concrete detail. Add context only when THE STORY gives more detail; a post of two sentences is fine.
 2. Use only facts from THE STORY above. Name the artist, crew or place from its tags when it has them. Do not invent techniques, colours, sizes, dates, quotes, reactions or names. If THE STORY says little, write a short post rather than a padded one.
 3. Never write about the blog, the archive, the post or the act of publishing: no "Urban Art Core published", "the blog covered", "this post", "years ago today", "anniversary" or "throwback". You may name the year once if it helps place the work in time.
 4. Write in an active, plain voice, as a curator recommending something good to a friend. Present tense for the work, past tense for events.

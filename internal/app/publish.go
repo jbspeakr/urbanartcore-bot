@@ -59,9 +59,10 @@ type PublishService struct {
 	repository ports.PostRepository
 	generator  ports.ContentGenerator
 	publishers map[string]ports.SocialPublisher
-	reader     ports.PostReader // optional; without it the model only sees what the catalogue holds
-	critic     ports.Critic     // optional; without it drafts are published unchecked
-	ledger     ports.Ledger     // optional; without it reruns post again and posts repeat freely
+	reader     ports.PostReader     // optional; without it the model only sees what the catalogue holds
+	critic     ports.Critic         // optional; without it drafts are published unchecked
+	ledger     ports.Ledger         // optional; without it reruns post again and posts repeat freely
+	describer  ports.ImageDescriber // optional; without it alt text comes from the site's cover alt or the title
 	now        func() time.Time
 	intn       func(n int) int
 }
@@ -107,6 +108,13 @@ func (ps *PublishService) WithCritic(critic ports.Critic) *PublishService {
 // another.
 func (ps *PublishService) WithLedger(ledger ports.Ledger) *PublishService {
 	ps.ledger = ledger
+	return ps
+}
+
+// WithImageDescriber has a model write the alt text of each post's cover
+// photograph.
+func (ps *PublishService) WithImageDescriber(describer ports.ImageDescriber) *PublishService {
+	ps.describer = describer
 	return ps
 }
 
@@ -186,6 +194,7 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 	slog.Default().Info("Resolved target platforms", slog.Any("platforms", platforms))
 
 	post = ps.readPost(ctx, post)
+	images := ps.images(ctx, post)
 
 	// Initialize result tracking
 	publishResult, err := domain.NewPublishResult(post, req.DryRun)
@@ -222,10 +231,11 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 			continue
 		}
 
-		generatedContent[platform] = content
+		generatedContent[platform] = content.WithImages(images)
 		slog.Default().Info("Content generated successfully",
 			slog.String("platform", platform),
-			slog.Int("characters", content.CharacterCount()))
+			slog.Int("characters", content.CharacterCount()),
+			slog.Int("images", len(images)))
 	}
 
 	// Check if we have any content to publish
@@ -519,6 +529,32 @@ func (ps *PublishService) readPost(ctx context.Context, post *domain.Post) *doma
 		slog.Any("artists", article.Tags.Artists),
 		slog.Any("places", article.Tags.Places))
 	return full
+}
+
+// images returns the post's cover photograph with its alt text, or nothing
+// when the post has no cover. A describer that fails leaves the site's own
+// alt text, or the title, in place: a photo with plain alt text beats no photo.
+func (ps *PublishService) images(ctx context.Context, post *domain.Post) []domain.Image {
+	if _, ok := post.CoverImage(""); !ok {
+		return nil
+	}
+	description := ""
+	if ps.describer != nil {
+		cover := post.Article().Cover.URL
+		var err error
+		description, err = ps.describer.Describe(ctx, post, cover)
+		if err != nil {
+			slog.Default().Warn("Could not describe the cover photo, using the site's alt text",
+				slog.String("image", cover), slog.String("error", err.Error()))
+			description = ""
+		}
+	}
+	image, _ := post.CoverImage(description)
+	slog.Default().Info("Cover photo attached",
+		slog.String("image", image.URL),
+		slog.String("alt", image.Alt),
+		slog.Bool("described", description != ""))
+	return []domain.Image{image}
 }
 
 // generateContentForPlatform generates content for a specific platform.

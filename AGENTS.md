@@ -102,6 +102,7 @@ UAC_LEDGER_REGION="fr-par"                           # default
 # Optional (defaults provided)
 UAC_MISTRAL_MODEL="mistral-large-2512"
 UAC_CRITIC_MODEL="ministral-8b-2512"   # checks every draft against its post
+UAC_VISION_MODEL="mistral-large-2512"  # writes alt text for cover photos; empty uses the site's alt text
 UAC_MISTRAL_MAX_TOKENS="1024"
 UAC_MISTRAL_TEMPERATURE="0.7"
 UAC_AI_RETRY_COUNT="3"
@@ -193,6 +194,8 @@ Monitor: https://console.scaleway.com/serverless/jobs
 
 **Content pipeline (per platform):** read the post's JSON → writer drafts text plus a list of its claims → critic checks each claim against the post and scores the voice → a rejected draft is rewritten with the critic's findings, at most twice → if nothing passes, or the critic gives no verdict, the fallback template is posted instead. Dry runs log every review (`Draft reviewed`, with `unsupported` claims) and mark fallback content.
 
+**Photos:** a post with a cover image carries it with alt text written by the vision model from the photo and the post's tags, ending with the photo credit. If the model fails, the site's alt text or the title stands in. Mastodon uploads the photo with the status; Bluesky keeps the link card, which shows the cover as its thumbnail (one embed per post). Dry runs log the image and its alt text.
+
 **Design Principles:**
 - 12-factor app (environment-based config)
 - Stateless, containerized
@@ -211,6 +214,8 @@ Monitor: https://console.scaleway.com/serverless/jobs
 - `internal/adapters/generator/mistral.go` - Mistral AI integration
 - `internal/infrastructure/prompts/voice.md` - System prompt: register, banned phrases, example posts
 - `internal/infrastructure/prompts/` - Task templates per platform (`bluesky.txt`, `mastodon.txt`)
+- `internal/adapters/generator/describer.go` - Alt text for cover photos from a Mistral model that accepts images
+- `internal/adapters/publisher/mastodon_media.go` - Uploads images with their alt text to Mastodon before the status
 - `internal/adapters/generator/critic.go` - Critic: a small Mistral model checks each claim of a draft against the post and scores the voice
 - `internal/adapters/ledger/objectstorage.go` - Ledger in S3-compatible Object Storage, SigV4-signed requests, one JSON document per year
 - `internal/domain/fallback.go` - Template post from title, artists, place and month, used when no draft passes review

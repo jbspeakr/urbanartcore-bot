@@ -68,6 +68,7 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	assert.Equal(t, "./internal/infrastructure/prompts", config.PromptsPath)
 	assert.Equal(t, "mistral-large-2512", config.MistralModel)
 	assert.Equal(t, "ministral-8b-2512", config.CriticModel)
+	assert.Equal(t, "mistral-large-2512", config.VisionModel)
 	assert.Equal(t, 1000, config.MistralMaxTokens)
 	assert.Equal(t, 0.7, config.MistralTemperature)
 	assert.Equal(t, 3, config.AIRetryCount)
@@ -124,6 +125,9 @@ func TestValidateConfig_UnpinnedModel(t *testing.T) {
 	config.CriticModel = "ministral-8b-latest"
 	assert.True(t, errors.Is(config.Validate(), ErrUnpinnedModel), "the critic's model must be pinned too")
 	config.CriticModel = "ministral-8b-2512"
+	config.VisionModel = "pixtral-large-latest"
+	assert.True(t, errors.Is(config.Validate(), ErrUnpinnedModel), "the vision model must be pinned too")
+	config.VisionModel = "mistral-large-2512"
 	assert.NoError(t, config.Validate())
 }
 
