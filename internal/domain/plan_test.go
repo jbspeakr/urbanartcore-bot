@@ -38,6 +38,13 @@ func TestScoreOnThisDay(t *testing.T) {
 	assert.Equal(t, 6.0, ScoreOnThisDay(rich, planDay, yearAgo).Score, "after a year a post may come back")
 
 	assert.Zero(t, ScoreOnThisDay(nil, planDay, nil).Score)
+
+	roundup := planPost(t, "urban-art-eye-candy-9", "2010-09-14", Article{
+		Tags: Tags{Artists: []string{"Czarnobyl"}, Formats: []string{"link tips"}},
+	})
+	c = ScoreOnThisDay(roundup, planDay, nil)
+	assert.Zero(t, c.Score)
+	assert.Equal(t, []string{"link roundup"}, c.Reasons)
 }
 
 func TestBest(t *testing.T) {

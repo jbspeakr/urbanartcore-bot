@@ -197,7 +197,7 @@ Monitor: https://console.scaleway.com/serverless/jobs
 - Infrastructure: DI container, logging, config
 - CLI: Cobra commands
 
-**Choosing the post:** the day's anniversary posts are scored (`internal/domain/plan.go`): 1 to start, +2 for a named artist, +1 for a place, +1 for a summary of 12 words or more, +1 for a round anniversary (5, 10, 15 years). A post featured within a year scores 0, and a day where nothing reaches 1 is a rest day. Ties go to the post never featured, then the one featured longest ago. `plan` uses the same scoring and never repeats a post within the plan.
+**Choosing the post:** the day's anniversary posts are scored (`internal/domain/plan.go`): 1 to start, +2 for a named artist, +1 for a place, +1 for a summary of 12 words or more, +1 for a round anniversary (5, 10, 15 years). A post featured within a year scores 0, and so does a link roundup (format `Link Tips`: links to other sites, whose artists and places get mixed up), and a day where nothing reaches 1 is a rest day. Ties go to the post never featured, then the one featured longest ago. `plan` uses the same scoring and never repeats a post within the plan.
 
 **Ledger:** before choosing, the run reads the last year of records from the ledger bucket (`ledger/<year>.json`). Platforms that already have the slot's post are skipped (a rerun posts nothing; a partial run completes the missing platform with the same post), and posts featured within a year are passed over; a day with nothing else is a rest day. Each successful publish is appended straight away with a conditional PUT. An unreadable ledger stops the run; a failed append is logged, not fatal. Dry runs read but never write.
 

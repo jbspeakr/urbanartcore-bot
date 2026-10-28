@@ -12,6 +12,11 @@ import (
 // candidates all score below it is a rest day: an honest no beats a weak post.
 const RestFloor = 1.0
 
+// FormatRoundup is the format of the weekly link tips: a list of links to
+// other sites' stories. They name artists and places from different links,
+// so a post about one of them mixes up the others; they are never featured.
+const FormatRoundup = "Link Tips"
+
 // Slot is one calendar day of the plan: the program and the post chosen for
 // it, or a rest day when Post is nil.
 type Slot struct {
@@ -38,7 +43,7 @@ type Candidate struct {
 // post featured within RepeatWindow before date scores zero; otherwise the
 // score starts at RestFloor and rises for what makes a post worth showing: a
 // named artist, a place, a summary that says something, and a round
-// anniversary. lastFeatured maps post URIs to the day they last went out.
+// anniversary. A link roundup scores zero. lastFeatured maps post URIs to the day they last went out.
 func ScoreOnThisDay(post *Post, date time.Time, lastFeatured map[string]time.Time) Candidate {
 	c := Candidate{Post: post}
 	if post == nil {
@@ -49,8 +54,15 @@ func ScoreOnThisDay(post *Post, date time.Time, lastFeatured map[string]time.Tim
 		return c
 	}
 
-	c.Score = RestFloor
 	article := post.Article()
+	for _, format := range article.Tags.Formats {
+		if strings.EqualFold(format, FormatRoundup) {
+			c.Reasons = []string{"link roundup"}
+			return c
+		}
+	}
+
+	c.Score = RestFloor
 	if len(article.Tags.Artists) > 0 {
 		c.Score += 2
 		c.Reasons = append(c.Reasons, "artist")
