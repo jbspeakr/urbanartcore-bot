@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"errors"
 	"net/url"
 	"strings"
 	"unicode"
@@ -85,4 +86,23 @@ func titleFromURI(uri string) string {
 		words[i] = string(unicode.ToUpper(r)) + word[size:]
 	}
 	return strings.Join(words, " ")
+}
+
+// Retarget turns content the critic approved for one platform into content
+// for another: the same text and claims, with the link at the end of the text
+// for Mastodon and left to the card on Bluesky. It stands in for a draft that
+// failed review on the other platform, ahead of the fallback template.
+func Retarget(approved *GeneratedContent, platform string) (*GeneratedContent, error) {
+	if approved == nil {
+		return nil, DomainError{Err: errors.New("no approved content to retarget")}
+	}
+	text := strings.TrimSpace(StripURLs(approved.Text()))
+	if platform == PlatformMastodon {
+		text += "\n\n" + approved.URI()
+	}
+	content, err := NewGeneratedContent(text, platform, approved.Hashtags(), approved.PromptUsed(), approved.URI())
+	if err != nil {
+		return nil, err
+	}
+	return content.WithClaims(approved.Claims()), nil
 }

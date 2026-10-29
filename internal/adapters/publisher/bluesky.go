@@ -331,9 +331,9 @@ func (a *BlueskyAdapter) TestConnection(ctx context.Context) error {
 	return nil
 }
 
-// Publish sends content to Bluesky with facets and optional external embed.
-// A post holds one embed, so the link card wins and the content's images
-// are not attached; the card shows the post's cover as its thumbnail.
+// Publish sends content to Bluesky with facets and one embed. Content with
+// several photos goes out as a photo post with the link in its text; other
+// content carries a link card, which shows the post's cover as its thumbnail.
 // Returns PlatformResult with success status and published post URL.
 func (a *BlueskyAdapter) Publish(ctx context.Context, content *domain.GeneratedContent) (*domain.PlatformResult, error) {
 	startTime := time.Now()
@@ -376,19 +376,30 @@ func (a *BlueskyAdapter) Publish(ctx context.Context, content *domain.GeneratedC
 		return result, wrappedErr
 	}
 
-	// Final text: URLs removed (the link travels in the embed) and hashtags
-	// appended, so facets can find and tag them. ValidateContent has already
-	// checked its limits.
-	hashtags := content.Hashtags()
-	text := content.RenderedText()
+	// A post with several photos shows them, with the link in the text;
+	// otherwise the link travels in a card. Either way the hashtags are in
+	// the text, so facets can find and tag them. ValidateContent has already
+	// checked the limits of the card post.
+	text, facets, embedData, photos := a.photoPost(ctx, content)
+	uri := content.URI()
+	if !photos {
+		hashtags := content.Hashtags()
+		text = content.RenderedText()
+		facets = BuildFacets(text, hashtags)
+		slog.Default().Info("Built facets for hashtags",
+			slog.Int("facet_count", len(facets)),
+			slog.String("hashtags", strings.Join(hashtags, ",")),
+			slog.String("text_with_tags", text))
 
-	// Build facets for hashtags (now that they're in the text)
-	facets := BuildFacets(text, hashtags)
-
-	slog.Default().Info("Built facets for hashtags",
-		slog.Int("facet_count", len(facets)),
-		slog.String("hashtags", strings.Join(hashtags, ",")),
-		slog.String("text_with_tags", text))
+		linkEmbed, err := a.buildExternalEmbedFromURI(ctx, uri)
+		if err != nil {
+			slog.Default().Warn("Failed to build external embed, proceeding without it",
+				slog.String("uri", uri),
+				slog.String("error", err.Error()))
+		} else if linkEmbed != nil {
+			embedData = linkEmbed
+		}
+	}
 
 	// Validate facets
 	if err := ValidateFacets(text, facets); err != nil {
@@ -401,18 +412,6 @@ func (a *BlueskyAdapter) Publish(ctx context.Context, content *domain.GeneratedC
 		}
 		result.SetFailure(wrappedErr, time.Since(startTime))
 		return result, wrappedErr
-	}
-
-	// Build external embed from URI (guaranteed to exist as required field)
-	var embedData map[string]any
-	uri := content.URI()
-	linkEmbed, err := a.buildExternalEmbedFromURI(ctx, uri)
-	if err != nil {
-		slog.Default().Warn("Failed to build external embed, proceeding without it",
-			slog.String("uri", uri),
-			slog.String("error", err.Error()))
-	} else if linkEmbed != nil {
-		embedData = linkEmbed
 	}
 
 	// Read session DID

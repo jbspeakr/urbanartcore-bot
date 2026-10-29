@@ -163,6 +163,7 @@ uac-socializer publish [flags]
 --dry-run              # Preview without publishing
 --date MM-DD           # Specific date (default: today)
 --platform PLATFORM    # bluesky|mastodon|all (default: all)
+--program PROGRAM      # on-this-day|collection|artist-spotlight|back-then (default: on-this-day)
 ```
 
 Example:
@@ -199,11 +200,13 @@ Monitor: https://console.scaleway.com/serverless/jobs
 
 **Choosing the post:** the day's anniversary posts are scored (`internal/domain/plan.go`): 1 to start, +2 for a named artist, +1 for a place, +1 for a summary of 12 words or more, +1 for a round anniversary (5, 10, 15 years). A post featured within a year scores 0, and so does a link roundup (format `Link Tips`: links to other sites, whose artists and places get mixed up), and a day where nothing reaches 1 is a rest day. Ties go to the post never featured, then the one featured longest ago. `plan` uses the same scoring and never repeats a post within the plan.
 
+**Feature programs:** each posts one post about several archive posts: the writer's text (checked by the critic like any post), up to four cover photos with alt text, and the link to the page that gathers them. `collection` features one of the site's collections (found through `llms.txt`, each read from `collections/<slug>/index.json`): the writer reads its description and each item's note in reading order, and the photos come from its first items. `artist-spotlight` takes an artist with 5 or more posts, not spotlighted for half a year, and shows four of their posts from the first to the last. `back-then` shows the slot's month, the best post of each year. The ledger records the post under the collection, tag page or archive URL.
+
 **Ledger:** before choosing, the run reads the last year of records from the ledger bucket (`ledger/<year>.json`). Platforms that already have the slot's post are skipped (a rerun posts nothing; a partial run completes the missing platform with the same post), and posts featured within a year are passed over; a day with nothing else is a rest day. Each successful publish is appended straight away with a conditional PUT. An unreadable ledger stops the run; a failed append is logged, not fatal. Dry runs read but never write.
 
-**Content pipeline (per platform):** read the post's JSON → writer drafts text plus a list of its claims → critic checks each claim against the post and scores the voice → a rejected draft is rewritten with the critic's findings, at most twice → if nothing passes, or the critic gives no verdict, the fallback template is posted instead. Dry runs log every review (`Draft reviewed`, with `unsupported` claims) and mark fallback content.
+**Content pipeline (per platform):** read the post's JSON → writer drafts text plus a list of its claims → critic checks each claim against the post and scores the voice → a rejected draft is rewritten with the critic's findings, at most twice → if nothing passes, or the critic gives no verdict, the text another platform's draft passed review with is used (link added or removed), and only when no platform passed does the fallback template go out. Dry runs log every review (`Draft reviewed`, with `unsupported` claims) and mark fallback content.
 
-**Photos:** a post with a cover image carries it with alt text written by the vision model from the photo and the post's tags, ending with the photo credit. If the model fails, the site's alt text or the title stands in. Mastodon uploads the photo with the status; Bluesky keeps the link card, which shows the cover as its thumbnail (one embed per post). Dry runs log the image and its alt text.
+**Photos:** a post with a cover image carries it with alt text written by the vision model from the photo and the post's tags, ending with the photo credit. If the model fails, the site's alt text or the title stands in. Mastodon uploads the photos with the status. Bluesky holds one embed per post: with one photo it keeps the link card, which shows the cover as its thumbnail; with two or more it posts the photos and puts the link, shortened, on its own line of the text (hashtags give way if it does not fit). Dry runs log the image and its alt text.
 
 **Design Principles:**
 - 12-factor app (environment-based config)

@@ -1,9 +1,9 @@
-TASK: Write one Bluesky post that makes people want to open a story from the Urban Art Core archive.
+TASK: Write one Bluesky post that makes people want to open {SUBJECT} from the Urban Art Core archive.
 
 THE STORY:
 {POST_DETAILS}
 
-It was first published in {ORIGINAL_MONTH_YEAR}. Its link is {POST_URI}
+{PUBLISHED} Its link is {POST_URI}
 
 WHAT TO WRITE:
 1. Talk about the story itself: the artist, crew, film, wall, city or event it is about, and what makes it worth a look. Lead with the most striking concrete detail.

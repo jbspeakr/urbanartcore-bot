@@ -299,7 +299,9 @@ func (pm *PromptManager) buildVariableMap(req *ports.GenerationRequest) map[stri
 	if len(req.Posts) > 0 {
 		vars["ORIGINAL_DATE"] = req.Posts[0].Date().Format("January 2, 2006")
 		vars["ORIGINAL_MONTH_YEAR"] = req.Posts[0].Date().Format("January 2006")
+		vars["PUBLISHED"] = "It was first published in " + vars["ORIGINAL_MONTH_YEAR"] + "."
 	}
+	vars["SUBJECT"] = "a story"
 
 	// Add any custom context from request
 	for key, value := range req.Context {

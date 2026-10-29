@@ -135,3 +135,36 @@ func TestCritic_NoCriticPublishesDraft(t *testing.T) {
 	content := runWithCritic(t, gen, nil)
 	assert.Equal(t, "A red wall in Berlin.", content.Text())
 }
+
+// platformCritic approves Bluesky drafts and rejects Mastodon ones.
+type platformCritic struct{}
+
+func (platformCritic) Review(ctx context.Context, post *domain.Post, content *domain.GeneratedContent) (*domain.Review, error) {
+	if content.Platform() == domain.PlatformMastodon {
+		return &rejected, nil
+	}
+	return &approved, nil
+}
+
+func (platformCritic) TestConnection(ctx context.Context) error { return nil }
+
+func TestCritic_PlatformLeftWithTemplateTakesTheApprovedText(t *testing.T) {
+	rig := newLedgerRig(t, &memLedger{}, thalys)
+	rig.service.WithCritic(platformCritic{})
+
+	resp := rig.publish(t, true)
+	bluesky, mastodon := resp.Generated[domain.PlatformBluesky], resp.Generated[domain.PlatformMastodon]
+	assert.False(t, bluesky.IsFallback())
+	assert.False(t, mastodon.IsFallback(), "Mastodon reuses the text Bluesky's draft passed with")
+	assert.Equal(t, "A story from Paris.\n\n"+thalys.URI(), mastodon.Text())
+	assert.Equal(t, bluesky.Claims(), mastodon.Claims())
+}
+
+func TestCritic_TemplateWhenNoPlatformPasses(t *testing.T) {
+	rig := newLedgerRig(t, &memLedger{}, thalys)
+	rig.service.WithCritic(&sequenceCritic{reviews: []domain.Review{rejected}})
+
+	resp := rig.publish(t, true)
+	assert.True(t, resp.Generated[domain.PlatformBluesky].IsFallback())
+	assert.True(t, resp.Generated[domain.PlatformMastodon].IsFallback())
+}

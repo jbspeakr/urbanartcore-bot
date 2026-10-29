@@ -57,6 +57,7 @@ func init() {
 	publishCmd.Flags().Bool("dry-run", false, "Preview generated content without publishing (recommended for testing)")
 	publishCmd.Flags().String("date", "", "Target date in MM-DD format (default: today)")
 	publishCmd.Flags().String("platform", "all", "Target platform: bluesky|mastodon|all")
+	publishCmd.Flags().String("program", domain.ProgramOnThisDay, "Program: on-this-day|collection|artist-spotlight|back-then")
 }
 
 // runPublishCommand executes the publish workflow with comprehensive error handling.
@@ -67,6 +68,7 @@ func runPublishCommand(cmd *cobra.Command, args []string) error {
 	dryRun, _ := cmd.Flags().GetBool("dry-run")
 	dateFlag, _ := cmd.Flags().GetString("date")
 	platform, _ := cmd.Flags().GetString("platform")
+	program, _ := cmd.Flags().GetString("program")
 
 	// 1. Config Loading
 	config, err := app.LoadConfig()
@@ -134,6 +136,7 @@ func runPublishCommand(cmd *cobra.Command, args []string) error {
 		DateKey:   publishRequest.Date,
 		Platforms: parsePlatforms(publishRequest.Platform),
 		DryRun:    dryRun,
+		Program:   program,
 	}
 
 	response, err := publishService.PublishAnniversaryPosts(ctx, publishServiceReq)
@@ -186,14 +189,16 @@ func runPublishCommand(cmd *cobra.Command, args []string) error {
 						slog.String("content_text", content.RenderedText()),
 						slog.Bool("fallback", content.IsFallback()),
 					}
-					if platform == domain.PlatformBluesky {
-						// Bluesky carries the link as a card under the post, not in the text
+					images := content.Images()
+					if platform == domain.PlatformBluesky && len(images) < 2 {
+						// Bluesky carries the link as a card under the post; with
+						// several photos they take the embed and the link goes in the text
 						attrs = append(attrs, slog.String("link_card", content.URI()))
-					} else {
-						for i, img := range content.Images() {
-							attrs = append(attrs, slog.Group(fmt.Sprintf("image_%d", i+1),
-								slog.String("url", img.URL), slog.String("alt", img.Alt)))
-						}
+						images = nil
+					}
+					for i, img := range images {
+						attrs = append(attrs, slog.Group(fmt.Sprintf("image_%d", i+1),
+							slog.String("url", img.URL), slog.String("alt", img.Alt)))
 					}
 					logger.Info("Generated content for platform", attrs...)
 				}

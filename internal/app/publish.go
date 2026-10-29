@@ -40,6 +40,7 @@ type PublishRequest struct {
 	DateKey   string   // MM-DD format date key
 	Platforms []string // Target platforms (bluesky, mastodon, all)
 	DryRun    bool     // Whether to perform a dry run (generate but don't publish)
+	Program   string   // domain.ProgramOnThisDay when empty, or a feature program
 }
 
 // PublishResponse contains the aggregated results of a publishing operation.
@@ -62,6 +63,7 @@ type PublishService struct {
 	critic     ports.Critic         // optional; without it drafts are published unchecked
 	ledger     ports.Ledger         // optional; without it reruns post again and posts repeat freely
 	describer  ports.ImageDescriber // optional; without it alt text comes from the site's cover alt or the title
+	archive    ports.Archive        // needed by the feature programs only
 	now        func() time.Time
 }
 
@@ -115,6 +117,13 @@ func (ps *PublishService) WithImageDescriber(describer ports.ImageDescriber) *Pu
 	return ps
 }
 
+// WithArchive gives the feature programs the whole archive: collections,
+// artists and every post.
+func (ps *PublishService) WithArchive(archive ports.Archive) *PublishService {
+	ps.archive = archive
+	return ps
+}
+
 // MaxRewrites is how often a draft the critic rejects is written again
 // before the fallback template takes its place.
 const MaxRewrites = 2
@@ -148,6 +157,9 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 	if err != nil {
 		return nil, ApplicationError{Err: err}
 	}
+	if req.Program != "" && req.Program != domain.ProgramOnThisDay {
+		return ps.publishFeature(ctx, req, slot, history)
+	}
 
 	post, err := ps.choosePost(ctx, req.DateKey, slot, history)
 	if err != nil {
@@ -170,14 +182,70 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 		slog.String("dateKey", req.DateKey),
 		slog.String("uri", post.URI()))
 
-	// Step 3: Platform Resolution
-	platforms, err := ps.resolvePlatforms(req.Platforms)
-	if err != nil {
-		return nil, ApplicationError{Err: err}
+	platforms, done, err := ps.targetPlatforms(req, slot, history)
+	if done != nil || err != nil {
+		return done, err
 	}
 
+	post = ps.readPost(ctx, post)
+	return ps.publishPost(ctx, req, slot, platforms, postJob{
+		post:    post,
+		program: domain.ProgramOnThisDay,
+		images:  ps.images(ctx, post),
+	})
+}
+
+// postJob is what a run posts: the post the writer works from, the photos
+// that go with it, the program the ledger records it under, and any context
+// the prompt needs beyond the post.
+type postJob struct {
+	post    *domain.Post
+	program string
+	images  []domain.Image
+	context map[string]string
+}
+
+// shareApproved gives a platform left with the fallback template the text
+// another platform's draft passed review with: the critic checked the same
+// claims against the same post, and a real sentence beats the template.
+func shareApproved(contents map[string]*domain.GeneratedContent) {
+	var approved *domain.GeneratedContent
+	for _, platform := range []string{domain.PlatformBluesky, domain.PlatformMastodon} {
+		if content := contents[platform]; content != nil && !content.IsFallback() {
+			approved = content
+			break
+		}
+	}
+	if approved == nil {
+		return
+	}
+	for platform, content := range contents {
+		if !content.IsFallback() {
+			continue
+		}
+		shared, err := domain.Retarget(approved, platform)
+		if err != nil {
+			slog.Default().Warn("Could not reuse the approved text, keeping the fallback template",
+				slog.String("platform", platform), slog.String("error", err.Error()))
+			continue
+		}
+		contents[platform] = shared.WithImages(content.Images())
+		slog.Default().Info("Using the text approved for another platform instead of the fallback template",
+			slog.String("platform", platform), slog.String("from", approved.Platform()),
+			slog.String("text", shared.Text()))
+	}
+}
+
+// targetPlatforms resolves the request's platforms and drops those that
+// already have the slot's post. A response instead of platforms means there
+// is nothing left to do.
+func (ps *PublishService) targetPlatforms(req *PublishRequest, slot time.Time, history []domain.PublishRecord) ([]string, *PublishResponse, error) {
+	platforms, err := ps.resolvePlatforms(req.Platforms)
+	if err != nil {
+		return nil, nil, ApplicationError{Err: err}
+	}
 	if len(platforms) == 0 {
-		return nil, ApplicationError{Err: ErrNoPlatforms}
+		return nil, nil, ApplicationError{Err: ErrNoPlatforms}
 	}
 
 	// A rerun of the same slot posts nothing where the post already went out
@@ -185,13 +253,17 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 	if len(platforms) == 0 {
 		slog.Default().Info("Already published: every platform has this slot's post",
 			slog.String("slot", slot.Format(domain.DateLayout)))
-		return &PublishResponse{Published: true}, nil
+		return nil, &PublishResponse{Published: true}, nil
 	}
 
 	slog.Default().Info("Resolved target platforms", slog.Any("platforms", platforms))
+	return platforms, nil, nil
+}
 
-	post = ps.readPost(ctx, post)
-	images := ps.images(ctx, post)
+// publishPost writes the job's post for each platform, publishes it and
+// records each success in the ledger.
+func (ps *PublishService) publishPost(ctx context.Context, req *PublishRequest, slot time.Time, platforms []string, job postJob) (*PublishResponse, error) {
+	post, images := job.post, job.images
 
 	// Initialize result tracking
 	publishResult, err := domain.NewPublishResult(post, req.DryRun)
@@ -212,7 +284,7 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 
 		slog.Default().Info("Generating content for platform", slog.String("platform", platform))
 
-		content, err := ps.generateContentForPlatform(ctx, post, platform, req.DateKey, req.DryRun)
+		content, err := ps.generateContentForPlatform(ctx, post, platform, req.DateKey, req.DryRun, job.context)
 		if err != nil {
 			// Platform error - continue with other platforms
 			slog.Default().Error("Content generation failed for platform",
@@ -234,6 +306,8 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 			slog.Int("characters", content.CharacterCount()),
 			slog.Int("images", len(images)))
 	}
+
+	shareApproved(generatedContent)
 
 	// Check if we have any content to publish
 	if len(generatedContent) == 0 {
@@ -269,7 +343,7 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 		}
 
 		if !req.DryRun && platformResult != nil && platformResult.IsSuccess() {
-			ps.record(ctx, slot, post, platformResult)
+			ps.record(ctx, slot, job.program, post.URI(), platformResult)
 		}
 	}
 
@@ -381,17 +455,17 @@ func (ps *PublishService) unpublished(platforms []string, slot time.Time, histor
 // record appends a published post to the ledger. A failed write is logged,
 // not returned: the post is out, and failing the run would invite a retry
 // that posts it twice.
-func (ps *PublishService) record(ctx context.Context, slot time.Time, post *domain.Post, result *domain.PlatformResult) {
+func (ps *PublishService) record(ctx context.Context, slot time.Time, program, uri string, result *domain.PlatformResult) {
 	if ps.ledger == nil {
 		return
 	}
 	content := result.Content()
 	rec := domain.PublishRecord{
-		Key:         domain.LedgerKey(slot, domain.ProgramOnThisDay, post.URI(), result.Platform()),
+		Key:         domain.LedgerKey(slot, program, uri, result.Platform()),
 		Date:        slot.Format(domain.DateLayout),
-		Program:     domain.ProgramOnThisDay,
+		Program:     program,
 		Platform:    result.Platform(),
-		PostURI:     post.URI(),
+		PostURI:     uri,
 		RemoteURL:   result.PublishedURL(),
 		Text:        content.RenderedText(),
 		Fallback:    content.IsFallback(),
@@ -442,6 +516,12 @@ func (ps *PublishService) validateRequest(req *PublishRequest) error {
 		if !domain.IsValidPlatform(platform) {
 			return fmt.Errorf("invalid platform: %s", platform)
 		}
+	}
+
+	switch req.Program {
+	case "", domain.ProgramOnThisDay, domain.ProgramCollection, domain.ProgramArtist, domain.ProgramBackThen:
+	default:
+		return fmt.Errorf("unknown program %q", req.Program)
 	}
 
 	return nil
@@ -516,34 +596,42 @@ func (ps *PublishService) readPost(ctx context.Context, post *domain.Post) *doma
 	return full
 }
 
-// images returns the post's cover photograph with its alt text, or nothing
-// when the post has no cover. A describer that fails leaves the site's own
-// alt text, or the title, in place: a photo with plain alt text beats no photo.
-func (ps *PublishService) images(ctx context.Context, post *domain.Post) []domain.Image {
-	if _, ok := post.CoverImage(""); !ok {
-		return nil
-	}
-	description := ""
-	if ps.describer != nil {
-		cover := post.Article().Cover.URL
-		var err error
-		description, err = ps.describer.Describe(ctx, post, cover)
-		if err != nil {
-			slog.Default().Warn("Could not describe the cover photo, using the site's alt text",
-				slog.String("image", cover), slog.String("error", err.Error()))
-			description = ""
+// images returns the cover photographs of posts with their alt text, at most
+// MaxPostImages, skipping posts without a cover. A describer that fails
+// leaves the site's own alt text, or the title, in place: a photo with plain
+// alt text beats no photo.
+func (ps *PublishService) images(ctx context.Context, posts ...*domain.Post) []domain.Image {
+	var images []domain.Image
+	for _, post := range posts {
+		if len(images) == domain.MaxPostImages {
+			break
 		}
+		if _, ok := post.CoverImage(""); !ok {
+			continue
+		}
+		description := ""
+		if ps.describer != nil {
+			cover := post.Article().Cover.URL
+			var err error
+			description, err = ps.describer.Describe(ctx, post, cover)
+			if err != nil {
+				slog.Default().Warn("Could not describe the cover photo, using the site's alt text",
+					slog.String("image", cover), slog.String("error", err.Error()))
+				description = ""
+			}
+		}
+		image, _ := post.CoverImage(description)
+		slog.Default().Info("Cover photo attached",
+			slog.String("image", image.URL),
+			slog.String("alt", image.Alt),
+			slog.Bool("described", description != ""))
+		images = append(images, image)
 	}
-	image, _ := post.CoverImage(description)
-	slog.Default().Info("Cover photo attached",
-		slog.String("image", image.URL),
-		slog.String("alt", image.Alt),
-		slog.Bool("described", description != ""))
-	return []domain.Image{image}
+	return images
 }
 
 // generateContentForPlatform generates content for a specific platform.
-func (ps *PublishService) generateContentForPlatform(ctx context.Context, post *domain.Post, platform, dateKey string, dryRun bool) (*domain.GeneratedContent, error) {
+func (ps *PublishService) generateContentForPlatform(ctx context.Context, post *domain.Post, platform, dateKey string, dryRun bool, extra map[string]string) (*domain.GeneratedContent, error) {
 	// Nil safety check
 	if post == nil {
 		return nil, errors.New("post cannot be nil")
@@ -557,6 +645,9 @@ func (ps *PublishService) generateContentForPlatform(ctx context.Context, post *
 	// Add anniversary context
 	req.WithContext("anniversary_date", dateKey)
 	req.WithContext("post_count", "1")
+	for key, value := range extra {
+		req.WithContext(key, value)
+	}
 
 	content, err := ps.generator.GenerateContent(ctx, req)
 	if err != nil {

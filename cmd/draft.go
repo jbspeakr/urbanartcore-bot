@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
+
+	"github.com/jbspeakr/urbanartcore-bot/internal/domain"
 )
 
 // draftCmd is publish --dry-run under its own name: it chooses the day's
@@ -31,4 +33,5 @@ func init() {
 	_ = draftCmd.Flags().MarkHidden("dry-run")
 	draftCmd.Flags().String("date", "", "Target date in MM-DD format (default: today)")
 	draftCmd.Flags().String("platform", "all", "Target platform: bluesky|mastodon|all")
+	draftCmd.Flags().String("program", domain.ProgramOnThisDay, "Program: on-this-day|collection|artist-spotlight|back-then")
 }

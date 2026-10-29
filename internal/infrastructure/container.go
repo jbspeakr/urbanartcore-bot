@@ -27,7 +27,8 @@ type Container struct {
 	ContentGenerator  ports.ContentGenerator
 	Critic            ports.Critic         // nil when no critic model is configured
 	Describer         ports.ImageDescriber // nil when no vision model is configured
-	Ledger            ports.Ledger         // nil when no ledger bucket is configured
+	Archive           ports.Archive
+	Ledger            ports.Ledger // nil when no ledger bucket is configured
 	PromptManager     ports.PromptManager
 }
 
@@ -148,6 +149,7 @@ func NewContainer(ctx context.Context, config *app.Config) (*Container, error) {
 		Config:            config,
 		PostRepository:    siteClient,
 		PostReader:        siteClient,
+		Archive:           siteClient,
 		BlueskyPublisher:  blueskyPublisher,
 		MastodonPublisher: mastodonPublisher,
 		ContentGenerator:  contentGenerator,
@@ -284,5 +286,5 @@ func (c *Container) GetPublishService() *app.PublishService {
 		c.PostRepository,
 		c.ContentGenerator,
 		publishers,
-	).WithPostReader(c.PostReader).WithCritic(c.Critic).WithLedger(c.Ledger).WithImageDescriber(c.Describer)
+	).WithPostReader(c.PostReader).WithCritic(c.Critic).WithLedger(c.Ledger).WithImageDescriber(c.Describer).WithArchive(c.Archive)
 }
