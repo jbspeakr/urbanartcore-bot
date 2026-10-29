@@ -163,7 +163,7 @@ uac-socializer publish [flags]
 --dry-run              # Preview without publishing
 --date MM-DD           # Specific date (default: today)
 --platform PLATFORM    # bluesky|mastodon|all (default: all)
---program PROGRAM      # on-this-day|collection|artist-spotlight|back-then (default: on-this-day)
+--program PROGRAM      # on-this-day|place-of-the-week|collection|artist-spotlight|back-then (default: the weekly rhythm)
 ```
 
 Example:
@@ -199,6 +199,8 @@ Monitor: https://console.scaleway.com/serverless/jobs
 - CLI: Cobra commands
 
 **Choosing the post:** the day's anniversary posts are scored (`internal/domain/plan.go`): 1 to start, +2 for a named artist, +1 for a place, +1 for a summary of 12 words or more, +1 for a round anniversary (5, 10, 15 years). A post featured within a year scores 0, and so does a link roundup (format `Link Tips`: links to other sites, whose artists and places get mixed up), and a day where nothing reaches 1 is a rest day. Ties go to the post never featured, then the one featured longest ago. `plan` uses the same scoring and never repeats a post within the plan.
+
+**Weekly rhythm:** without `--program`, the date picks the program (`internal/domain/rhythm.go`): `back-then` on the 1st; on Saturdays `artist-spotlight` in even ISO weeks and `place-of-the-week` in odd ones; `collection` on the second and fourth Sunday (days 8 to 14 and 22 to 28); `on-this-day` otherwise. A round anniversary (5, 10, 15 years) of a post naming an artist with 10 or more posts takes any slot. A program with nothing to feature falls back to `on-this-day`; a program forced with `--program` rests instead. `place-of-the-week` takes the place with 10 or more posts featured longest ago (each rests half a year) and posts its best post not featured within a year. A rerun rebuilds the slot from the ledger, so it never switches post or program.
 
 **Feature programs:** each posts one post about several archive posts: the writer's text (checked by the critic like any post), up to four cover photos with alt text, and the link to the page that gathers them. `collection` features one of the site's collections (found through `llms.txt`, each read from `collections/<slug>/index.json`): the writer reads its description and each item's note in reading order, and the photos come from its first items. `artist-spotlight` takes an artist with 5 or more posts, not spotlighted for half a year, and shows four of their posts from the first to the last. `back-then` shows the slot's month, the best post of each year. The ledger records the post under the collection, tag page or archive URL.
 
