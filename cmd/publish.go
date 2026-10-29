@@ -189,26 +189,18 @@ func runPublishCommand(cmd *cobra.Command, args []string) error {
 						slog.String("content_text", content.RenderedText()),
 						slog.Bool("fallback", content.IsFallback()),
 					}
-					if platform == domain.PlatformBluesky {
-						// Bluesky carries the link as a card under the post, not in the text
+					images := content.Images()
+					if platform == domain.PlatformBluesky && len(images) < 2 {
+						// Bluesky carries the link as a card under the post; with
+						// several photos they take the embed and the link goes in the text
 						attrs = append(attrs, slog.String("link_card", content.URI()))
-					} else {
-						for i, img := range content.Images() {
-							attrs = append(attrs, slog.Group(fmt.Sprintf("image_%d", i+1),
-								slog.String("url", img.URL), slog.String("alt", img.Alt)))
-						}
+						images = nil
+					}
+					for i, img := range images {
+						attrs = append(attrs, slog.Group(fmt.Sprintf("image_%d", i+1),
+							slog.String("url", img.URL), slog.String("alt", img.Alt)))
 					}
 					logger.Info("Generated content for platform", attrs...)
-					for i, reply := range response.Threads[platform] {
-						if i == 0 {
-							continue
-						}
-						logger.Info("Thread reply",
-							slog.String("platform", platform),
-							slog.Int("reply", i),
-							slog.String("content_text", reply.RenderedText()),
-							slog.String("link", reply.URI()))
-					}
 				}
 			}
 

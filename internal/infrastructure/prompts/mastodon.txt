@@ -1,12 +1,12 @@
-TASK: Write one Mastodon post that makes people want to open a story from the Urban Art Core archive.
+TASK: Write one Mastodon post that makes people want to open {SUBJECT} from the Urban Art Core archive.
 
 THE STORY:
 {POST_DETAILS}
 
-It was first published in {ORIGINAL_MONTH_YEAR}. Its link is {POST_URI}
+{PUBLISHED} Its link is {POST_URI}
 
 WHAT TO WRITE:
-1. Talk about the story itself: the artist, crew, film, wall, city or event it is about, and what makes it worth a look. Lead with the most striking concrete detail. Add context only when THE STORY gives more detail; a post of two sentences is fine.
+1. Talk about the story itself: the artist, crew, film, wall, city or event it is about, and what makes it worth a look. Lead with the most striking concrete detail, then use the room Mastodon gives: two to four sentences with further details from THE STORY, such as who made the work, where, how, and what it shows. Only when THE STORY says little is a shorter post right.
 2. Use only facts from THE STORY above. Name the artist, crew or place from its tags when it has them. Do not invent techniques, colours, sizes, dates, quotes, reactions or names. If THE STORY says little, write a short post rather than a padded one.
 3. Never write about the blog, the archive, the post or the act of publishing: no "Urban Art Core published", "the blog covered", "this post", "years ago today", "anniversary" or "throwback". You may name the year once if it helps place the work in time.
 4. Write in an active, plain voice, as a curator recommending something good to a friend. Present tense for the work, past tense for events.

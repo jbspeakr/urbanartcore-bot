@@ -48,8 +48,6 @@ type okPublisher struct {
 	ports.SocialPublisher
 	platform  string
 	published []string
-	parents   []string // The parent each post replied to, empty for a first post
-	failAt    int      // Fail the n-th publish (1-based); 0 never fails
 }
 
 func (p *okPublisher) Platform() string { return p.platform }
@@ -59,18 +57,12 @@ func (p *okPublisher) ValidateContent(ctx context.Context, content *domain.Gener
 }
 
 func (p *okPublisher) Publish(ctx context.Context, content *domain.GeneratedContent) (*domain.PlatformResult, error) {
-	if p.failAt == len(p.published)+1 {
-		return nil, errors.New("platform down")
-	}
 	p.published = append(p.published, content.URI())
-	_, parent := content.ReplyRefs()
-	p.parents = append(p.parents, parent)
 	result, err := domain.NewPlatformResult(p.platform, domain.StatusSuccess, content)
 	if err != nil {
 		return nil, err
 	}
 	result.SetSuccess("https://"+p.platform+".example/status/"+content.URI(), time.Millisecond)
-	result.SetRemoteRef("ref:" + content.URI())
 	return result, nil
 }
 

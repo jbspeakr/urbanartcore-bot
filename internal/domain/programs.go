@@ -8,8 +8,9 @@ import (
 	"time"
 )
 
-// Thread programs. Each posts a short thread: a first post that says what
-// the thread is, then one reply per archive post with its link.
+// Feature programs. Each posts one post about more than one archive post: a
+// written text, up to MaxPostImages of their photos, and the link to the
+// page that gathers them.
 const (
 	ProgramCollection = "collection"
 	ProgramArtist     = "artist-spotlight"
@@ -21,85 +22,89 @@ const (
 	SpotlightMinPosts = 5
 	// SpotlightRest is how long an artist rests after a spotlight.
 	SpotlightRest = 182 * 24 * time.Hour
-	// ArchiveURL is the site's archive by month, the link of a back-then thread.
+	// ArchiveURL is the site's archive by month, the link of a back-then post.
 	ArchiveURL = "https://www.urbanartcore.com/archives/"
+	// featureTeaserWords caps the teaser of each post in a feature's source.
+	featureTeaserWords = 60
 )
 
 // ErrNothingToFeature means a program has no candidate for the day.
 var ErrNothingToFeature = errors.New("nothing to feature")
 
-// Thread is the material of one thread, the same on every platform: the
-// first post and the replies, each with the link it points to.
-type Thread struct {
-	Program  string
-	URL      string // What the thread is about: the collection, the artist's tag page, the archive
-	Title    string // For logs and the plan
-	Root     ThreadPart
-	Replies  []ThreadPart
-	Hashtags []string // On the first post only
+// Feature is the material of one feature post, the same on every platform:
+// what it is about, what the writer and the critic read, and the posts whose
+// photos go with it.
+type Feature struct {
+	Program string
+	URL     string // What the post links: the collection, the artist's tag page, the archive
+	Title   string
+	Subject string // What the post recommends, for the writer: "a collection of stories"
+	Section string
+	Intro   string
+	Artists []string
+	Lines   []string // The posts the feature covers, one line each; built from Picks when empty
+	Picks   []*Post  // The posts whose cover photos go with the post, at most MaxPostImages
 }
 
-// ThreadPart is one post of a thread.
-type ThreadPart struct {
-	Text string
-	Link string
-}
-
-// CollectionThread lays out a collection as a thread: its title and
-// description, then each item in reading order with the collection's note.
-func CollectionThread(c Collection) (Thread, error) {
+// CollectionFeature lays out a collection: its title and description, each
+// item in reading order with the collection's note, and the photos of its
+// first items. posts maps post URLs to the catalogue's posts.
+func CollectionFeature(c Collection, posts map[string]*Post) (Feature, error) {
 	if len(c.Items) == 0 {
-		return Thread{}, fmt.Errorf("%w: collection %q has no items", ErrNothingToFeature, c.Slug)
+		return Feature{}, fmt.Errorf("%w: collection %q has no items", ErrNothingToFeature, c.Slug)
 	}
-	t := Thread{
-		Program:  ProgramCollection,
-		URL:      c.URL,
-		Title:    c.Title,
-		Root:     ThreadPart{Text: joinLines(c.Title+".", c.Description), Link: c.URL},
-		Hashtags: []string{HashtagStreetArt, HashtagGraffiti},
+	f := Feature{
+		Program: ProgramCollection,
+		URL:     c.URL,
+		Title:   c.Title,
+		Subject: "a collection of stories, read in the order given",
+		Section: "Collection",
+		Intro:   joinLines(c.Description, c.Intro),
 	}
 	for i, item := range c.Items {
-		head := fmt.Sprintf("%d/%d %s", i+1, len(c.Items), item.Title)
+		line := fmt.Sprintf("%d. %s", i+1, item.Title)
 		if !item.Date.IsZero() {
-			head += ", " + item.Date.Format("January 2006")
+			line += " (" + item.Date.Format("January 2006") + ")"
 		}
-		t.Replies = append(t.Replies, ThreadPart{Text: joinLines(head, item.Note), Link: item.URL})
+		if note := strings.TrimSpace(item.Note); note != "" {
+			line += ": " + note
+		}
+		f.Lines = append(f.Lines, line)
+		if post := posts[item.URL]; post != nil && len(f.Picks) < MaxPostImages {
+			f.Picks = append(f.Picks, post)
+		}
 	}
-	return t, nil
+	return f, nil
 }
 
-// ArtistThread lays out an artist's spotlight: how long the archive followed
-// them, then their first post, one from the middle and their last.
-func ArtistThread(artist TagPage) (Thread, error) {
+// ArtistFeature lays out an artist's spotlight: how long the archive
+// followed them, and up to four of their posts spread from the first to the
+// last.
+func ArtistFeature(artist TagPage) (Feature, error) {
 	if len(artist.Posts) < 3 {
-		return Thread{}, fmt.Errorf("%w: %s has fewer than three posts", ErrNothingToFeature, artist.Name)
+		return Feature{}, fmt.Errorf("%w: %s has fewer than three posts", ErrNothingToFeature, artist.Name)
 	}
 	posts := artist.Posts
 	first, last := posts[0], posts[len(posts)-1]
-	picks := []*Post{first, posts[len(posts)/2], last}
 	years := fmt.Sprintf("in %d", first.Date().Year())
 	if first.Date().Year() != last.Date().Year() {
 		years = fmt.Sprintf("between %d and %d", first.Date().Year(), last.Date().Year())
 	}
-	t := Thread{
+	return Feature{
 		Program: ProgramArtist,
 		URL:     artist.URL,
 		Title:   artist.Name,
-		Root: ThreadPart{
-			Text: fmt.Sprintf("%s in the Urban Art Core archive: %d posts %s. The first, one from the middle, and the last.", artist.Name, len(posts), years),
-			Link: artist.URL,
-		},
-		Hashtags: uniqueHashtags(HashtagFromLabel(artist.Name), HashtagStreetArt, HashtagGraffiti),
-	}
-	for _, post := range picks {
-		t.Replies = append(t.Replies, datedPart(post))
-	}
-	return t, nil
+		Subject: "the archive's posts about an artist",
+		Section: "Artist",
+		Intro:   fmt.Sprintf("%d posts about %s, published %s. Below are %d of them, from the first to the last.", len(posts), artist.Name, years, min(len(posts), MaxPostImages)),
+		Artists: []string{artist.Name},
+		Picks:   spread(posts, MaxPostImages),
+	}, nil
 }
 
-// BackThenThread lays out the archive's month, year by year: one post per
-// year, the best-scoring of that month.
-func BackThenThread(posts []*Post, month time.Month, date time.Time, lastFeatured map[string]time.Time) (Thread, error) {
+// BackThenFeature lays out the archive's month, year by year: the
+// best-scoring post of that month in each year, at most MaxPostImages years.
+func BackThenFeature(posts []*Post, month time.Month, date time.Time, lastFeatured map[string]time.Time) (Feature, error) {
 	byYear := make(map[int][]Candidate)
 	for _, post := range posts {
 		if post == nil || post.Date().Month() != month {
@@ -114,22 +119,106 @@ func BackThenThread(posts []*Post, month time.Month, date time.Time, lastFeature
 	}
 	sort.Ints(years)
 
-	t := Thread{
-		Program:  ProgramBackThen,
-		URL:      ArchiveURL,
-		Title:    month.String() + ", year by year",
-		Root:     ThreadPart{Text: fmt.Sprintf("%s in the Urban Art Core archive, year by year.", month), Link: ArchiveURL},
-		Hashtags: []string{HashtagStreetArt, HashtagGraffiti},
+	f := Feature{
+		Program: ProgramBackThen,
+		URL:     ArchiveURL,
+		Title:   month.String() + ", year by year",
+		Subject: "a month of the archive, year by year",
+		Section: "The archive by month",
+		Intro:   fmt.Sprintf("One post from each %s the blog was running.", month),
 	}
 	for _, year := range years {
-		if best, ok := Best(byYear[year], date, lastFeatured); ok {
-			t.Replies = append(t.Replies, datedPart(best.Post))
+		if best, ok := Best(byYear[year], date, lastFeatured); ok && len(f.Picks) < MaxPostImages {
+			f.Picks = append(f.Picks, best.Post)
 		}
 	}
-	if len(t.Replies) < 2 {
-		return Thread{}, fmt.Errorf("%w: fewer than two years with a post in %s", ErrNothingToFeature, month)
+	if len(f.Picks) < 2 {
+		return Feature{}, fmt.Errorf("%w: fewer than two years with a post in %s", ErrNothingToFeature, month)
 	}
-	return t, nil
+	return f, nil
+}
+
+// spread picks n posts from posts, the first and the last among them and the
+// rest evenly between.
+func spread(posts []*Post, n int) []*Post {
+	if len(posts) <= n {
+		return append([]*Post(nil), posts...)
+	}
+	picks := make([]*Post, 0, n)
+	for i := 0; i < n; i++ {
+		picks = append(picks, posts[i*(len(posts)-1)/(n-1)])
+	}
+	return picks
+}
+
+// Period says when the feature's posts were published, for the writer:
+// "from May 2010 to June 2012", or "in May 2010" for a single month.
+func (f Feature) Period() string {
+	var from, to time.Time
+	for _, post := range f.Picks {
+		if d := post.Date(); from.IsZero() || d.Before(from) {
+			from = d
+		}
+		if d := post.Date(); d.After(to) {
+			to = d
+		}
+	}
+	switch {
+	case from.IsZero():
+		return ""
+	case from.Year() == to.Year() && from.Month() == to.Month():
+		return "in " + from.Format("January 2006")
+	default:
+		return fmt.Sprintf("from %s to %s", from.Format("January 2006"), to.Format("January 2006"))
+	}
+}
+
+// Post is the feature as one post for the writer, the critic and the
+// fallback template: the feature's URL, the date of its first pick, and an
+// article whose text lists the posts it covers. Picks read in full give
+// their teasers to the list.
+func (f Feature) Post() (*Post, error) {
+	date := time.Time{}
+	for _, post := range f.Picks {
+		if date.IsZero() || post.Date().Before(date) {
+			date = post.Date()
+		}
+	}
+	if date.IsZero() {
+		return nil, fmt.Errorf("%w: %s has no posts to show", ErrNothingToFeature, f.Title)
+	}
+	post, err := NewPost(f.URL, date.Format(DateLayout))
+	if err != nil {
+		return nil, err
+	}
+	lines := f.Lines
+	if len(lines) == 0 {
+		for _, pick := range f.Picks {
+			lines = append(lines, pickLine(pick))
+		}
+	}
+	return post.WithArticle(Article{
+		Title:       f.Title,
+		Section:     f.Section,
+		Description: f.Intro,
+		Body:        strings.Join(lines, "\n"),
+		Tags:        Tags{Artists: f.Artists},
+	}), nil
+}
+
+// pickLine is one post of a feature: when it was published, its title, and
+// its teaser.
+func pickLine(post *Post) string {
+	article := post.Article()
+	title := article.Title
+	if title == "" {
+		title = post.URI()
+	}
+	line := fmt.Sprintf("%s: %s", post.Date().Format("January 2006"), title)
+	if teaser := TruncateWords(article.Description, featureTeaserWords); teaser != "" {
+		line += ". " + teaser
+	}
+	return line
 }
 
 // ChooseCollection returns the collection featured longest ago, or never.
@@ -190,54 +279,6 @@ func featuredBefore(a, b string, date time.Time, lastFeatured map[string]time.Ti
 	return tieBreak(day, a) < tieBreak(day, b)
 }
 
-// Contents renders the thread for platform: the first post with the
-// hashtags, then the replies. Bluesky shows each link as a card, Mastodon
-// gets it in the text. A text too long for the platform is cut at a word.
-func (t Thread) Contents(platform string) ([]*GeneratedContent, error) {
-	root, err := threadContent(t.Root, platform, t.Hashtags)
-	if err != nil {
-		return nil, err
-	}
-	contents := []*GeneratedContent{root}
-	for _, part := range t.Replies {
-		reply, err := threadContent(part, platform, nil)
-		if err != nil {
-			return nil, err
-		}
-		contents = append(contents, reply)
-	}
-	return contents, nil
-}
-
-func threadContent(part ThreadPart, platform string, hashtags []string) (*GeneratedContent, error) {
-	text := part.Text
-	for words := len(strings.Fields(text)); words > 0; words-- {
-		candidate := text
-		if words < len(strings.Fields(text)) {
-			candidate = TruncateWords(text, words)
-		}
-		if platform == PlatformMastodon {
-			candidate += "\n" + part.Link
-		}
-		content, err := NewGeneratedContent(candidate, platform, hashtags, "", part.Link)
-		if err == nil {
-			return content, nil
-		}
-		if !errors.Is(err, ErrTextTooLong) {
-			return nil, err
-		}
-	}
-	return nil, fmt.Errorf("thread post for %s does not fit on %s", part.Link, platform)
-}
-
-func datedPart(post *Post) ThreadPart {
-	title := post.Article().Title
-	if title == "" {
-		title = post.URI()
-	}
-	return ThreadPart{Text: fmt.Sprintf("%s: %s", post.Date().Format("January 2006"), title), Link: post.URI()}
-}
-
 func joinLines(lines ...string) string {
 	kept := make([]string, 0, len(lines))
 	for _, line := range lines {
@@ -246,19 +287,4 @@ func joinLines(lines ...string) string {
 		}
 	}
 	return strings.Join(kept, "\n")
-}
-
-func uniqueHashtags(tags ...string) []string {
-	seen := make(map[string]bool)
-	out := make([]string, 0, len(tags))
-	for _, tag := range tags {
-		if tag != "" && tag != "#" && !seen[strings.ToLower(tag)] {
-			seen[strings.ToLower(tag)] = true
-			out = append(out, tag)
-		}
-	}
-	if len(out) > MaxPostHashtags {
-		out = out[:MaxPostHashtags]
-	}
-	return out
 }

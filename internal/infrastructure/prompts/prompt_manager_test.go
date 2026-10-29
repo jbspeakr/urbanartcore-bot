@@ -853,3 +853,25 @@ func TestRenderPrompt_CriticFeedback(t *testing.T) {
 	assert.True(t, strings.HasSuffix(again, "A FACT CHECK REJECTED YOUR PREVIOUS DRAFT. Write a new one that fixes every problem below and uses only facts from THE STORY:\n- Not supported by THE STORY: \"the wall is red\"\n"))
 	assert.Empty(t, templateVarPattern.FindAllString(again, -1))
 }
+
+func TestRenderPrompt_FeatureSubject(t *testing.T) {
+	pm, err := NewPromptManager("../prompts")
+	require.NoError(t, err)
+
+	for _, platform := range []string{domain.PlatformBluesky, domain.PlatformMastodon} {
+		req, err := ports.NewGenerationRequest([]*domain.Post{createTestPost()}, platform, "09-14")
+		require.NoError(t, err)
+		single, err := pm.RenderPrompt(context.Background(), platform, req)
+		require.NoError(t, err)
+		assert.Contains(t, single, "open a story from the Urban Art Core archive", platform)
+		assert.Contains(t, single, "It was first published in ", platform)
+
+		req.WithContext(ports.ContextSubject, "a collection of stories, read in the order given")
+		req.WithContext(ports.ContextPublished, "Its posts were published from March 2010 to June 2010.")
+		feature, err := pm.RenderPrompt(context.Background(), platform, req)
+		require.NoError(t, err)
+		assert.Contains(t, feature, "open a collection of stories, read in the order given from the Urban Art Core archive", platform)
+		assert.Contains(t, feature, "Its posts were published from March 2010 to June 2010. Its link is", platform)
+		assert.NotContains(t, feature, "first published", platform)
+	}
+}

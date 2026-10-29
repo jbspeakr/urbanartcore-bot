@@ -49,6 +49,15 @@ var (
 // the critic's findings on a rejected draft back to the writer.
 const ContextCriticFeedback = "critic_feedback"
 
+// ContextSubject and ContextPublished are the GenerationRequest.Context keys
+// of a feature post: what it recommends ("a collection of stories") and when
+// its posts were published, as a sentence. Without them the prompt speaks of
+// a single story and its publication month.
+const (
+	ContextSubject   = "subject"
+	ContextPublished = "published"
+)
+
 // GenerationRequest contains all information needed to generate platform-specific content.
 type GenerationRequest struct {
 	Posts       []*domain.Post    `json:"posts"`       // Source posts for anniversary

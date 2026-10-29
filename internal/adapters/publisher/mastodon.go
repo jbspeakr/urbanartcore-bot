@@ -385,9 +385,6 @@ func (a *MastodonAdapter) Publish(ctx context.Context, content *domain.Generated
 	if mediaIDs := a.uploadImages(ctx, content.Images()); len(mediaIDs) > 0 {
 		postData["media_ids"] = mediaIDs
 	}
-	if _, parent := content.ReplyRefs(); parent != "" {
-		postData["in_reply_to_id"] = parent
-	}
 
 	body, err := json.Marshal(postData)
 	if err != nil {
@@ -514,7 +511,6 @@ func (a *MastodonAdapter) Publish(ctx context.Context, content *domain.Generated
 	postURL := statusResp.URL
 
 	result.SetSuccess(postURL, responseTime)
-	result.SetRemoteRef(statusResp.ID)
 
 	slog.Default().Info("Mastodon publish successful",
 		slog.String("platform", domain.PlatformMastodon),
