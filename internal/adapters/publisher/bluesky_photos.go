@@ -10,8 +10,9 @@ import (
 )
 
 const (
-	// minPhotoPostImages is how many photos turn a post into a photo post.
-	// With one, the link card shows the cover as its thumbnail anyway.
+	// minPhotoPostImages is how many photos turn a post into a photo post,
+	// on Bluesky and on Mastodon. With fewer, the link card shows the site's
+	// social teaser instead.
 	minPhotoPostImages = 2
 	// maxBlueskyImageBytes is the largest image blob a Bluesky post accepts.
 	maxBlueskyImageBytes = 1_000_000

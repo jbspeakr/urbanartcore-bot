@@ -382,8 +382,13 @@ func (a *MastodonAdapter) Publish(ctx context.Context, content *domain.Generated
 		"visibility": "public",
 		"language":   domain.ContentLanguage,
 	}
-	if mediaIDs := a.uploadImages(ctx, content.Images()); len(mediaIDs) > 0 {
-		postData["media_ids"] = mediaIDs
+	// A single cover stays off the status: Mastodon then shows the link
+	// card, with the site's social teaser (og:image) as its picture. Only a
+	// post with several photos, a feature, uploads them.
+	if images := content.Images(); len(images) >= minPhotoPostImages {
+		if mediaIDs := a.uploadImages(ctx, images); len(mediaIDs) > 0 {
+			postData["media_ids"] = mediaIDs
+		}
 	}
 
 	body, err := json.Marshal(postData)

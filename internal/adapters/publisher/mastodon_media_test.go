@@ -23,6 +23,7 @@ type fakeMastodonMedia struct {
 	*httptest.Server
 	mu          sync.Mutex
 	uploadCode  int // status of POST /api/v2/media
+	uploads     int // POST /api/v2/media requests
 	pollsLeft   int // GET /api/v1/media/:id answers 206 this often before 200
 	description string
 	fileType    string
@@ -43,6 +44,7 @@ func newFakeMastodonMedia(t *testing.T) *fakeMastodonMedia {
 			_, _ = w.Write(jpeg)
 		case "/api/v2/media":
 			assert.Equal(t, "Bearer "+testAccessToken, r.Header.Get("Authorization"))
+			f.uploads++
 			require.NoError(t, r.ParseMultipartForm(1<<20))
 			f.description = r.FormValue("description")
 			file, header, err := r.FormFile("file")
@@ -85,7 +87,10 @@ func (f *fakeMastodonMedia) content(t *testing.T) *domain.GeneratedContent {
 	content, err := domain.NewGeneratedContent("Brad Downey uncovered a 2003 Banksy in Berlin. https://www.urbanartcore.com/banksy-revealed/",
 		domain.PlatformMastodon, []string{"#Banksy"}, "prompt", "https://www.urbanartcore.com/banksy-revealed/")
 	require.NoError(t, err)
-	return content.WithImages([]domain.Image{{URL: f.URL + "/covers/wall.jpg", Alt: "A rat stencil on a brick wall. Photo: Brad Downey."}})
+	return content.WithImages([]domain.Image{
+		{URL: f.URL + "/covers/wall.jpg", Alt: "A rat stencil on a brick wall. Photo: Brad Downey."},
+		{URL: f.URL + "/covers/wall.jpg", Alt: "A rat stencil on a brick wall. Photo: Brad Downey."},
+	})
 }
 
 func shortMediaPolls(t *testing.T) {
@@ -105,8 +110,26 @@ func TestMastodonPublish_AttachesImageWithAltText(t *testing.T) {
 	assert.Equal(t, "A rat stencil on a brick wall. Photo: Brad Downey.", f.description)
 	assert.Equal(t, "image/jpeg", f.fileType)
 	assert.Equal(t, 516, f.fileBytes)
-	assert.Equal(t, []any{"m1"}, f.status["media_ids"])
+	assert.Equal(t, 2, f.uploads)
+	assert.Equal(t, []any{"m1", "m1"}, f.status["media_ids"])
 	assert.Equal(t, "en", f.status["language"])
+}
+
+// A single cover is not uploaded: without media, Mastodon shows the link
+// card with the site's social teaser.
+func TestMastodonPublish_SingleCoverLeavesTheLinkCard(t *testing.T) {
+	f := newFakeMastodonMedia(t)
+	content := f.content(t)
+	content.WithImages(content.Images()[:1])
+
+	result, err := f.adapter().Publish(context.Background(), content)
+	require.NoError(t, err)
+	assert.True(t, result.IsSuccess())
+
+	assert.Zero(t, f.uploads)
+	require.NotNil(t, f.status)
+	assert.NotContains(t, f.status, "media_ids")
+	assert.Contains(t, f.status["status"], "https://www.urbanartcore.com/banksy-revealed/")
 }
 
 func TestMastodonPublish_WaitsForProcessing(t *testing.T) {
@@ -117,7 +140,7 @@ func TestMastodonPublish_WaitsForProcessing(t *testing.T) {
 
 	_, err := f.adapter().Publish(context.Background(), f.content(t))
 	require.NoError(t, err)
-	assert.Equal(t, []any{"m1"}, f.status["media_ids"])
+	assert.Equal(t, []any{"m1", "m1"}, f.status["media_ids"])
 	assert.Zero(t, f.pollsLeft, "polled until the upload was processed")
 }
 
@@ -135,9 +158,9 @@ func TestMastodonPublish_PostsWithoutImageWhenUploadFails(t *testing.T) {
 			content := f.content(t)
 			switch name {
 			case "image not found":
-				content.WithImages([]domain.Image{{URL: f.URL + "/covers/missing.jpg", Alt: "x"}})
+				content.WithImages([]domain.Image{{URL: f.URL + "/covers/missing.jpg", Alt: "x"}, {URL: f.URL + "/covers/missing.jpg", Alt: "x"}})
 			case "image not an image":
-				content.WithImages([]domain.Image{{URL: f.URL + "/api/v1/media/m1", Alt: "x"}})
+				content.WithImages([]domain.Image{{URL: f.URL + "/api/v1/media/m1", Alt: "x"}, {URL: f.URL + "/api/v1/media/m1", Alt: "x"}})
 			}
 
 			result, err := f.adapter().Publish(context.Background(), content)
