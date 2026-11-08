@@ -32,7 +32,7 @@ A statement is supported only when THE STORY states it or it follows directly fr
 Then score THE DRAFT against the voice rules:
 3: plain and specific, names people and places from THE STORY, no hype.
 2: acceptable, with small lapses.
-1: breaks a rule: asks the reader a question, uses emoji or exclamation marks, hypes ("iconic", "stunning", "must-see"), opens with "Check out", "Dive into" or "Discover", or talks about the blog, the archive, the post, an anniversary or years passing.
+1: breaks a rule: asks the reader a question, uses emoji or exclamation marks, hypes ("iconic", "stunning", "must-see"), opens with "Check out", "Dive into" or "Discover", talks about the blog, the archive, the post, an anniversary or years passing, or tells THE STORY in the present tense as if it were happening now ("the mural stands", "the show runs", "the artist lives in"). THE STORY is more than a decade old: its walls, shows, events and what its artists did take the past tense. Present tense for what its photos or film show is fine.
 Name what breaks the rules in voice_problems, or leave it empty.
 
 Respond with a JSON object that matches the given schema.`
