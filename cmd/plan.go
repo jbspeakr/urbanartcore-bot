@@ -23,8 +23,8 @@ import (
 var planCmd = &cobra.Command{
 	Use:   "plan",
 	Short: "Print which post goes out on each of the coming days",
-	Long: `Print the plan for the coming days: the program, the chosen post, its score and what
-the score is made of, or a rest day. The plan reads the catalogue and, when
+	Long: `Print the plan for the coming days: the program the weekly rhythm gives each day, what
+it features and why, or a rest day. The plan reads the catalogue and, when
 UAC_LEDGER_BUCKET is set, the ledger; it makes no model calls and publishes nothing.
 
 Examples:
@@ -80,7 +80,7 @@ func runPlanCommand(cmd *cobra.Command, args []string) error {
 		history = objectStorage
 	}
 
-	slots, err := app.NewPlanner(catalogue, history).Plan(ctx, from, days)
+	slots, err := app.NewPlanner(catalogue, catalogue, history).Plan(ctx, from, days)
 	if err != nil {
 		return err
 	}
@@ -112,17 +112,17 @@ func parsePlanStart(value string, now time.Time) (time.Time, error) {
 func writePlan(w io.Writer, slots []domain.Slot) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	_, _ = fmt.Fprintln(tw, "DATE\tDAY\tPROGRAM\tSCORE\tPOST\tWHY")
-	rest := 0
+	rest, features := 0, 0
 	for _, s := range slots {
 		post, score := "-", "-"
-		if !s.IsRestDay() {
-			post = s.Post.Article().Title
-			if post == "" {
-				post = s.Post.URI()
-			}
-			post = fmt.Sprintf("%s (%d)", post, s.Post.Date().Year())
+		switch {
+		case s.Post != nil:
+			post = fmt.Sprintf("%s (%d)", s.Title(), s.Post.Date().Year())
 			score = fmt.Sprintf("%.0f", s.Score)
-		} else {
+		case s.Feature != nil:
+			post = fmt.Sprintf("%s (%d posts)", s.Title(), len(s.Feature.Picks))
+			features++
+		default:
 			rest++
 		}
 		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n",
@@ -131,6 +131,6 @@ func writePlan(w io.Writer, slots []domain.Slot) error {
 	if err := tw.Flush(); err != nil {
 		return err
 	}
-	_, err := fmt.Fprintf(w, "\n%d days, %d posts, %d rest days\n", len(slots), len(slots)-rest, rest)
+	_, err := fmt.Fprintf(w, "\n%d days: %d single posts, %d features, %d rest days\n", len(slots), len(slots)-rest-features, features, rest)
 	return err
 }

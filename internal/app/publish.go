@@ -40,7 +40,7 @@ type PublishRequest struct {
 	DateKey   string   // MM-DD format date key
 	Platforms []string // Target platforms (bluesky, mastodon, all)
 	DryRun    bool     // Whether to perform a dry run (generate but don't publish)
-	Program   string   // domain.ProgramOnThisDay when empty, or a feature program
+	Program   string   // The day's program; empty follows domain.Rhythm
 }
 
 // PublishResponse contains the aggregated results of a publishing operation.
@@ -157,21 +157,26 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 	if err != nil {
 		return nil, ApplicationError{Err: err}
 	}
-	if req.Program != "" && req.Program != domain.ProgramOnThisDay {
-		return ps.publishFeature(ctx, req, slot, history)
-	}
-
-	post, err := ps.choosePost(ctx, req.DateKey, slot, history)
+	planned, err := NewPlanner(ps.repository, ps.archive, ps.ledger).Slot(ctx, slot, history, req.Program)
 	if err != nil {
-		if errors.Is(err, ports.ErrDateNotFound) {
-			// 26 calendar days have no anniversary post. That is a rest day,
-			// not a failure: post nothing and exit cleanly.
-			slog.Default().Info("Rest day: no post for this date, nothing to publish",
-				slog.String("dateKey", req.DateKey))
-			return &PublishResponse{RestDay: true}, nil
-		}
-		return nil, ApplicationError{Err: fmt.Errorf("failed to retrieve post: %w", err)}
+		return nil, ApplicationError{Err: fmt.Errorf("failed to plan the day: %w", err)}
 	}
+	if planned.IsRestDay() {
+		// Some days have nothing worth posting: no anniversary post, or only
+		// posts featured within a year. Post nothing and exit cleanly.
+		slog.Default().Info("Rest day: nothing to publish",
+			slog.String("dateKey", req.DateKey), slog.Any("reasons", planned.Reasons))
+		return &PublishResponse{RestDay: true}, nil
+	}
+	slog.Default().Info("Planned the day",
+		slog.String("program", planned.Program),
+		slog.String("subject", planned.Subject()),
+		slog.Float64("score", planned.Score),
+		slog.Any("reasons", planned.Reasons))
+	if planned.Feature != nil {
+		return ps.publishFeature(ctx, req, slot, history, *planned.Feature)
+	}
+	post, program := planned.Post, planned.Program
 
 	// Nil safety check: ensure post is not nil
 	if post == nil {
@@ -190,7 +195,7 @@ func (ps *PublishService) PublishAnniversaryPosts(ctx context.Context, req *Publ
 	post = ps.readPost(ctx, post)
 	return ps.publishPost(ctx, req, slot, platforms, postJob{
 		post:    post,
-		program: domain.ProgramOnThisDay,
+		program: program,
 		images:  ps.images(ctx, post),
 	})
 }
@@ -399,38 +404,6 @@ func (ps *PublishService) history(ctx context.Context, slot time.Time) ([]domain
 	return records, nil
 }
 
-// choosePost picks the slot's post. A slot that already went out on some
-// platform keeps its post, so a rerun completes the other platforms with the
-// same one. Otherwise the day's anniversary posts are scored and the best
-// one wins; a day whose posts were all featured within the repeat window is
-// a rest day.
-func (ps *PublishService) choosePost(ctx context.Context, dateKey string, slot time.Time, history []domain.PublishRecord) (*domain.Post, error) {
-	posts, err := ps.repository.GetPostsForDate(ctx, dateKey)
-	if err != nil {
-		return nil, err
-	}
-	day := slot.Format(domain.DateLayout)
-	for _, r := range history {
-		if r.Date == day {
-			if post := postByURI(posts, r.PostURI); post != nil {
-				return post, nil
-			}
-		}
-	}
-	chosen := chooseOnThisDay(posts, slot, domain.LastFeatured(history))
-	if chosen.IsRestDay() {
-		slog.Default().Info("No post qualifies for the day",
-			slog.String("dateKey", dateKey), slog.Any("reasons", chosen.Reasons))
-		return nil, ports.RepositoryError{Err: fmt.Errorf("%w: %s", ports.ErrDateNotFound, dateKey)}
-	}
-	slog.Default().Info("Chose the day's post",
-		slog.String("uri", chosen.Post.URI()),
-		slog.Float64("score", chosen.Score),
-		slog.Any("reasons", chosen.Reasons),
-		slog.Int("candidates", len(posts)))
-	return chosen.Post, nil
-}
-
 // unpublished drops the platforms the ledger already holds a post for on slot.
 func (ps *PublishService) unpublished(platforms []string, slot time.Time, history []domain.PublishRecord) []string {
 	day := slot.Format(domain.DateLayout)
@@ -519,7 +492,7 @@ func (ps *PublishService) validateRequest(req *PublishRequest) error {
 	}
 
 	switch req.Program {
-	case "", domain.ProgramOnThisDay, domain.ProgramCollection, domain.ProgramArtist, domain.ProgramBackThen:
+	case "", domain.ProgramOnThisDay, domain.ProgramPlace, domain.ProgramCollection, domain.ProgramArtist, domain.ProgramBackThen:
 	default:
 		return fmt.Errorf("unknown program %q", req.Program)
 	}

@@ -57,7 +57,7 @@ func init() {
 	publishCmd.Flags().Bool("dry-run", false, "Preview generated content without publishing (recommended for testing)")
 	publishCmd.Flags().String("date", "", "Target date in MM-DD format (default: today)")
 	publishCmd.Flags().String("platform", "all", "Target platform: bluesky|mastodon|all")
-	publishCmd.Flags().String("program", domain.ProgramOnThisDay, "Program: on-this-day|collection|artist-spotlight|back-then")
+	publishCmd.Flags().String("program", "", "Program: on-this-day|place-of-the-week|collection|artist-spotlight|back-then (default: the weekly rhythm)")
 }
 
 // runPublishCommand executes the publish workflow with comprehensive error handling.

@@ -17,19 +17,48 @@ const RestFloor = 1.0
 // so a post about one of them mixes up the others; they are never featured.
 const FormatRoundup = "Link Tips"
 
-// Slot is one calendar day of the plan: the program and the post chosen for
-// it, or a rest day when Post is nil.
+// Slot is one calendar day of the plan: the program, and the post or feature
+// chosen for it. A slot with neither is a rest day.
 type Slot struct {
 	Date    time.Time
 	Program string
-	Post    *Post
+	Post    *Post    // Single-post programs: on this day, place of the week
+	Feature *Feature // Feature programs
 	Score   float64
-	Reasons []string // What the score is made of, for the plan output
+	Reasons []string // What the choice is made of, for the plan output
 }
 
 // IsRestDay reports whether nothing is posted on the slot.
 func (s Slot) IsRestDay() bool {
-	return s.Post == nil
+	return s.Post == nil && s.Feature == nil
+}
+
+// Subject is what the slot features: the post's URL, or the collection, tag
+// page or archive a feature is about. The ledger records it.
+func (s Slot) Subject() string {
+	switch {
+	case s.Post != nil:
+		return s.Post.URI()
+	case s.Feature != nil:
+		return s.Feature.URL
+	default:
+		return ""
+	}
+}
+
+// Title names what the slot features, for the plan output.
+func (s Slot) Title() string {
+	switch {
+	case s.Post != nil:
+		if title := s.Post.Article().Title; title != "" {
+			return title
+		}
+		return s.Post.URI()
+	case s.Feature != nil:
+		return s.Feature.Title
+	default:
+		return ""
+	}
 }
 
 // Candidate is a post scored for a slot.

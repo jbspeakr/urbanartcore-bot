@@ -43,5 +43,5 @@ func TestWritePlan(t *testing.T) {
 	text := out.String()
 	assert.Contains(t, text, "2026-09-14  Mon  on-this-day  4      Banksy Revealed! (2011)  artist, 15 years")
 	assert.Contains(t, text, "2026-09-15  Tue  rest-day     -      -                        no anniversary post")
-	assert.Contains(t, text, "2 days, 1 posts, 1 rest days")
+	assert.Contains(t, text, "2 days: 1 single posts, 0 features, 1 rest days")
 }
