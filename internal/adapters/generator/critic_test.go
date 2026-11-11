@@ -82,6 +82,7 @@ func TestMistralCritic_Review(t *testing.T) {
 	assert.Equal(t, "draft_review", req.ResponseFormat.JSONSchema.Name)
 	require.Len(t, req.Messages, 2)
 	assert.Contains(t, req.Messages[0].Content, "supported only when THE STORY states it")
+	assert.Contains(t, req.Messages[0].Content, "in the present tense as if it were happening now")
 	prompt := req.Messages[1].Content
 	assert.Contains(t, prompt, "THE STORY:\nTitle: Banksy Revealed!\nArtists: Banksy, Brad Downey\nPlaces: Berlin\nText:\nBrad Downey and curator")
 	assert.Contains(t, prompt, "Published: September 14, 2011\nLink: https://www.urbanartcore.com/banksy-revealed/")

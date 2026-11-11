@@ -816,6 +816,8 @@ func TestRealTemplatesPromoteTheContent(t *testing.T) {
 		assert.NotContains(t, rendered, "Events:", platform, "empty tag kinds are left out")
 		assert.NotContains(t, rendered, "could not be read", platform)
 		assert.Contains(t, rendered, `no "Urban Art Core published"`, platform)
+		assert.Contains(t, rendered, "tell it as a look back: past tense for everything it reports", platform)
+		assert.NotContains(t, rendered, "Present tense for the work", platform)
 		assert.Empty(t, templateVarPattern.FindAllString(rendered, -1), platform)
 	}
 }
@@ -829,6 +831,8 @@ func TestSystemPrompt(t *testing.T) {
 	assert.Contains(t, voice, "Third person")
 	assert.Contains(t, voice, `"claims"`)
 	assert.Contains(t, voice, "never reuse a name")
+	assert.Contains(t, voice, "write it as a look back")
+	assert.NotContains(t, voice, "show their work", "examples keep to the past tense")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
